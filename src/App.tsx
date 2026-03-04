@@ -4,6 +4,7 @@ import { useSettingsStore } from './store'
 import { RBACProvider } from './contexts/RBACContext'
 import Login from './pages/Login/Login'
 import Register from './pages/Register/Register'
+import PendingConfirmation from './pages/PendingConfirmation/PendingConfirmation'
 import Dashboard from './pages/Dashboard/Dashboard'
 import PrivateRoute from './components/PrivateRoute'
 
@@ -35,6 +36,7 @@ function App() {
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/pending-confirmation" element={<PendingConfirmation />} />
             <Route
               path="/dashboard/*"
               element={

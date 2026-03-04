@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
+import { isPendingUserConfirmed } from '@/lib/userActivationService'
 
 export interface User {
   id: string
@@ -84,6 +85,17 @@ export const useAuthStore = create<AuthState>()(
             
             console.log('Login attempt with email:', normalizedEmail)
             console.log('Supabase URL:', import.meta.env.VITE_SUPABASE_URL)
+
+            // Check if user registration is pending confirmation
+            const isConfirmed = await isPendingUserConfirmed(normalizedEmail)
+            
+            if (!isConfirmed) {
+              set({ 
+                error: 'Your account is awaiting admin confirmation. You will be able to log in once approved.', 
+                isLoading: false 
+              })
+              return false
+            }
 
             const { data, error: authError } = await supabase.auth.signInWithPassword({
               email: normalizedEmail,

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
+import { createPendingUser } from '@/lib/userActivationService'
 import { cn } from '@/lib/utils'
 import { Lightbulb, ArrowLeft, AlertCircle, CheckCircle } from 'lucide-react'
 
@@ -54,9 +55,11 @@ const Register = () => {
         return
       }
 
-      // Sign up with Supabase Auth
+      const normalizedEmail = email.toLowerCase().trim()
+
+      // Create Supabase Auth account
       const { data: authData, error: authError } = await supabase.auth.signUp({
-        email,
+        email: normalizedEmail,
         password,
         options: {
           data: {
@@ -74,26 +77,20 @@ const Register = () => {
       }
 
       if (authData.user) {
-        // Auto-confirm: Immediately sign in the user after signup
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email: email.toLowerCase().trim(),
-          password,
-        })
+        // Create pending user record for admin confirmation
+        const result = await createPendingUser(username, normalizedEmail)
 
-        if (signInError) {
-          console.error('Auto-login error:', signInError)
-          setSuccess('Account created! Please log in manually.')
-          setTimeout(() => {
-            navigate('/login')
-          }, 2000)
+        if (!result.success) {
+          setError(result.error || 'Failed to register user for activation')
+          setIsLoading(false)
           return
         }
 
-        // Auto-login successful
-        setSuccess('Account created and logged in! Redirecting to dashboard...')
+        // Registration successful
+        setSuccess('Registration successful! Awaiting admin confirmation...')
         setTimeout(() => {
-          navigate('/dashboard')
-        }, 1500)
+          navigate('/pending-confirmation', { state: { email: normalizedEmail } })
+        }, 2000)
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'An error occurred during registration'
