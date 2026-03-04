@@ -11,6 +11,7 @@ interface SettingsState {
   highContrast: boolean
   reducedMotion: boolean
   sidebarCollapsed: boolean
+  systemLogo: string | null
   setDarkMode: (value: boolean) => void
   setCompactMode: (value: boolean) => void
   setFontSize: (value: 'small' | 'medium' | 'large') => void
@@ -19,6 +20,7 @@ interface SettingsState {
   setHighContrast: (value: boolean) => void
   setReducedMotion: (value: boolean) => void
   setSidebarCollapsed: (value: boolean) => void
+  setSystemLogo: (url: string | null) => void
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -32,6 +34,7 @@ export const useSettingsStore = create<SettingsState>()(
       highContrast: false,
       reducedMotion: false,
       sidebarCollapsed: false,
+      systemLogo: null,
       setDarkMode: (value) => set({ darkMode: value }),
       setCompactMode: (value) => set({ compactMode: value }),
       setFontSize: (value) => set({ fontSize: value }),
@@ -40,6 +43,7 @@ export const useSettingsStore = create<SettingsState>()(
       setHighContrast: (value) => set({ highContrast: value }),
       setReducedMotion: (value) => set({ reducedMotion: value }),
       setSidebarCollapsed: (value) => set({ sidebarCollapsed: value }),
+      setSystemLogo: (url) => set({ systemLogo: url }),
     }),
     {
       name: 'settings-storage',
@@ -53,6 +57,7 @@ interface User {
   username: string
   email: string
   role: string
+  profilePicture?: string | null
 }
 
 interface AuthState {
@@ -60,6 +65,8 @@ interface AuthState {
   isAuthenticated: boolean
   login: (username: string, password: string) => Promise<boolean>
   logout: () => void
+  updateProfilePicture: (url: string | null) => void
+  updateUser: (updates: Partial<User>) => void
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -75,6 +82,7 @@ export const useAuthStore = create<AuthState>()(
             username: username,
             email: `${username}@example.com`,
             role: 'admin',
+            profilePicture: null,
           }
           set({ user: mockUser, isAuthenticated: true })
           return true
@@ -83,6 +91,16 @@ export const useAuthStore = create<AuthState>()(
       },
       logout: () => {
         set({ user: null, isAuthenticated: false })
+      },
+      updateProfilePicture: (url) => {
+        set((state) => ({
+          user: state.user ? { ...state.user, profilePicture: url } : null,
+        }))
+      },
+      updateUser: (updates) => {
+        set((state) => ({
+          user: state.user ? { ...state.user, ...updates } : null,
+        }))
       },
     }),
     {

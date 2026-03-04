@@ -1,24 +1,31 @@
 # Admin System Template
 
-A modern React + TypeScript admin system template with authentication, role-based access control, and multiple management modules.
+A modern React + TypeScript admin system template with authentication, role-based access control, dynamic image uploads, and multiple management modules.
 
 ## Features
 
-- **Authentication System** - Secure login and session management
+- **Authentication System** - Secure login and registration with session management
 - **Dashboard Overview** - Quick stats and navigation
 - **Role Management** - Role-Based Access Control management
 - **Assignment Management** - Task and assignment tracking
 - **Module Management** - Enable/disable system modules
 - **User Management** - Comprehensive user account management
 - **User Activation** - User account activation controls
+- **Dynamic Logo Upload** - Upload custom system logo via Settings
+- **Profile Picture Upload** - Upload user profile pictures
+- **Supabase Integration** - Image storage with Supabase Storage buckets
 
 ## Tech Stack
 
-- **Frontend Framework**: React 18
+- **Frontend Framework**: React 19
 - **Language**: TypeScript
 - **Build Tool**: Vite
-- **Routing**: React Router v6
-- **Styling**: CSS3 (Custom styles)
+- **Routing**: React Router v7
+- **State Management**: Zustand
+- **Styling**: Tailwind CSS
+- **UI Components**: Radix UI
+- **Backend/Storage**: Supabase (for image uploads)
+- **Icons**: Lucide React
 
 ## Project Structure
 
@@ -61,12 +68,19 @@ src/
    npm install
    ```
 
-2. Start the development server:
+2. **Configure Supabase (Optional but Recommended)**:
+   - Copy `.env.example` to `.env`
+   - Follow the [Supabase Setup Guide](./SUPABASE_SETUP.md)
+   - Add your Supabase credentials to `.env`
+
+   **Note**: The app works in demo mode without Supabase, but uploaded images will be temporary.
+
+3. Start the development server:
    ```bash
    npm run dev
    ```
 
-3. Open your browser and navigate to:
+4. Open your browser and navigate to:
    ```
    http://localhost:5173
    ```
@@ -74,11 +88,26 @@ src/
 ### Building for Production
 
 ```bash
-npm run build
-```
+npm Registration & Login
 
-The build output will be in the `dist` directory.
+- Navigate to `/register` to create a new account
+- Or use `/login` to sign in
+- Enter any username and password to access the system (demo mode)
+- You will be redirected to the dashboard
 
+### User Profile & Image Uploads
+
+- Go to **User Profile** from the header dropdown
+- Click the camera icon on your avatar to upload a profile picture
+- Supports JPEG, PNG, GIF, and WebP (max 5MB)
+- Profile picture appears in the header and profile page
+
+### Settings & System Logo
+
+- Go to **Settings** from the header dropdown or sidebar
+- Upload a custom system logo in the Appearance section
+- Logo appears in the header and sidebar
+- Supports JPEG, PNG, GIF, and WebP (max 5MB)
 ## Usage
 
 ### Login
@@ -123,7 +152,15 @@ Control system modules:
 Manage user accounts:
 - View all users
 - Activate/deactivate users
-- Bulk actions
+- BuSupabase Storage Buckets
+
+This template expects two Supabase Storage buckets:
+- `system_logo` - For application logo
+- `profile_picture` - For user profile pictures
+
+See [SUPABASE_SETUP.md](./SUPABASE_SETUP.md) for detailed setup instructions.
+
+### lk actions
 - Edit user details
 - Search functionality
 
@@ -141,7 +178,25 @@ Manage user accounts:
 ### Adding New Modules
 
 1. Create a new page component in `src/pages/`
-2. Add route in `Dashboard.tsx`
+2.# Environment Variables
+
+Required environment variables (create a `.env` file):
+```
+VITE_SUPABASE_URL=your_supabase_project_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
+
+See `.env.example` for reference.
+
+## Demo Mode
+
+The application works without Supabase configuration:
+- Authentication works with any username/password
+- Image uploads are stored temporarily in browser memory
+- Uploaded images are lost on page refresh
+- A warning message indicates demo mode is active
+
+## Add route in `Dashboard.tsx`
 3. Add menu item in `Sidebar.tsx`
 4. Implement your component logic
 

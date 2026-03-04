@@ -18,6 +18,7 @@ const Sidebar = () => {
   const sidebarCollapsed = useSettingsStore((state) => state.sidebarCollapsed)
   const setSidebarCollapsed = useSettingsStore((state) => state.setSidebarCollapsed)
   const compactMode = useSettingsStore((state) => state.compactMode)
+  const systemLogo = useSettingsStore((state) => state.systemLogo)
 
   const menuSections = [
     {
@@ -57,7 +58,17 @@ const Sidebar = () => {
         compactMode ? 'px-3 py-4' : 'px-5 py-6',
         sidebarCollapsed && 'justify-center px-2'
       )}>
-        <div className="w-8 h-8 bg-primary rounded-lg shrink-0" />
+        {systemLogo ? (
+          <div className="w-8 h-8 rounded-lg overflow-hidden bg-white border border-border shrink-0 flex items-center justify-center">
+            <img
+              src={systemLogo}
+              alt="System Logo"
+              className="w-full h-full object-contain"
+            />
+          </div>
+        ) : (
+          <div className="w-8 h-8 bg-primary rounded-lg shrink-0" />
+        )}
         {!sidebarCollapsed && (
           <span className="text-xl font-bold text-primary">Admin System</span>
         )}

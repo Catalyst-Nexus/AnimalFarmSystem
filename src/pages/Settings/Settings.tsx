@@ -1,5 +1,7 @@
 import { useSettingsStore } from '@/store'
 import { cn } from '@/lib/utils'
+import { uploadImage } from '@/lib/imageUpload'
+import { useState, useRef } from 'react'
 import {
   Search,
   Palette,
@@ -14,6 +16,9 @@ import {
   History,
   Info,
   Monitor,
+  Upload,
+  Image as ImageIcon,
+  X,
 } from 'lucide-react'
 import * as Switch from '@radix-ui/react-switch'
 import * as Select from '@radix-ui/react-select'
@@ -27,6 +32,7 @@ const Settings = () => {
     autoLogout,
     highContrast,
     reducedMotion,
+    systemLogo,
     setDarkMode,
     setCompactMode,
     setFontSize,
@@ -34,7 +40,12 @@ const Settings = () => {
     setAutoLogout,
     setHighContrast,
     setReducedMotion,
+    setSystemLogo,
   } = useSettingsStore()
+
+  const [uploadingLogo, setUploadingLogo] = useState(false)
+  const [logoError, setLogoError] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const currentDate = new Date().toLocaleDateString('en-US', {
     month: 'numeric',
@@ -49,6 +60,105 @@ const Settings = () => {
     if (userAgent.includes('Firefox')) return 'Mozilla Firefox'
     if (userAgent.includes('Safari')) return 'Safari'
     return 'Unknown Browser'
+  }
+
+  const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    setUploadingLogo(true)
+    setLogoError(null)
+
+    const result = await uploadImage(file, 'system_logo', `logo-${Date.now()}`)
+
+    if (result.success && result.url) {
+      setSystemLogo(result.url)
+    } else {
+      setLogoError(result.error || 'Failed to upload logo')
+    }
+
+    setUploadingLogo(false)
+    
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }
+
+  const handleRemoveLogo = () => {
+    setSystemLogo(null)
+            {/* System Logo Upload */}
+            <div className="p-5">
+              <div className="flex items-start gap-3 mb-4">
+                <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-indigo-100 text-indigo-600">
+                  <ImageIcon className="w-5 h-5" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-sm font-semibold text-foreground">System Logo</h3>
+                  <p className="text-xs text-muted mt-0.5">Upload a custom logo for your application</p>
+                </div>
+              </div>
+
+              {systemLogo ? (
+                <div className="flex items-center gap-4 p-4 bg-background rounded-xl">
+                  <div className="w-20 h-20 rounded-lg overflow-hidden bg-white border border-border flex items-center justify-center">
+                    <img
+                      src={systemLogo}
+                      alt="System Logo"
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-foreground">Logo uploaded</p>
+                    <p className="text-xs text-muted mt-0.5">This logo will appear in the header</p>
+                  </div>
+                  <button
+                    onClick={handleRemoveLogo}
+                    className="flex items-center justify-center w-8 h-8 rounded-lg bg-danger/10 text-danger hover:bg-danger/20 transition-colors"
+                    title="Remove logo"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <div className="relative">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleLogoUpload}
+                    className="hidden"
+                    id="logo-upload"
+                    disabled={uploadingLogo}
+                  />
+                  <label
+                    htmlFor="logo-upload"
+                    className={cn(
+                      'flex flex-col items-center justify-center gap-2 p-6 border-2 border-dashed border-border rounded-xl cursor-pointer',
+                      'hover:border-primary hover:bg-primary/5 transition-colors',
+                      uploadingLogo && 'opacity-50 cursor-not-allowed'
+                    )}
+                  >
+                    <div className="flex items-center justify-center w-12 h-12 rounded-full bg-primary/10 text-primary">
+                      <Upload className="w-6 h-6" />
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm font-medium text-foreground">
+                        {uploadingLogo ? 'Uploading...' : 'Click to upload logo'}
+                      </p>
+                      <p className="text-xs text-muted mt-1">PNG, JPG, GIF or WebP (max 5MB)</p>
+                    </div>
+                  </label>
+                </div>
+              )}
+
+              {logoError && (
+                <div className="mt-3 p-3 rounded-lg text-xs bg-danger/10 text-danger border border-danger/20">
+                  {logoError}
+                </div>
+              )}
+            </div>
+    setLogoError(null)
   }
 
   return (

@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useAuthStore } from '@/store'
 import { cn } from '@/lib/utils'
+import { uploadImage } from '@/lib/imageUpload'
 import {
   Shield,
   Edit,
@@ -14,12 +15,17 @@ import {
   Smartphone,
   Activity,
   X,
+  Camera,
 } from 'lucide-react'
 import * as Dialog from '@radix-ui/react-dialog'
 
 const UserProfile = () => {
   const user = useAuthStore((state) => state.user)
+  const updateProfilePicture = useAuthStore((state) => state.updateProfilePicture)
   const [showEditModal, setShowEditModal] = useState(false)
+  const [uploadingPicture, setUploadingPicture] = useState(false)
+  const [pictureError, setPictureError] = useState<string | null>(null)
+  const pictureInputRef = useRef<HTMLInputElement>(null)
 
   const getInitials = (name: string) =>
     name
@@ -63,6 +69,35 @@ const UserProfile = () => {
     },
   ]
 
+  const handleProfilePictureUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    setUploadingPicture(true)
+    setPictureError(null)
+
+    const userId = user?.id || 'user'
+    const result = await uploadImage(file, 'profile_picture', `${userId}-${Date.now()}`)
+
+    if (result.success && result.url) {
+      updateProfilePicture(result.url)
+    } else {
+      setPictureError(result.error || 'Failed to upload profile picture')
+    }
+
+    setUploadingPicture(false)
+    
+    // Reset file input
+    if (pictureInputRef.current) {
+      pictureInputRef.current.value = ''
+    }
+  }
+
+  const handleRemoveProfilePicture = () => {
+    updateProfilePicture(null)
+    setPictureError(null)
+  }
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -75,11 +110,62 @@ const UserProfile = () => {
         {/* Left Sidebar - Profile Card */}
         <div className="bg-surface border border-border rounded-2xl p-6 text-center h-fit">
           {/* Avatar */}
-          <div className="flex justify-center mb-4">
-            <div className="w-24 h-24 rounded-full bg-gradient-to-br from-primary to-primary-light flex items-center justify-center text-white text-3xl font-bold">
-              {user?.username ? getInitials(user.username) : 'U'}
+          <div className="flex justify-center mb-4 relative group">
+            {user?.profilePicture ? (
+              <div className="relative">
+                <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-border">
+                  <img
+                    src={user.profilePicture}
+                    alt={user.username || 'User'}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <button
+                  onClick={handleRemoveProfilePicture}
+                  className="absolute -top-1 -right-1 w-7 h-7 rounded-full bg-danger text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-lg hover:bg-danger/90"
+                  title="Remove picture"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <div className="w-24 h-24 rounded-full bg-gradient-to-br from-primary to-primary-light flex items-center justify-center text-white text-3xl font-bold">
+                {user?.username ? getInitials(user.username) : 'U'}
+              </div>
+            )}
+            
+            {/* Upload Button */}
+            <div className="absolute bottom-0 right-1/2 translate-x-1/2 translate-y-2">
+              <input
+                ref={pictureInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleProfilePictureUpload}
+                className="hidden"
+                id="profile-picture-upload"
+                disabled={uploadingPicture}
+                aria-label="Profile picture upload"
+              />
+              <label
+                htmlFor="profile-picture-upload"
+                className={cn(
+                  'flex items-center justify-center w-10 h-10 rounded-full',
+                  'bg-primary text-white cursor-pointer shadow-lg',
+                  'hover:bg-primary-light transition-colors',
+                  uploadingPicture && 'opacity-50 cursor-not-allowed'
+                )}
+                title="Change profile picture"
+              >
+                <Camera className="w-5 h-5" />
+              </label>
             </div>
           </div>
+
+          {pictureError && (
+            <div className="mb-3 p-2 rounded-lg text-xs bg-danger/10 text-danger border border-danger/20">
+              {pictureError}
+            </div>
+          )}
 
           <h2 className="text-xl font-bold text-primary">{user?.username || 'User'}</h2>
           <p className="text-sm text-muted mt-1">{user?.email || 'user@example.com'}</p>
