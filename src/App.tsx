@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router'
 import { useEffect } from 'react'
 import { useSettingsStore } from './store'
 import Login from './pages/Login/Login'
+import Register from './pages/Register/Register'
 import Dashboard from './pages/Dashboard/Dashboard'
 import PrivateRoute from './components/PrivateRoute'
 
@@ -31,6 +32,7 @@ function App() {
       <div className="min-h-screen w-full bg-background text-foreground">
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
           <Route
             path="/dashboard/*"
             element={
