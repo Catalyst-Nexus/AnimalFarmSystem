@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router'
-import { supabase, isSupabaseConfigured } from '@/lib/supabase'
-import { createPendingUser } from '@/lib/userActivationService'
+import { supabase, isSupabaseConfigured } from '@/services/supabase'
+import { createPendingUser } from '@/services/userActivationService'
 import { cn } from '@/lib/utils'
 import { Lightbulb, ArrowLeft, AlertCircle, CheckCircle } from 'lucide-react'
 

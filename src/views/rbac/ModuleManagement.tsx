@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { ModuleList, ModuleDialog } from '@/components/rbac'
 import { PageHeader, StatsRow, StatCard, ActionsBar, PrimaryButton } from '@/components/ui'
 import { Blocks, Plus } from 'lucide-react'
-import { supabase, isSupabaseConfigured } from '@/lib/supabase'
+import { supabase, isSupabaseConfigured } from '@/services/supabase'
 import { availableIcons } from '@/lib/iconMap'
 
 interface Module {

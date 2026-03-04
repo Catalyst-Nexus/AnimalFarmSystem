@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { supabase, isSupabaseConfigured } from '@/lib/supabase'
-import { isPendingUserConfirmed } from '@/lib/userActivationService'
+import { supabase, isSupabaseConfigured } from '@/services/supabase'
+import { isPendingUserConfirmed } from '@/services/userActivationService'
 
 export interface User {
   id: string

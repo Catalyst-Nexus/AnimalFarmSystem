@@ -7,7 +7,7 @@ import {
   confirmPendingUser, 
   rejectPendingUser,
   type PendingUser as DBPendingUser
-} from '@/lib/userActivationService'
+} from '@/services/userActivationService'
 
 interface PendingUser {
   id: string
