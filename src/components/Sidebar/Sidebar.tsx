@@ -95,6 +95,41 @@ const Sidebar = () => {
         return
       }
 
+      // If user is super admin, fetch all modules without permission checks
+      if (user.is_super_admin) {
+        const { data: modules, error: modulesError } = await supabase
+          .from('modules')
+          .select('*')
+          .eq('is_active', true)
+          .order('created_at', { ascending: true })
+
+        if (modulesError) {
+          console.error('Error fetching modules:', modulesError)
+          return
+        }
+
+        setDynamicModules(modules || [])
+
+        // Build complete menu with all modules
+        const dynamicSection: MenuSection = {
+          title: 'ROLE-BASED ACCESS CONTROL',
+          items: (modules || []).map((module) => ({
+            to: module.route_path,
+            icon: getIconByName(module.icons),
+            label: module.module_name,
+          })),
+        }
+
+        const combinedSections = [...staticSections]
+        if (dynamicSection.items.length > 0) {
+          combinedSections.splice(2, 0, dynamicSection)
+        }
+
+        setMenuSections(combinedSections)
+        return
+      }
+
+      // Regular user: check permissions
       // Step 1: Get user's roles
       const { data: userRoles, error: userRolesError } = await supabase
         .from('user_roles')

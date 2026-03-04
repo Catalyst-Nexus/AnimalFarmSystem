@@ -6,6 +6,7 @@ interface User {
   username: string
   email: string
   role: string
+  is_super_admin: boolean
 }
 
 interface AuthContextType {
@@ -37,6 +38,7 @@ interface AuthContextType {
           username: meta.username || meta.display_name || normalizedEmail.split('@')[0],
           email: normalizedEmail,
           role,
+          is_super_admin: meta.is_super_admin || false,
         }
 
         setUser(userData)
@@ -134,6 +136,7 @@ export const export const AuthProvider: React.FC<{ children: React.ReactNode }> 
             username: meta.username || meta.display_name || session.user.email?.split('@')[0] || 'User',
             email: session.user.email || '',
             role,
+            is_super_admin: meta.is_super_admin || false,
           }
 
           setUser(userData)
@@ -156,6 +159,7 @@ export const export const AuthProvider: React.FC<{ children: React.ReactNode }> 
               username: meta.username || meta.display_name || session.user.email?.split('@')[0] || 'User',
               email: session.user.email || '',
               role,
+              is_super_admin: meta.is_super_admin || false,
             }
 
             setUser(userData)

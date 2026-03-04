@@ -7,6 +7,7 @@ export interface User {
   username: string
   email: string
   role: string
+  is_super_admin: boolean
   profilePicture?: string | null
 }
 
@@ -105,6 +106,7 @@ export const useAuthStore = create<AuthState>()(
                 username: meta.username || meta.display_name || normalizedEmail.split('@')[0],
                 email: normalizedEmail,
                 role,
+                is_super_admin: meta.is_super_admin || false,
                 profilePicture: meta.profile_picture || null,
               }
 
