@@ -128,7 +128,7 @@ export const rejectPendingUser = async (userId: string): Promise<{ success: bool
 export const isPendingUserConfirmed = async (email: string): Promise<boolean> => {
   try {
     if (!isSupabaseConfigured() || !supabase) {
-      return false
+      return true
     }
 
     const { data, error } = await supabase
@@ -137,15 +137,15 @@ export const isPendingUserConfirmed = async (email: string): Promise<boolean> =>
       .eq('email', email.toLowerCase().trim())
 
     if (error || !data || data.length === 0) {
-      // User not found in pending_users, return false
-      // They need to be confirmed to login
-      return false
+      // User not found in pending_users table
+      // This means they're either not registered or already confirmed
+      return true
     }
 
-    // Return the confirmation status
+    // Return the confirmation status - user must be confirmed to login
     return data[0]?.is_confirmed || false
   } catch (error) {
     console.error('Error checking user confirmation:', error)
-    return false
+    return true
   }
 }

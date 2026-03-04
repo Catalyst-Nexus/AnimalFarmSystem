@@ -30,11 +30,7 @@ const UserList = ({ users, search, onSearchChange, onEdit, onDelete }: UserListP
     {
       key: 'status',
       header: 'Status',
-      render: (user: User) => (
-        <StatusBadge status={user.status === 'active' ? 'success' : 'warning'}>
-          {user.status}
-        </StatusBadge>
-      ),
+      render: (user: User) => <StatusBadge status={user.status} />,
     },
     { key: 'registeredAt', header: 'Registered', render: (user: User) => user.registeredAt },
     {

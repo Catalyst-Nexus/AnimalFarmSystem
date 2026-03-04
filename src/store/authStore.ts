@@ -40,7 +40,7 @@ export const useAuthStore = create<AuthState>()(
             .select('role_id')
             .eq('user_id', userId)
             .limit(1)
-            .single()
+            .maybeSingle()
 
           if (error || !data) {
             console.log('No role found for user:', error)
@@ -52,7 +52,7 @@ export const useAuthStore = create<AuthState>()(
             .from('roles')
             .select('role_code')
             .eq('id', data.role_id)
-            .single()
+            .maybeSingle()
 
           if (roleError || !roleData) {
             console.log('Role data not found:', roleError)
