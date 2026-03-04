@@ -1,0 +1,122 @@
+.sidebar {
+  padding: 0;
+  background-color: var(--white);
+  border-right: 1px solid var(--border-gray);
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.sidebar-logo {
+  padding: 24px 20px;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--primary-black);
+  border-bottom: 1px solid var(--border-gray);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sidebar-logo::before {
+  content: '';
+  width: 32px;
+  height: 32px;
+  background-color: var(--primary-black);
+  border-radius: 8px;
+}
+
+.sidebar-section {
+  margin-bottom: 8px;
+  padding: 0 12px;
+}
+
+.sidebar-section-header {
+  padding: 20px 12px 10px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: var(--text-gray);
+  text-transform: uppercase;
+}
+
+.sidebar-menu {
+  list-style: none;
+}
+
+.sidebar-menu-item {
+  margin: 2px 0;
+}
+
+.sidebar-menu-link {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  color: var(--text-dark);
+  text-decoration: none;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: 8px;
+  gap: 12px;
+}
+
+.sidebar-menu-link:hover {
+  background-color: var(--light-gray);
+}
+
+.sidebar-menu-link.active {
+  background-color: var(--success-green);
+  color: var(--white);
+}
+
+.sidebar-menu-link.active .sidebar-menu-icon {
+  filter: brightness(0) invert(1);
+}
+
+.sidebar-menu-link.user-profile {
+  background-color: transparent;
+  font-weight: 500;
+  border-radius: 8px;
+  margin: 0;
+}
+
+.sidebar-menu-link.user-profile:hover {
+  background-color: var(--light-gray);
+}
+
+.sidebar-menu-link.user-profile.active {
+  background-color: var(--success-green);
+  color: var(--white);
+}
+
+.sidebar-menu-icon {
+  font-size: 18px;
+  width: 20px;
+  text-align: center;
+}
+
+/* Sidebar Toggle Button */
+.sidebar-toggle {
+  position: absolute;
+  right: -12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 24px;
+  background-color: var(--success-green);
+  border: none;
+  border-radius: 50%;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  z-index: 10;
+  transition: background-color 0.2s;
+}
+
+.sidebar-toggle:hover {
+  background-color: #16a34a;
+}

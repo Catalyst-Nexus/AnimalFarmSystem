@@ -1,0 +1,111 @@
+.header {
+  background-color: var(--white);
+  padding: 16px 32px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border-gray);
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.header-search {
+  display: flex;
+  align-items: center;
+  background-color: var(--light-gray);
+  border: 1px solid var(--border-gray);
+  border-radius: 8px;
+  padding: 10px 16px;
+  min-width: 300px;
+}
+
+.header-search-icon {
+  color: var(--text-gray);
+  margin-right: 10px;
+}
+
+.header-search-input {
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 14px;
+  color: var(--text-dark);
+  width: 100%;
+}
+
+.header-search-input::placeholder {
+  color: var(--text-gray);
+}
+
+.header-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--primary-black);
+  display: none;
+}
+
+.header-user {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.header-notification {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background-color: var(--light-gray);
+  border: 1px solid var(--border-gray);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.header-notification:hover {
+  background-color: var(--border-gray);
+}
+
+.header-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary-black) 0%, var(--secondary-black) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.header-username {
+  color: var(--text-dark);
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.header-logout-btn {
+  padding: 10px 20px;
+  background-color: var(--primary-black);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: background-color 0.2s;
+}
+
+.header-logout-btn:hover {
+  background-color: var(--secondary-black);
+}
