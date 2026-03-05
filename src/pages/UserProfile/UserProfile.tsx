@@ -1,7 +1,11 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useAuthStore } from '@/store'
 import { cn } from '@/lib/utils'
 import { uploadImage } from '@/services/imageUpload'
+import { hasRegisteredFace } from '@/services/biometricsService'
+import { FaceRegistration } from '@/components/FaceRecognition'
+import { getIconByName } from '@/lib/iconMap'
+import { supabase } from '@/services/supabase'
 import {
   Shield,
   Edit,
@@ -16,6 +20,11 @@ import {
   Activity,
   X,
   Camera,
+  Scan,
+  Building2,
+  Layers,
+  CheckCircle2,
+  XCircle,
 } from 'lucide-react'
 import * as Dialog from '@radix-ui/react-dialog'
 
@@ -26,6 +35,20 @@ const UserProfile = () => {
   const [uploadingPicture, setUploadingPicture] = useState(false)
   const [pictureError, setPictureError] = useState<string | null>(null)
   const pictureInputRef = useRef<HTMLInputElement>(null)
+  
+  // Face recognition state
+  const [hasFaceRegistered, setHasFaceRegistered] = useState(false)
+  const [checkingFace, setCheckingFace] = useState(true)
+  const [showFaceRegistration, setShowFaceRegistration] = useState(false)
+  
+  // Facilities state
+  const [userFacilities, setUserFacilities] = useState<any[]>([])
+  const [facilitiesLoading, setFacilitiesLoading] = useState(true)
+  
+  // Permissions state
+  const [rolePermissions, setRolePermissions] = useState<any[]>([])
+  const [allModules, setAllModules] = useState<any[]>([])
+  const [permissionsLoading, setPermissionsLoading] = useState(true)
 
   const getInitials = (name: string) =>
     name
@@ -124,6 +147,102 @@ const UserProfile = () => {
     updateProfilePicture(null);
     setPictureError(null);
   };
+
+  // Check if user has registered face on mount
+  useEffect(() => {
+    const checkFaceRegistration = async () => {
+      if (!user?.id) {
+        setCheckingFace(false)
+        return
+      }
+
+      try {
+        const isRegistered = await hasRegisteredFace(user.id)
+        setHasFaceRegistered(isRegistered)
+      } catch (error) {
+        console.error('Error checking face registration:', error)
+      } finally {
+        setCheckingFace(false)
+      }
+    }
+
+    checkFaceRegistration()
+  }, [user?.id])
+
+  // Load user facilities
+  useEffect(() => {
+    const loadFacilities = async () => {
+      if (!user?.id || !supabase) {
+        setFacilitiesLoading(false)
+        return
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from('user_facilities')
+          .select('facility_id, facility_name, is_active')
+          .eq('user_id', user.id)
+
+        if (error) throw error
+        setUserFacilities(data || [])
+      } catch (error) {
+        console.error('Error loading facilities:', error)
+      } finally {
+        setFacilitiesLoading(false)
+      }
+    }
+
+    loadFacilities()
+  }, [user?.id])
+
+  // Load role permissions and modules
+  useEffect(() => {
+    const loadPermissions = async () => {
+      if (!user?.id || !supabase) {
+        setPermissionsLoading(false)
+        return
+      }
+
+      try {
+        // Load modules
+        const { data: modulesData, error: modulesError } = await supabase
+          .from('module')
+          .select('*')
+          .eq('is_active', true)
+
+        if (modulesError) throw modulesError
+        setAllModules(modulesData || [])
+
+        // Try to find role_id from pending_users table
+        const { data: userData, error: userError } = await supabase
+          .from('pending_users')
+          .select('role_id')
+          .eq('id', user.id)
+          .single()
+
+        if (userError || !userData?.role_id) {
+          console.log('No role_id found for user')
+          setPermissionsLoading(false)
+          return
+        }
+
+        // Load role permissions
+        const { data: permsData, error: permsError } = await supabase
+          .from('role_module_access')
+          .select('*')
+          .eq('role_id', userData.role_id)
+
+        if (permsError) throw permsError
+        setRolePermissions(permsData || [])
+      } catch (error) {
+        console.error('Error loading permissions:', error)
+      } finally {
+        setPermissionsLoading(false)
+      }
+    }
+
+    loadPermissions()
+  }, [user?.id])
 
   return (
     <div className="space-y-6">
