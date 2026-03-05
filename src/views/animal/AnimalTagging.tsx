@@ -24,7 +24,6 @@ interface Animal {
   id: string
   /** Auto-generated barcode tag linked on registration */
   tagId: string
-  name: string
   species: AnimalSpecies
   breed: string
   sex: AnimalSex
@@ -42,7 +41,6 @@ interface Animal {
 }
 
 interface AnimalFormValues {
-  name: string
   species: AnimalSpecies
   breed: string
   sex: AnimalSex
@@ -60,75 +58,133 @@ const ANIMALS_DATA: Animal[] = [
   {
     id: '1',
     tagId: 'TAG-2026-001',
-    name: 'Bessie',
-    species: 'Cow',
-    breed: 'Holstein Friesian',
-    sex: 'Female',
-    dateOfBirth: '2020-03-12',
-    weight: 540,
+    species: 'Pig',
+    breed: 'Large White',
+    sex: 'Male',
+    dateOfBirth: '2021-04-15',
+    weight: 230,
     status: 'Active',
-    facility: 'Barn A',
+    facility: 'Pen A',
     registeredAt: '2026-01-05',
-    notes: 'Primary dairy cow. High milk yield.',
+    pigRole: 'Parent',
+    notes: 'Primary breeding boar. High fertility.',
   },
   {
     id: '2',
     tagId: 'TAG-2026-002',
-    name: 'Big Boy',
     species: 'Pig',
-    breed: 'Large White',
-    sex: 'Male',
-    dateOfBirth: '2022-05-10',
-    weight: 210,
+    breed: 'Landrace',
+    sex: 'Female',
+    dateOfBirth: '2022-06-20',
+    weight: 185,
     status: 'Active',
-    facility: 'Pen B',
-    registeredAt: '2026-01-10',
+    facility: 'Pen A',
+    registeredAt: '2026-01-08',
     pigRole: 'Parent',
-    notes: 'Breeding boar.',
+    notes: 'Breeding sow. 2nd litter expected April 2026.',
   },
   {
     id: '3',
     tagId: 'TAG-2026-003',
-    name: 'Pinky',
     species: 'Pig',
-    breed: 'Large White',
-    sex: 'Female',
-    dateOfBirth: '2024-09-01',
-    weight: 65,
+    breed: 'Large White x Landrace',
+    sex: 'Male',
+    dateOfBirth: '2025-02-10',
+    weight: 72,
     status: 'Active',
     facility: 'Pen B',
     registeredAt: '2026-01-15',
     pigRole: 'Child',
-    parentTagId: 'TAG-2026-002',
-    notes: 'Offspring of Big Boy.',
+    parentTagId: 'TAG-2026-001',
+    notes: 'Offspring of Bruno. Growing well.',
   },
   {
     id: '4',
     tagId: 'TAG-2026-004',
-    name: 'Dolly',
-    species: 'Sheep',
-    breed: 'Merino',
+    species: 'Pig',
+    breed: 'Large White x Landrace',
     sex: 'Female',
-    dateOfBirth: '2022-11-01',
+    dateOfBirth: '2025-02-10',
     weight: 68,
-    status: 'Sick',
-    facility: 'Pasture C',
-    registeredAt: '2026-01-20',
-    notes: 'Under veterinary observation — respiratory issue.',
+    status: 'Active',
+    facility: 'Pen B',
+    registeredAt: '2026-01-15',
+    pigRole: 'Child',
+    parentTagId: 'TAG-2026-001',
+    notes: 'Littermate of Chico.',
   },
   {
     id: '5',
     tagId: 'TAG-2026-005',
-    name: 'Cluck',
-    species: 'Chicken',
-    breed: 'Rhode Island Red',
+    species: 'Pig',
+    breed: 'Duroc',
+    sex: 'Male',
+    dateOfBirth: '2023-08-05',
+    weight: 198,
+    status: 'Sick',
+    facility: 'Pen C',
+    registeredAt: '2026-01-20',
+    pigRole: 'Parent',
+    notes: 'Under observation — mild fever as of March 2026.',
+  },
+  {
+    id: '6',
+    tagId: 'TAG-2026-006',
+    species: 'Pig',
+    breed: 'Duroc x Landrace',
     sex: 'Female',
-    dateOfBirth: '2024-01-10',
-    weight: 2.8,
+    dateOfBirth: '2025-05-18',
+    weight: 55,
     status: 'Active',
-    facility: 'Coop D',
+    facility: 'Pen C',
     registeredAt: '2026-02-01',
-    notes: 'Laying hen.',
+    pigRole: 'Child',
+    parentTagId: 'TAG-2026-005',
+    notes: 'Offspring of Chubby. Healthy piglet.',
+  },
+  {
+    id: '7',
+    tagId: 'TAG-2026-007',
+    species: 'Pig',
+    breed: 'Berkshire',
+    sex: 'Male',
+    dateOfBirth: '2024-11-30',
+    weight: 110,
+    status: 'Sold',
+    facility: 'Pen B',
+    registeredAt: '2026-02-10',
+    pigRole: 'Child',
+    parentTagId: 'TAG-2026-002',
+    notes: 'Sold to a nearby farm on 2026-03-01.',
+  },
+  {
+    id: '8',
+    tagId: 'TAG-2026-008',
+    species: 'Pig',
+    breed: 'Hampshire',
+    sex: 'Female',
+    dateOfBirth: '2025-01-22',
+    weight: 60,
+    status: 'Active',
+    facility: 'Pen D',
+    registeredAt: '2026-02-15',
+    pigRole: 'Child',
+    parentTagId: 'TAG-2026-002',
+    notes: 'Offspring of Rosie. Weaned at 4 weeks.',
+  },
+  {
+    id: '9',
+    tagId: 'TAG-2026-009',
+    species: 'Pig',
+    breed: 'Yorkshire',
+    sex: 'Female',
+    dateOfBirth: '2022-03-14',
+    weight: 175,
+    status: 'Active',
+    facility: 'Pen D',
+    registeredAt: '2026-03-01',
+    pigRole: 'Parent',
+    notes: 'Third breeding sow. Excellent mothering.',
   },
 ]
 
@@ -160,7 +216,6 @@ const AnimalTaggingProvider = ({ children }: { children: ReactNode }) => {
     const newAnimal: Animal = {
       id: crypto.randomUUID(),
       tagId: generateTagId(animals),
-      name: values.name,
       species: values.species,
       breed: values.breed,
       sex: values.sex,
@@ -187,7 +242,6 @@ const AnimalTaggingProvider = ({ children }: { children: ReactNode }) => {
         a.id === id
           ? {
               ...a,
-              name: values.name,
               species: values.species,
               breed: values.breed,
               sex: values.sex,
@@ -235,7 +289,6 @@ const TAB_FILTERS = ['All', 'Active', 'Sick', 'Sold', 'Deceased'] as const
 type TabFilter = (typeof TAB_FILTERS)[number]
 
 const EMPTY_FORM: AnimalFormValues = {
-  name: '',
   species: 'Cow',
   breed: '',
   sex: 'Male',
@@ -319,7 +372,6 @@ const BarcodeModal = ({ animal, onClose }: { animal: Animal; onClose: () => void
         </button>
       </div>
       <div className="mb-5 p-4 bg-background rounded-xl space-y-1.5">
-        <p className="text-sm font-semibold text-foreground">{animal.name}</p>
         <p className="text-xs text-muted">
           {animal.species} · {animal.breed} · {animal.sex}
         </p>
@@ -362,7 +414,6 @@ const AnimalModal = ({
   const [form, setForm] = useState<AnimalFormValues>(
     editingAnimal
       ? {
-          name: editingAnimal.name,
           species: editingAnimal.species,
           breed: editingAnimal.breed,
           sex: editingAnimal.sex,
@@ -381,7 +432,7 @@ const AnimalModal = ({
     setForm((prev) => ({ ...prev, [key]: val }))
 
   const handleSubmit = () => {
-    if (!form.name.trim() || !form.breed.trim() || !form.dateOfBirth || !form.facility.trim()) {
+    if (!form.breed.trim() || !form.dateOfBirth || !form.facility.trim()) {
       alert('Please fill in all required fields.')
       return
     }
@@ -411,8 +462,7 @@ const AnimalModal = ({
           </div>
           <h2 className="text-xl font-bold text-primary mb-1">Animal Registered!</h2>
           <p className="text-sm text-muted mb-6">
-            Barcode tag <strong>{registered.tagId}</strong> has been linked to{' '}
-            <strong>{registered.name}</strong>.
+            Barcode tag <strong>{registered.tagId}</strong> has been assigned.
             {registered.pigRole && (
               <span className="block mt-1">
                 Pig role: <strong>{registered.pigRole}</strong>
@@ -464,12 +514,6 @@ const AnimalModal = ({
         )}
 
         <div className="grid grid-cols-2 gap-4">
-          {/* Name */}
-          <div className="col-span-2">
-            <label className={LABEL}>Name <span className="text-red-500">*</span></label>
-            <input className={FIELD} placeholder="e.g. Bessie" value={form.name} onChange={(e) => set('name', e.target.value)} />
-          </div>
-
           {/* Species */}
           <div>
             <label className={LABEL}>Species</label>
@@ -538,7 +582,7 @@ const AnimalModal = ({
                   <select className={FIELD} value={form.parentTagId} onChange={(e) => set('parentTagId', e.target.value)}>
                     <option value="">-- Select parent --</option>
                     {parentPigs.map((p) => (
-                      <option key={p.id} value={p.tagId}>{p.tagId} — {p.name}</option>
+                      <option key={p.id} value={p.tagId}>{p.tagId}</option>
                     ))}
                   </select>
                   {parentPigs.length === 0 && (
@@ -576,7 +620,7 @@ const DeleteModal = ({ animal, onConfirm, onClose }: { animal: Animal; onConfirm
     <div className="bg-surface border border-border rounded-2xl shadow-2xl w-full max-w-sm p-6">
       <h2 className="text-lg font-bold text-primary mb-2">Remove Animal?</h2>
       <p className="text-sm text-muted mb-5">
-        Are you sure you want to remove <strong>{animal.name}</strong> ({animal.tagId}) from the registry? This cannot be undone.
+        Are you sure you want to remove <strong>{animal.tagId}</strong> from the registry? This cannot be undone.
       </p>
       <div className="flex gap-3">
         <button className="flex-1 py-2.5 border border-border rounded-lg text-sm font-medium text-muted hover:bg-background transition-colors" onClick={onClose}>
@@ -608,7 +652,7 @@ const StatusModal = ({ animal, onClose }: { animal: Animal; onClose: () => void 
           <MoreHorizontal className="w-5 h-5 text-success" /> Change Status
         </h2>
         <p className="text-xs text-muted mb-4">
-          Animal: <strong>{animal.name}</strong> — {animal.tagId}
+          Animal: <strong>{animal.tagId}</strong>
         </p>
         <div className="space-y-2 mb-6">
           {STATUS_OPTIONS.map((s) => (
@@ -662,7 +706,6 @@ const AnimalTaggingApp = () => {
       const q = search.toLowerCase()
       list = list.filter(
         (a) =>
-          a.name.toLowerCase().includes(q) ||
           a.tagId.toLowerCase().includes(q) ||
           a.species.toLowerCase().includes(q) ||
           a.breed.toLowerCase().includes(q) ||
@@ -694,11 +737,6 @@ const AnimalTaggingApp = () => {
           <Tag className="w-3.5 h-3.5" /> {a.tagId}
         </button>
       ),
-    },
-    {
-      key: 'name' as const,
-      header: 'Name',
-      render: (a: Animal) => <span className="font-medium text-foreground">{a.name}</span>,
     },
     {
       key: 'species' as const,
@@ -807,7 +845,7 @@ const AnimalTaggingApp = () => {
         emptyMessage="No animals found."
         searchValue={search}
         onSearchChange={setSearch}
-        searchPlaceholder="Search by name, tag, species, facility..."
+        searchPlaceholder="Search by tag, species, breed, facility..."
         title="Animal Registry"
         titleIcon={<Tag className="w-5 h-5" />}
         keyField="id"
