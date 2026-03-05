@@ -1,7 +1,9 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useAuthStore } from '@/store'
 import { cn } from '@/lib/utils'
 import { uploadImage } from '@/services/imageUpload'
+import { hasRegisteredFace } from '@/services/biometricsService'
+import { FaceRegistration } from '@/components/FaceRecognition'
 import {
   Shield,
   Edit,
@@ -16,6 +18,7 @@ import {
   Activity,
   X,
   Camera,
+  Scan,
 } from 'lucide-react'
 import * as Dialog from '@radix-ui/react-dialog'
 
@@ -23,9 +26,25 @@ const UserProfile = () => {
   const user = useAuthStore((state) => state.user)
   const updateProfilePicture = useAuthStore((state) => state.updateProfilePicture)
   const [showEditModal, setShowEditModal] = useState(false)
+  const [showFaceRegistration, setShowFaceRegistration] = useState(false)
+  const [hasFaceRegistered, setHasFaceRegistered] = useState(false)
+  const [checkingFace, setCheckingFace] = useState(true)
   const [uploadingPicture, setUploadingPicture] = useState(false)
   const [pictureError, setPictureError] = useState<string | null>(null)
   const pictureInputRef = useRef<HTMLInputElement>(null)
+
+  // Check if user has registered face
+  useEffect(() => {
+    const checkFaceRegistration = async () => {
+      if (user?.id) {
+        setCheckingFace(true)
+        const registered = await hasRegisteredFace(user.id)
+        setHasFaceRegistered(registered)
+        setCheckingFace(false)
+      }
+    }
+    checkFaceRegistration()
+  }, [user?.id])
 
   const getInitials = (name: string) =>
     name
@@ -44,6 +63,18 @@ const UserProfile = () => {
   ]
 
   const securityItems = [
+    {
+      icon: Scan,
+      label: 'Face Recognition',
+      description: hasFaceRegistered 
+        ? 'Your face is registered for quick login'
+        : 'Register your face for passwordless login',
+      status: checkingFace ? '...' : hasFaceRegistered ? 'Enabled' : 'Not Set',
+      statusType: hasFaceRegistered ? 'success' : 'warning',
+      action: hasFaceRegistered ? 'Update' : 'Register',
+      actionType: hasFaceRegistered ? 'outline' : 'success',
+      onClick: () => setShowFaceRegistration(true),
+    },
     {
       icon: Smartphone,
       label: 'Two-Factor Authentication',
@@ -281,6 +312,7 @@ const UserProfile = () => {
                         </span>
                       )}
                       <button
+                        onClick={item.onClick}
                         className={cn(
                           'px-4 py-2 rounded-lg text-sm font-medium transition-colors',
                           item.actionType === 'success'
@@ -298,6 +330,13 @@ const UserProfile = () => {
           </div>
         </div>
       </div>
+
+      {/* Face Registration Modal */}
+      <FaceRegistration
+        isOpen={showFaceRegistration}
+        onClose={() => setShowFaceRegistration(false)}
+        onSuccess={() => setHasFaceRegistered(true)}
+      />
 
       {/* Edit Profile Modal */}
       <Dialog.Root open={showEditModal} onOpenChange={setShowEditModal}>
