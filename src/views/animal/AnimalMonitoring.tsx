@@ -136,12 +136,23 @@ const MonitoringProvider = ({ children }: { children: ReactNode }) => {
   /** Manually move a pig to a different cage */
   const movePig = async (tagId: string, cageId: string) => {
     try {
+      // Check if target cage has capacity
+      const targetCage = cages.find(c => c.id === cageId)
+      if (targetCage) {
+        const currentOccupancy = pigs.filter(p => p.cageId === cageId).length
+        if (currentOccupancy >= targetCage.maxCapacity) {
+          alert(`Cannot move animal: ${targetCage.label} is at full capacity (${targetCage.maxCapacity}/${targetCage.maxCapacity})`)
+          return
+        }
+      }
+      
       await updateAnimalCage(tagId, cageId)
       setPigs((prev) =>
         prev.map((p) => (p.tagId === tagId ? { ...p, cageId } : p))
       )
     } catch (error) {
       console.error('Error moving pig:', error)
+      throw error
     }
   }
 
@@ -349,8 +360,15 @@ const TagScanner = () => {
 // ─── Move Pig Dropdown ────────────────────────────────────────────────────────
 
 const MovePigButton = ({ pig }: { pig: Pig }) => {
-  const { movePig, cages } = useMonitoring()
+  const { movePig, cages, pigs } = useMonitoring()
   const [open, setOpen] = useState(false)
+
+  // Filter available cages (not current, active, and has capacity)
+  const availableCages = cages.filter((c) => {
+    if (c.id === pig.cageId || !c.isActive) return false
+    const currentOccupancy = pigs.filter(p => p.cageId === c.id).length
+    return currentOccupancy < c.maxCapacity
+  })
 
   return (
     <div className="relative">
@@ -365,15 +383,27 @@ const MovePigButton = ({ pig }: { pig: Pig }) => {
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
           <div className="absolute right-0 top-full mt-1 z-20 bg-surface border border-border rounded-xl shadow-xl p-1 min-w-[140px]">
-            {cages.filter((c) => c.id !== pig.cageId && c.isActive).map((c) => (
-              <button
-                key={c.id}
-                className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-xs font-medium transition-colors hover:bg-background text-foreground"
-                onClick={() => { movePig(pig.tagId, c.id); setOpen(false) }}
-              >
-                <MoveRight className="w-3 h-3" /> {c.label}
-              </button>
-            ))}
+            {availableCages.length === 0 ? (
+              <div className="px-3 py-2 text-xs text-muted text-center">
+                No available cages
+              </div>
+            ) : (
+              availableCages.map((c) => {
+                const occupancy = pigs.filter(p => p.cageId === c.id).length
+                return (
+                  <button
+                    key={c.id}
+                    className="flex items-center justify-between w-full px-3 py-2 rounded-lg text-xs font-medium transition-colors hover:bg-background text-foreground"
+                    onClick={() => { movePig(pig.tagId, c.id); setOpen(false) }}
+                  >
+                    <span className="flex items-center gap-2">
+                      <MoveRight className="w-3 h-3" /> {c.label}
+                    </span>
+                    <span className="text-muted text-[10px]">{occupancy}/{c.maxCapacity}</span>
+                  </button>
+                )
+              })
+            )}
           </div>
         </>
       )}
@@ -603,12 +633,19 @@ const SortingTab = () => {
     const selectedCageObjects = cages.filter(c => selectedCages.includes(c.id))
     const distribution: { cageId: string; animals: Pig[] }[] = selectedCageObjects.map(c => ({ cageId: c.id, animals: [] }))
     
+    // Get current occupancy for each cage
+    const currentOccupancy = selectedCageObjects.map(cage => 
+      pigs.filter(p => p.cageId === cage.id).length
+    )
+    
     let cageIndex = 0
     for (const pig of sortedPigs) {
       const cage = selectedCageObjects[cageIndex]
-      const currentAssigned = distribution[cageIndex].animals.length
+      const alreadyAssigned = distribution[cageIndex].animals.length
+      const existingAnimals = currentOccupancy[cageIndex]
+      const totalOccupancy = existingAnimals + alreadyAssigned
       
-      if (currentAssigned < cage.maxCapacity) {
+      if (totalOccupancy < cage.maxCapacity) {
         distribution[cageIndex].animals.push(pig)
       }
       
@@ -625,13 +662,28 @@ const SortingTab = () => {
     }
 
     setIsSaving(true)
+    let successCount = 0
+    let failCount = 0
+    
     try {
       for (const group of preview) {
         for (const pig of group.animals) {
-          await movePig(pig.tagId, group.cageId)
+          try {
+            await movePig(pig.tagId, group.cageId)
+            successCount++
+          } catch (error) {
+            console.error(`Failed to move pig ${pig.tagId}:`, error)
+            failCount++
+          }
         }
       }
-      alert('Animals successfully assigned to cages!')
+      
+      if (failCount === 0) {
+        alert(`Success! All ${successCount} animals assigned to cages.`)
+      } else {
+        alert(`Partially completed: ${successCount} animals assigned successfully, ${failCount} failed (possibly due to capacity limits).`)
+      }
+      
       setPreview([])
       setSelectedCages([])
     } catch (error) {
