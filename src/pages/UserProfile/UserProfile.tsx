@@ -1,7 +1,11 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useAuthStore } from '@/store'
 import { cn } from '@/lib/utils'
 import { uploadImage } from '@/services/imageUpload'
+import { hasRegisteredFace } from '@/services/biometricsService'
+import { FaceRegistration } from '@/components/FaceRecognition'
+import { getIconByName } from '@/lib/iconMap'
+import { supabase } from '@/services/supabase'
 import {
   Shield,
   Edit,
@@ -16,6 +20,11 @@ import {
   Activity,
   X,
   Camera,
+  Scan,
+  Building2,
+  Layers,
+  CheckCircle2,
+  XCircle,
 } from 'lucide-react'
 import * as Dialog from '@radix-ui/react-dialog'
 
@@ -26,84 +35,223 @@ const UserProfile = () => {
   const [uploadingPicture, setUploadingPicture] = useState(false)
   const [pictureError, setPictureError] = useState<string | null>(null)
   const pictureInputRef = useRef<HTMLInputElement>(null)
+  
+  // Face recognition state
+  const [hasFaceRegistered, setHasFaceRegistered] = useState(false)
+  const [checkingFace, setCheckingFace] = useState(true)
+  const [showFaceRegistration, setShowFaceRegistration] = useState(false)
+  
+  // Facilities state
+  const [userFacilities, setUserFacilities] = useState<any[]>([])
+  const [facilitiesLoading, setFacilitiesLoading] = useState(true)
+  
+  // Permissions state
+  const [rolePermissions, setRolePermissions] = useState<any[]>([])
+  const [allModules, setAllModules] = useState<any[]>([])
+  const [permissionsLoading, setPermissionsLoading] = useState(true)
 
   const getInitials = (name: string) =>
     name
-      .split(' ')
+      .split(" ")
       .map((n) => n[0])
-      .join('')
-      .toUpperCase()
+      .join("")
+      .toUpperCase();
 
   const accountInfo = [
-    { icon: IdCard, label: 'User ID', value: user?.id || '1' },
-    { icon: User, label: 'Username', value: user?.username || 'user' },
-    { icon: Mail, label: 'Email Address', value: user?.email || 'user@example.com' },
-    { icon: Shield, label: 'Role', value: user?.role || 'User' },
-    { icon: CheckCircle, label: 'Account Status', value: 'Active', isStatus: true },
-    { icon: Calendar, label: 'Member Since', value: 'January 2026' },
-  ]
+    { icon: IdCard, label: "User ID", value: user?.id || "1" },
+    { icon: User, label: "Username", value: user?.username || "user" },
+    {
+      icon: Mail,
+      label: "Email Address",
+      value: user?.email || "user@example.com",
+    },
+    { icon: Shield, label: "Role", value: user?.role || "User" },
+    {
+      icon: CheckCircle,
+      label: "Account Status",
+      value: "Active",
+      isStatus: true,
+    },
+    { icon: Calendar, label: "Member Since", value: "January 2026" },
+  ];
 
   const securityItems = [
     {
+      icon: Scan,
+      label: 'Face Recognition',
+      description: hasFaceRegistered 
+        ? 'Your face is registered for quick login'
+        : 'Register your face for passwordless login',
+      status: checkingFace ? '...' : hasFaceRegistered ? 'Enabled' : 'Not Set',
+      statusType: hasFaceRegistered ? 'success' : 'warning',
+      action: hasFaceRegistered ? 'Update' : 'Register',
+      actionType: hasFaceRegistered ? 'outline' : 'success',
+      onClick: () => setShowFaceRegistration(true),
+    },
+    {
       icon: Smartphone,
-      label: 'Two-Factor Authentication',
-      description: 'Add an extra layer of security to your account',
-      status: 'Disabled',
-      statusType: 'warning',
-      action: 'Enable',
-      actionType: 'success',
+      label: "Two-Factor Authentication",
+      description: "Add an extra layer of security to your account",
+      status: "Disabled",
+      statusType: "warning",
+      action: "Enable",
+      actionType: "success",
     },
     {
       icon: Key,
-      label: 'Password',
-      description: 'Last changed 3 months ago',
-      action: 'Change',
-      actionType: 'outline',
+      label: "Password",
+      description: "Last changed 3 months ago",
+      action: "Change",
+      actionType: "outline",
     },
     {
       icon: Activity,
-      label: 'Active Sessions',
-      description: '2 devices currently logged in',
-      action: 'View All',
-      actionType: 'outline',
+      label: "Active Sessions",
+      description: "2 devices currently logged in",
+      action: "View All",
+      actionType: "outline",
     },
-  ]
+  ];
 
-  const handleProfilePictureUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) return
+  const handleProfilePictureUpload = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
 
-    setUploadingPicture(true)
-    setPictureError(null)
+    setUploadingPicture(true);
+    setPictureError(null);
 
-    const userId = user?.id || 'user'
-    const result = await uploadImage(file, 'profile_picture', `${userId}-${Date.now()}`)
+    const userId = user?.id || "user";
+    const result = await uploadImage(
+      file,
+      "profile_picture",
+      `${userId}-${Date.now()}`,
+    );
 
     if (result.success && result.url) {
-      updateProfilePicture(result.url)
+      updateProfilePicture(result.url);
     } else {
-      setPictureError(result.error || 'Failed to upload profile picture')
+      setPictureError(result.error || "Failed to upload profile picture");
     }
 
-    setUploadingPicture(false)
-    
+    setUploadingPicture(false);
+
     // Reset file input
     if (pictureInputRef.current) {
-      pictureInputRef.current.value = ''
+      pictureInputRef.current.value = "";
     }
-  }
+  };
 
   const handleRemoveProfilePicture = () => {
-    updateProfilePicture(null)
-    setPictureError(null)
-  }
+    updateProfilePicture(null);
+    setPictureError(null);
+  };
+
+  // Check if user has registered face on mount
+  useEffect(() => {
+    const checkFaceRegistration = async () => {
+      if (!user?.id) {
+        setCheckingFace(false)
+        return
+      }
+
+      try {
+        const isRegistered = await hasRegisteredFace(user.id)
+        setHasFaceRegistered(isRegistered)
+      } catch (error) {
+        console.error('Error checking face registration:', error)
+      } finally {
+        setCheckingFace(false)
+      }
+    }
+
+    checkFaceRegistration()
+  }, [user?.id])
+
+  // Load user facilities
+  useEffect(() => {
+    const loadFacilities = async () => {
+      if (!user?.id || !supabase) {
+        setFacilitiesLoading(false)
+        return
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from('user_facilities')
+          .select('facility_id, facility_name, is_active')
+          .eq('user_id', user.id)
+
+        if (error) throw error
+        setUserFacilities(data || [])
+      } catch (error) {
+        console.error('Error loading facilities:', error)
+      } finally {
+        setFacilitiesLoading(false)
+      }
+    }
+
+    loadFacilities()
+  }, [user?.id])
+
+  // Load role permissions and modules
+  useEffect(() => {
+    const loadPermissions = async () => {
+      if (!user?.id || !supabase) {
+        setPermissionsLoading(false)
+        return
+      }
+
+      try {
+        // Load modules
+        const { data: modulesData, error: modulesError } = await supabase
+          .from('module')
+          .select('*')
+          .eq('is_active', true)
+
+        if (modulesError) throw modulesError
+        setAllModules(modulesData || [])
+
+        // Try to find role_id from pending_users table
+        const { data: userData, error: userError } = await supabase
+          .from('pending_users')
+          .select('role_id')
+          .eq('id', user.id)
+          .single()
+
+        if (userError || !userData?.role_id) {
+          console.log('No role_id found for user')
+          setPermissionsLoading(false)
+          return
+        }
+
+        // Load role permissions
+        const { data: permsData, error: permsError } = await supabase
+          .from('role_module_access')
+          .select('*')
+          .eq('role_id', userData.role_id)
+
+        if (permsError) throw permsError
+        setRolePermissions(permsData || [])
+      } catch (error) {
+        console.error('Error loading permissions:', error)
+      } finally {
+        setPermissionsLoading(false)
+      }
+    }
+
+    loadPermissions()
+  }, [user?.id])
 
   return (
     <div className="space-y-6">
       {/* Page Header */}
       <div>
         <h1 className="text-2xl font-bold text-primary">User Profile</h1>
-        <p className="text-sm text-muted mt-1">View and manage your profile information</p>
+        <p className="text-sm text-muted mt-1">
+          View and manage your profile information
+        </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-6">
@@ -116,7 +264,7 @@ const UserProfile = () => {
                 <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-border">
                   <img
                     src={user.profilePicture}
-                    alt={user.username || 'User'}
+                    alt={user.username || "User"}
                     className="w-full h-full object-cover"
                   />
                 </div>
@@ -130,10 +278,10 @@ const UserProfile = () => {
               </div>
             ) : (
               <div className="w-24 h-24 rounded-full bg-gradient-to-br from-primary to-primary-light flex items-center justify-center text-white text-3xl font-bold">
-                {user?.username ? getInitials(user.username) : 'U'}
+                {user?.username ? getInitials(user.username) : "U"}
               </div>
             )}
-            
+
             {/* Upload Button */}
             <div className="absolute bottom-0 right-1/2 translate-x-1/2 translate-y-2">
               <input
@@ -149,10 +297,10 @@ const UserProfile = () => {
               <label
                 htmlFor="profile-picture-upload"
                 className={cn(
-                  'flex items-center justify-center w-10 h-10 rounded-full',
-                  'bg-primary text-white cursor-pointer shadow-lg',
-                  'hover:bg-primary-light transition-colors',
-                  uploadingPicture && 'opacity-50 cursor-not-allowed'
+                  "flex items-center justify-center w-10 h-10 rounded-full",
+                  "bg-primary text-white cursor-pointer shadow-lg",
+                  "hover:bg-primary-light transition-colors",
+                  uploadingPicture && "opacity-50 cursor-not-allowed",
                 )}
                 title="Change profile picture"
               >
@@ -167,13 +315,17 @@ const UserProfile = () => {
             </div>
           )}
 
-          <h2 className="text-xl font-bold text-primary">{user?.username || 'User'}</h2>
-          <p className="text-sm text-muted mt-1">{user?.email || 'user@example.com'}</p>
+          <h2 className="text-xl font-bold text-primary">
+            {user?.username || "User"}
+          </h2>
+          <p className="text-sm text-muted mt-1">
+            {user?.email || "user@example.com"}
+          </p>
 
           {/* Role Badge */}
           <div className="inline-flex items-center gap-1.5 mt-3 px-3 py-1.5 bg-success/10 text-success rounded-full text-xs font-semibold">
             <Shield className="w-3.5 h-3.5" />
-            {user?.role || 'User'}
+            {user?.role || "User"}
           </div>
 
           {/* Status */}
@@ -201,12 +353,14 @@ const UserProfile = () => {
                 <User className="w-5 h-5" />
                 Account Information
               </h3>
-              <p className="text-sm text-muted mt-1">Your personal account details</p>
+              <p className="text-sm text-muted mt-1">
+                Your personal account details
+              </p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {accountInfo.map((item) => {
-                const Icon = item.icon
+                const Icon = item.icon;
                 return (
                   <div
                     key={item.label}
@@ -231,8 +385,133 @@ const UserProfile = () => {
                       )}
                     </div>
                   </div>
-                )
+                );
               })}
+
+              {/* Assigned Facilities */}
+              <div className="flex items-start gap-3 p-4 bg-background rounded-xl">
+                <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-success/10 text-success flex-shrink-0">
+                  <Building2 className="w-5 h-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <span className="block text-xs text-muted font-medium uppercase tracking-wide">
+                    Assigned Facilities
+                  </span>
+                  {facilitiesLoading ? (
+                    <span className="block text-sm text-muted mt-1">
+                      Loading...
+                    </span>
+                  ) : userFacilities.length === 0 ? (
+                    <span className="block text-sm text-muted mt-1">
+                      No facilities assigned
+                    </span>
+                  ) : (
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {userFacilities.map((facility) => (
+                        <div
+                          key={facility.id}
+                          className={cn(
+                            "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-border text-xs font-semibold",
+                            facility.is_active
+                              ? "text-foreground"
+                              : "text-muted",
+                          )}
+                        >
+                          <Building2 className="w-3 h-3 text-primary flex-shrink-0" />
+                          <span>{facility.facility_name}</span>
+                          <span
+                            className={cn(
+                              "font-medium",
+                              facility.is_active
+                                ? "text-success"
+                                : "text-muted",
+                            )}
+                          >
+                            {facility.is_active ? "● Active" : "● Inactive"}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Modules & Permissions */}
+            <div className="mt-6 pt-6 border-t border-border">
+              <div className="flex items-center gap-2 mb-4">
+                <Layers className="w-4 h-4 text-primary" />
+                <span className="text-sm font-semibold text-primary">
+                  Modules &amp; Permissions
+                </span>
+              </div>
+
+              {permissionsLoading ? (
+                <div className="flex items-center justify-center py-6 text-muted text-sm">
+                  Loading permissions...
+                </div>
+              ) : rolePermissions.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-6 gap-2 text-muted">
+                  <Layers className="w-7 h-7 opacity-40" />
+                  <span className="text-sm">No module access assigned</span>
+                </div>
+              ) : (
+                <div className="rounded-xl overflow-hidden border border-border">
+                  {/* Table header */}
+                  <div className="grid grid-cols-[1fr_64px_64px_64px_64px] items-center px-4 py-2.5 bg-background border-b border-border">
+                    <span className="text-xs font-semibold text-muted uppercase tracking-wider">
+                      Module
+                    </span>
+                    {["View", "Create", "Edit", "Delete"].map((h) => (
+                      <span
+                        key={h}
+                        className="text-xs font-semibold text-muted uppercase tracking-wider text-center"
+                      >
+                        {h}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="divide-y divide-border max-h-72 overflow-y-auto">
+                    {rolePermissions.map((perm) => {
+                      const mod = allModules.find(
+                        (m) => m.id === perm.module_id,
+                      );
+                      if (!mod) return null;
+                      const ModIcon = getIconByName(mod.icons ?? null);
+                      const cols = [
+                        perm.can_select,
+                        perm.can_insert,
+                        perm.can_update,
+                        perm.can_delete,
+                      ];
+                      return (
+                        <div
+                          key={perm.module_id}
+                          className="grid grid-cols-[1fr_64px_64px_64px_64px] items-center px-4 py-3 bg-surface hover:bg-background transition-colors"
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-info/10 text-info flex-shrink-0">
+                              <ModIcon className="w-3.5 h-3.5" />
+                            </div>
+                            <span className="text-sm font-medium text-foreground truncate">
+                              {mod.module_name}
+                            </span>
+                          </div>
+                          {cols.map((val, i) => (
+                            <div key={i} className="flex justify-center">
+                              {val ? (
+                                <CheckCircle2 className="w-5 h-5 text-success" />
+                              ) : (
+                                <XCircle className="w-5 h-5 text-border" />
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -243,12 +522,14 @@ const UserProfile = () => {
                 <Lock className="w-5 h-5" />
                 Security & Privacy
               </h3>
-              <p className="text-sm text-muted mt-1">Manage your security settings</p>
+              <p className="text-sm text-muted mt-1">
+                Manage your security settings
+              </p>
             </div>
 
             <div className="space-y-4">
               {securityItems.map((item) => {
-                const Icon = item.icon
+                const Icon = item.icon;
                 return (
                   <div
                     key={item.label}
@@ -271,33 +552,41 @@ const UserProfile = () => {
                       {item.status && (
                         <span
                           className={cn(
-                            'px-2.5 py-1 rounded-full text-xs font-medium',
-                            item.statusType === 'warning'
-                              ? 'bg-warning/10 text-warning'
-                              : 'bg-success/10 text-success'
+                            "px-2.5 py-1 rounded-full text-xs font-medium",
+                            item.statusType === "warning"
+                              ? "bg-warning/10 text-warning"
+                              : "bg-success/10 text-success",
                           )}
                         >
                           {item.status}
                         </span>
                       )}
                       <button
+                        onClick={item.onClick}
                         className={cn(
-                          'px-4 py-2 rounded-lg text-sm font-medium transition-colors',
-                          item.actionType === 'success'
-                            ? 'bg-success text-white hover:bg-success/90'
-                            : 'border border-border text-foreground hover:bg-background'
+                          "px-4 py-2 rounded-lg text-sm font-medium transition-colors",
+                          item.actionType === "success"
+                            ? "bg-success text-white hover:bg-success/90"
+                            : "border border-border text-foreground hover:bg-background",
                         )}
                       >
                         {item.action}
                       </button>
                     </div>
                   </div>
-                )
+                );
               })}
             </div>
           </div>
         </div>
       </div>
+
+      {/* Face Registration Modal */}
+      <FaceRegistration
+        isOpen={showFaceRegistration}
+        onClose={() => setShowFaceRegistration(false)}
+        onSuccess={() => setHasFaceRegistered(true)}
+      />
 
       {/* Edit Profile Modal */}
       <Dialog.Root open={showEditModal} onOpenChange={setShowEditModal}>
@@ -315,41 +604,13 @@ const UserProfile = () => {
 
             <div className="p-6 space-y-6">
               <div>
-                <span className="text-xs font-semibold text-muted uppercase tracking-wide">
-                  Personal Information
-                </span>
-                <div className="grid grid-cols-2 gap-4 mt-3">
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1.5">
-                      First Name
-                    </label>
-                    <input
-                      type="text"
-                      className="w-full px-3 py-2.5 border border-border rounded-lg text-sm bg-background text-foreground placeholder:text-muted focus:outline-none focus:border-primary"
-                      placeholder="Enter first name"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1.5">
-                      Last Name
-                    </label>
-                    <input
-                      type="text"
-                      className="w-full px-3 py-2.5 border border-border rounded-lg text-sm bg-background text-foreground placeholder:text-muted focus:outline-none focus:border-primary"
-                      placeholder="Enter last name"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div>
                 <label className="block text-sm font-medium text-foreground mb-1.5">
                   Username
                 </label>
                 <input
                   type="text"
                   className="w-full px-3 py-2.5 border border-border rounded-lg text-sm bg-background text-foreground placeholder:text-muted focus:outline-none focus:border-primary"
-                  defaultValue={user?.username || ''}
+                  defaultValue={user?.username || ""}
                   placeholder="Enter username"
                 />
               </div>
@@ -366,18 +627,8 @@ const UserProfile = () => {
                     <input
                       type="email"
                       className="w-full px-3 py-2.5 border border-border rounded-lg text-sm bg-background text-foreground placeholder:text-muted focus:outline-none focus:border-primary"
-                      defaultValue={user?.email || ''}
+                      defaultValue={user?.email || ""}
                       placeholder="Enter email address"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1.5">
-                      Phone Number
-                    </label>
-                    <input
-                      type="tel"
-                      className="w-full px-3 py-2.5 border border-border rounded-lg text-sm bg-background text-foreground placeholder:text-muted focus:outline-none focus:border-primary"
-                      placeholder="Enter phone number"
                     />
                   </div>
                 </div>
@@ -399,7 +650,7 @@ const UserProfile = () => {
         </Dialog.Portal>
       </Dialog.Root>
     </div>
-  )
-}
+  );
+};
 
-export default UserProfile
+export default UserProfile;
