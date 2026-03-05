@@ -18,6 +18,7 @@ export interface AuthState {
   isLoading: boolean
   error: string | null
   login: (email: string, password: string) => Promise<boolean>
+  loginWithFace: (userId: string) => Promise<boolean>
   logout: () => Promise<void>
   updateProfilePicture: (url: string | null) => void
   updateUser: (updates: Partial<User>) => void
@@ -131,6 +132,69 @@ export const useAuthStore = create<AuthState>()(
           } catch (error) {
             console.error('Login exception:', error)
             const message = error instanceof Error ? error.message : 'An error occurred during login'
+            set({ error: message, isLoading: false })
+            return false
+          }
+        },
+        loginWithFace: async (userId: string) => {
+          set({ isLoading: true, error: null })
+
+          try {
+            if (!isSupabaseConfigured() || !supabase) {
+              set({ error: 'Supabase is not configured', isLoading: false })
+              return false
+            }
+
+            // Get user data from users table or auth metadata
+            // First, try to get user info from the database
+            const { data: userData } = await supabase
+              .from('pending_users')
+              .select('email, username')
+              .eq('id', userId)
+              .maybeSingle()
+
+            let email = ''
+            let username = ''
+
+            if (userData) {
+              email = userData.email
+              username = userData.username
+            } else {
+              // Try to get from auth.users via RPC or other means
+              // For now, we'll need the user to have their info in pending_users
+              console.log('User data not found in pending_users')
+            }
+
+            // Fetch user role
+            const role = await fetchUserRole(userId)
+
+            // Check if user is super admin
+            let is_super_admin = false
+            
+            const { data: superAdminData } = await supabase
+              .from('super_admins')
+              .select('id')
+              .eq('user_id', userId)
+              .maybeSingle()
+
+            if (superAdminData) {
+              is_super_admin = true
+            }
+
+            const user: User = {
+              id: userId,
+              username: username || email?.split('@')[0] || 'User',
+              email: email || '',
+              role,
+              is_super_admin,
+              profilePicture: null,
+            }
+
+            set({ user, isAuthenticated: true, isLoading: false })
+            return true
+          } catch (error) {
+            console.error('Face login exception:', error)
+            const message = error instanceof Error ? error.message : 'An error occurred during face login'
             set({ error: message, isLoading: false })
             return false
           }

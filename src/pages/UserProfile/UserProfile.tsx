@@ -1,17 +1,11 @@
-import { useState, useRef, useEffect } from "react";
-import { useAuthStore } from "@/store";
-import { cn } from "@/lib/utils";
-import { uploadImage } from "@/services/imageUpload";
-import {
-  getUserFacilities,
-  getUserRoles,
-  getRolePermissions,
-  fetchModules,
-  type Facility,
-  type RolePermission,
-  type Module,
-} from "@/services/rbacService";
-import { getIconByName } from "@/lib/iconMap";
+import { useState, useRef, useEffect } from 'react'
+import { useAuthStore } from '@/store'
+import { cn } from '@/lib/utils'
+import { uploadImage } from '@/services/imageUpload'
+import { hasRegisteredFace } from '@/services/biometricsService'
+import { FaceRegistration } from '@/components/FaceRecognition'
+import { getIconByName } from '@/lib/iconMap'
+import { supabase } from '@/services/supabase'
 import {
   Shield,
   Edit,
@@ -26,72 +20,35 @@ import {
   Activity,
   X,
   Camera,
+  Scan,
   Building2,
   Layers,
-  XCircle,
   CheckCircle2,
-} from "lucide-react";
-import * as Dialog from "@radix-ui/react-dialog";
+  XCircle,
+} from 'lucide-react'
+import * as Dialog from '@radix-ui/react-dialog'
 
 const UserProfile = () => {
-  const user = useAuthStore((state) => state.user);
-  const updateProfilePicture = useAuthStore(
-    (state) => state.updateProfilePicture,
-  );
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [uploadingPicture, setUploadingPicture] = useState(false);
-  const [pictureError, setPictureError] = useState<string | null>(null);
-  const pictureInputRef = useRef<HTMLInputElement>(null);
-  const [userFacilities, setUserFacilities] = useState<Facility[]>([]);
-  const [facilitiesLoading, setFacilitiesLoading] = useState(false);
-  const [rolePermissions, setRolePermissions] = useState<RolePermission[]>([]);
-  const [allModules, setAllModules] = useState<Module[]>([]);
-  const [permissionsLoading, setPermissionsLoading] = useState(false);
-
-  useEffect(() => {
-    if (!user?.id) return;
-    setFacilitiesLoading(true);
-    getUserFacilities(user.id).then((facilities) => {
-      setUserFacilities(facilities);
-      setFacilitiesLoading(false);
-    });
-  }, [user?.id]);
-
-  useEffect(() => {
-    if (!user?.id) return;
-    setPermissionsLoading(true);
-    Promise.all([fetchModules(), getUserRoles(user.id)]).then(
-      async ([mods, roles]) => {
-        setAllModules(mods);
-        if (user.is_super_admin) {
-          // Super admin: use actual role_permissions where they exist,
-          // full access for modules without explicit entries
-          let perms: RolePermission[] = [];
-          if (roles.length > 0) {
-            perms = await getRolePermissions(roles[0].id);
-          }
-          const permModuleIds = new Set(perms.map((p) => p.module_id));
-          const fullAccessModules = mods
-            .filter((m) => !permModuleIds.has(m.id))
-            .map(
-              (m) =>
-                ({
-                  module_id: m.id,
-                  can_select: true,
-                  can_insert: true,
-                  can_update: true,
-                  can_delete: false,
-                }) as RolePermission,
-            );
-          setRolePermissions([...perms, ...fullAccessModules]);
-        } else if (roles.length > 0) {
-          const perms = await getRolePermissions(roles[0].id);
-          setRolePermissions(perms);
-        }
-        setPermissionsLoading(false);
-      },
-    );
-  }, [user?.id]);
+  const user = useAuthStore((state) => state.user)
+  const updateProfilePicture = useAuthStore((state) => state.updateProfilePicture)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [uploadingPicture, setUploadingPicture] = useState(false)
+  const [pictureError, setPictureError] = useState<string | null>(null)
+  const pictureInputRef = useRef<HTMLInputElement>(null)
+  
+  // Face recognition state
+  const [hasFaceRegistered, setHasFaceRegistered] = useState(false)
+  const [checkingFace, setCheckingFace] = useState(true)
+  const [showFaceRegistration, setShowFaceRegistration] = useState(false)
+  
+  // Facilities state
+  const [userFacilities, setUserFacilities] = useState<any[]>([])
+  const [facilitiesLoading, setFacilitiesLoading] = useState(true)
+  
+  // Permissions state
+  const [rolePermissions, setRolePermissions] = useState<any[]>([])
+  const [allModules, setAllModules] = useState<any[]>([])
+  const [permissionsLoading, setPermissionsLoading] = useState(true)
 
   const getInitials = (name: string) =>
     name
@@ -119,6 +76,18 @@ const UserProfile = () => {
   ];
 
   const securityItems = [
+    {
+      icon: Scan,
+      label: 'Face Recognition',
+      description: hasFaceRegistered 
+        ? 'Your face is registered for quick login'
+        : 'Register your face for passwordless login',
+      status: checkingFace ? '...' : hasFaceRegistered ? 'Enabled' : 'Not Set',
+      statusType: hasFaceRegistered ? 'success' : 'warning',
+      action: hasFaceRegistered ? 'Update' : 'Register',
+      actionType: hasFaceRegistered ? 'outline' : 'success',
+      onClick: () => setShowFaceRegistration(true),
+    },
     {
       icon: Smartphone,
       label: "Two-Factor Authentication",
@@ -178,6 +147,102 @@ const UserProfile = () => {
     updateProfilePicture(null);
     setPictureError(null);
   };
+
+  // Check if user has registered face on mount
+  useEffect(() => {
+    const checkFaceRegistration = async () => {
+      if (!user?.id) {
+        setCheckingFace(false)
+        return
+      }
+
+      try {
+        const isRegistered = await hasRegisteredFace(user.id)
+        setHasFaceRegistered(isRegistered)
+      } catch (error) {
+        console.error('Error checking face registration:', error)
+      } finally {
+        setCheckingFace(false)
+      }
+    }
+
+    checkFaceRegistration()
+  }, [user?.id])
+
+  // Load user facilities
+  useEffect(() => {
+    const loadFacilities = async () => {
+      if (!user?.id || !supabase) {
+        setFacilitiesLoading(false)
+        return
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from('user_facilities')
+          .select('facility_id, facility_name, is_active')
+          .eq('user_id', user.id)
+
+        if (error) throw error
+        setUserFacilities(data || [])
+      } catch (error) {
+        console.error('Error loading facilities:', error)
+      } finally {
+        setFacilitiesLoading(false)
+      }
+    }
+
+    loadFacilities()
+  }, [user?.id])
+
+  // Load role permissions and modules
+  useEffect(() => {
+    const loadPermissions = async () => {
+      if (!user?.id || !supabase) {
+        setPermissionsLoading(false)
+        return
+      }
+
+      try {
+        // Load modules
+        const { data: modulesData, error: modulesError } = await supabase
+          .from('module')
+          .select('*')
+          .eq('is_active', true)
+
+        if (modulesError) throw modulesError
+        setAllModules(modulesData || [])
+
+        // Try to find role_id from pending_users table
+        const { data: userData, error: userError } = await supabase
+          .from('pending_users')
+          .select('role_id')
+          .eq('id', user.id)
+          .single()
+
+        if (userError || !userData?.role_id) {
+          console.log('No role_id found for user')
+          setPermissionsLoading(false)
+          return
+        }
+
+        // Load role permissions
+        const { data: permsData, error: permsError } = await supabase
+          .from('role_module_access')
+          .select('*')
+          .eq('role_id', userData.role_id)
+
+        if (permsError) throw permsError
+        setRolePermissions(permsData || [])
+      } catch (error) {
+        console.error('Error loading permissions:', error)
+      } finally {
+        setPermissionsLoading(false)
+      }
+    }
+
+    loadPermissions()
+  }, [user?.id])
 
   return (
     <div className="space-y-6">
@@ -497,6 +562,7 @@ const UserProfile = () => {
                         </span>
                       )}
                       <button
+                        onClick={item.onClick}
                         className={cn(
                           "px-4 py-2 rounded-lg text-sm font-medium transition-colors",
                           item.actionType === "success"
@@ -514,6 +580,13 @@ const UserProfile = () => {
           </div>
         </div>
       </div>
+
+      {/* Face Registration Modal */}
+      <FaceRegistration
+        isOpen={showFaceRegistration}
+        onClose={() => setShowFaceRegistration(false)}
+        onSuccess={() => setHasFaceRegistered(true)}
+      />
 
       {/* Edit Profile Modal */}
       <Dialog.Root open={showEditModal} onOpenChange={setShowEditModal}>
