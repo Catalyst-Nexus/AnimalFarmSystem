@@ -1,4 +1,4 @@
-import { supabaseModule2 } from './supabase'
+import { supabase, isSupabaseConfigured } from './supabase'
 
 export interface Cage {
   id: string
@@ -24,11 +24,12 @@ export interface Animal {
  * Fetch all cages from Supabase
  */
 export async function getCages(): Promise<Cage[]> {
-  if (!supabaseModule2) {
+  if (!isSupabaseConfigured()) {
     throw new Error('Supabase is not configured')
   }
 
-  const { data, error } = await supabaseModule2
+  const { data, error } = await supabase!
+    .schema('module2')
     .from('cages')
     .select('*')
     .order('cage_label', { ascending: true })
@@ -45,11 +46,12 @@ export async function getCages(): Promise<Cage[]> {
  * Fetch all animals from Supabase
  */
 export async function getAnimals(): Promise<Animal[]> {
-  if (!supabaseModule2) {
+  if (!isSupabaseConfigured()) {
     throw new Error('Supabase is not configured')
   }
 
-  const { data, error } = await supabaseModule2
+  const { data, error } = await supabase!
+    .schema('module2')
     .from('animals')
     .select('*')
     .order('created_at', { ascending: false })
@@ -68,11 +70,12 @@ export async function getAnimals(): Promise<Animal[]> {
 export async function createCage(
   cage: Omit<Cage, 'id' | 'created_at'>
 ): Promise<Cage> {
-  if (!supabaseModule2) {
+  if (!isSupabaseConfigured()) {
     throw new Error('Supabase is not configured')
   }
 
-  const { data, error } = await supabaseModule2
+  const { data, error } = await supabase!
+    .schema('module2')
     .from('cages')
     .insert([cage])
     .select()
@@ -93,11 +96,12 @@ export async function updateCage(
   id: string,
   updates: Partial<Omit<Cage, 'id' | 'created_at'>>
 ): Promise<Cage> {
-  if (!supabaseModule2) {
+  if (!isSupabaseConfigured()) {
     throw new Error('Supabase is not configured')
   }
 
-  const { data, error } = await supabaseModule2
+  const { data, error } = await supabase!
+    .schema('module2')
     .from('cages')
     .update(updates)
     .eq('id', id)
@@ -116,11 +120,12 @@ export async function updateCage(
  * Delete a cage
  */
 export async function deleteCage(id: string): Promise<void> {
-  if (!supabaseModule2) {
+  if (!isSupabaseConfigured()) {
     throw new Error('Supabase is not configured')
   }
 
-  const { error } = await supabaseModule2
+  const { error } = await supabase!
+    .schema('module2')
     .from('cages')
     .delete()
     .eq('id', id)
@@ -138,11 +143,12 @@ export async function updateAnimalCage(
   animalId: string,
   cageId: string | null
 ): Promise<Animal> {
-  if (!supabaseModule2) {
+  if (!isSupabaseConfigured()) {
     throw new Error('Supabase is not configured')
   }
 
-  const { data, error } = await supabaseModule2
+  const { data, error } = await supabase!
+    .schema('module2')
     .from('animals')
     .update({ current_cage_id: cageId })
     .eq('id', animalId)
@@ -161,11 +167,12 @@ export async function updateAnimalCage(
  * Get animals by cage ID
  */
 export async function getAnimalsByCage(cageId: string): Promise<Animal[]> {
-  if (!supabaseModule2) {
+  if (!isSupabaseConfigured()) {
     throw new Error('Supabase is not configured')
   }
 
-  const { data, error } = await supabaseModule2
+  const { data, error } = await supabase!
+    .schema('module2')
     .from('animals')
     .select('*')
     .eq('current_cage_id', cageId)
@@ -194,12 +201,13 @@ export async function checkCageCapacity(
   maxCapacity: number
   availableSpots: number
 }> {
-  if (!supabaseModule2) {
+  if (!isSupabaseConfigured()) {
     throw new Error('Supabase is not configured')
   }
 
   // Get cage details
-  const { data: cage, error: cageError } = await supabaseModule2
+  const { data: cage, error: cageError } = await supabase!
+    .schema('module2')
     .from('cages')
     .select('max_capacity')
     .eq('id', cageId)

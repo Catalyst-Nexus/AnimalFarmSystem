@@ -387,7 +387,7 @@ const AnimalModal = ({
           {/* Sex */}
           <div>
             <label className={LABEL}>Sex</label>
-            <select className={FIELD} value={form.sex} onChange={(e) => set('sex', e.target.value as AnimalSex)}>
+            <select className={FIELD} value={form.sex} onChange={(e) => set('sex', e.target.value as AnimalSex)} aria-label="Animal sex">
               <option value="Male">Male</option>
               <option value="Female">Female</option>
             </select>
@@ -410,7 +410,7 @@ const AnimalModal = ({
           {/* Status */}
           <div>
             <label className={LABEL}>Status</label>
-            <select className={FIELD} value={form.status} onChange={(e) => set('status', e.target.value as AnimalStatus)}>
+            <select className={FIELD} value={form.status} onChange={(e) => set('status', e.target.value as AnimalStatus)} aria-label="Animal status">
               {STATUS_OPTIONS.map((s) => (
                 <option key={s} value={s}>
                   {s}
