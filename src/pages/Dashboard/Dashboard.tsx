@@ -1,5 +1,5 @@
 import { Routes, Route, Link } from 'react-router'
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useMemo } from 'react'
 import Layout from '@/components/Layout/Layout'
 import { useRBAC } from '@/contexts/RBACContext'
 import UserProfile from '../UserProfile/UserProfile'
@@ -24,30 +24,33 @@ const DynamicComponentLoader = ({ filePath }: { filePath: string }) => {
   const normalizedPath = filePath.replace(/\\/g, '/')
   const modulePath = `../../${normalizedPath}.tsx`
 
-  // Dynamically import using the pre-built module map
-  const Component = lazy(() =>
-    (async () => {
-      try {
-        const moduleLoader = moduleMap[modulePath]
-        if (!moduleLoader) {
-          throw new Error(`Module not found: ${modulePath}`)
+  // Memoize the lazy component based on filePath to ensure stable component reference
+  // This prevents React Router from losing track of component transitions
+  const Component = useMemo(() => {
+    return lazy(() =>
+      (async () => {
+        try {
+          const moduleLoader = moduleMap[modulePath]
+          if (!moduleLoader) {
+            throw new Error(`Module not found: ${modulePath}`)
+          }
+          const defaultExport = await moduleLoader()
+          return { default: defaultExport as React.ComponentType }
+        } catch (error: unknown) {
+          console.error(`Failed to load module ${normalizedPath}:`, error)
+          return {
+            default: (() => (
+              <div className="flex items-center justify-center h-96 text-red-500 flex-col gap-4">
+                <p className="text-lg font-semibold">Failed to load module</p>
+                <p className="text-sm text-muted">{normalizedPath}</p>
+                <p className="text-xs text-muted">Check that the file exists and exports a default component</p>
+              </div>
+            )) as unknown as React.ComponentType,
+          }
         }
-        const defaultExport = await moduleLoader()
-        return { default: defaultExport as React.ComponentType }
-      } catch (error: unknown) {
-        console.error(`Failed to load module ${normalizedPath}:`, error)
-        return {
-          default: (() => (
-            <div className="flex items-center justify-center h-96 text-red-500 flex-col gap-4">
-              <p className="text-lg font-semibold">Failed to load module</p>
-              <p className="text-sm text-muted">{normalizedPath}</p>
-              <p className="text-xs text-muted">Check that the file exists and exports a default component</p>
-            </div>
-          )) as unknown as React.ComponentType,
-        }
-      }
-    })()
-  )
+      })()
+    )
+  }, [modulePath, normalizedPath])
 
   return (
     <Suspense fallback={<LoadingFallback />}>
@@ -432,7 +435,8 @@ const Dashboard = () => {
                 </Suspense>
               ) : (
                 // New dynamic module loaded from file path
-                <DynamicComponentLoader filePath={route.filePath || ''} />
+                // Use filePath as key to force remount when route changes
+                <DynamicComponentLoader key={route.filePath} filePath={route.filePath || ''} />
               )
             }
           />
