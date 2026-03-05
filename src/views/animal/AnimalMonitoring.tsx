@@ -11,7 +11,6 @@ import {
 import {
   Activity,
   ScanBarcode,
-  ArrowUpDown,
   ArrowUp,
   ArrowDown,
   Weight,
@@ -22,6 +21,10 @@ import {
   Plus,
   Edit2,
   Trash2,
+  Filter,
+  Save,
+  LayoutDashboard,
+  SortAsc,
 } from 'lucide-react'
 import {
   getCages,
@@ -255,31 +258,38 @@ const TagScanner = () => {
     : null
 
   return (
-    <div className="bg-surface border border-border rounded-2xl p-5 mb-6">
-      <div className="flex items-center gap-2 mb-4">
-        <ScanBarcode className="w-5 h-5 text-success" />
-        <h3 className="text-sm font-bold text-foreground uppercase tracking-wide">Tag Scanner</h3>
-        <span className="text-xs text-muted ml-1">— scan or type a tag ID to retrieve pig weight</span>
+    <div className="bg-gradient-to-br from-surface to-background border-2 border-border rounded-2xl p-6 mb-6 shadow-sm">
+      <div className="flex items-center gap-3 mb-5">
+        <div className="p-2 bg-success/10 rounded-lg">
+          <ScanBarcode className="w-5 h-5 text-success" />
+        </div>
+        <div>
+          <h3 className="text-base font-bold text-foreground">Quick Tag Scanner</h3>
+          <p className="text-xs text-muted">Scan or enter tag ID to view animal details</p>
+        </div>
       </div>
 
       <div className="flex items-center gap-3 mb-4">
-        <input
-          ref={inputRef}
-          className="flex-1 px-4 py-2.5 border border-border rounded-lg text-sm bg-background text-foreground placeholder:text-muted focus:outline-none focus:border-success font-mono"
-          placeholder="e.g. TAG-2026-003"
-          value={input}
-          onChange={(e) => { setInput(e.target.value); setResult(null) }}
-          onKeyDown={handleKeyDown}
-        />
+        <div className="flex-1 relative">
+          <input
+            ref={inputRef}
+            className="w-full px-4 py-3 pl-10 border-2 border-border rounded-xl text-sm bg-background text-foreground placeholder:text-muted focus:outline-none focus:border-success focus:ring-4 focus:ring-success/10 font-mono transition-all"
+            placeholder="Enter tag ID (e.g., TAG-2026-003)"
+            value={input}
+            onChange={(e) => { setInput(e.target.value); setResult(null) }}
+            onKeyDown={handleKeyDown}
+          />
+          <ScanBarcode className="w-4 h-4 text-muted absolute left-3 top-1/2 -translate-y-1/2" />
+        </div>
         <button
-          className="px-5 py-2.5 bg-success text-white rounded-lg text-sm font-semibold hover:bg-success/90 transition-colors flex items-center gap-2"
+          className="px-6 py-3 bg-success text-white rounded-xl text-sm font-semibold hover:bg-success/90 hover:shadow-lg active:scale-95 transition-all flex items-center gap-2 shadow-sm"
           onClick={handleScan}
         >
-          <ScanBarcode className="w-4 h-4" /> Scan
+          <CheckCircle2 className="w-4 h-4" /> Scan
         </button>
         {result !== null && (
           <button
-            className="px-4 py-2.5 border border-border rounded-lg text-sm font-medium text-muted hover:bg-background transition-colors"
+            className="px-4 py-3 border-2 border-border rounded-xl text-sm font-medium text-muted hover:bg-background hover:border-foreground transition-all"
             onClick={handleClear}
           >
             Clear
@@ -289,11 +299,11 @@ const TagScanner = () => {
 
       {/* Result */}
       {result === 'not-found' && (
-        <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-xl">
-          <XCircle className="w-5 h-5 text-red-500 shrink-0" />
+        <div className="flex items-start gap-3 p-4 bg-red-50 border-2 border-red-200 rounded-xl animate-in fade-in slide-in-from-top-2 duration-300">
+          <XCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
           <div>
             <p className="text-sm font-semibold text-red-700">Tag not found</p>
-            <p className="text-xs text-red-500">No pig registered under <span className="font-mono">{input}</span>. Check the tag ID and try again.</p>
+            <p className="text-xs text-red-600 mt-1">No animal registered with tag <span className="font-mono bg-red-100 px-1.5 py-0.5 rounded">{input}</span>. Please verify and try again.</p>
           </div>
         </div>
       )}
@@ -374,29 +384,30 @@ const MovePigButton = ({ pig }: { pig: Pig }) => {
 // ─── Pig Row (inside cage card) ───────────────────────────────────────────────
 
 const PigRow = ({ pig, rank }: { pig: Pig; rank: number }) => (
-  <div className="flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-background/60 transition-colors group">
+  <div className="flex items-center gap-3 py-2.5 px-3 rounded-xl hover:bg-background/80 transition-all group bg-surface/50 border border-transparent hover:border-border hover:shadow-sm">
     {/* rank */}
-    <span className="w-5 text-center text-xs font-bold text-muted shrink-0">{rank}</span>
+    <span className="w-6 text-center text-xs font-bold text-success bg-success/10 rounded-lg py-1 shrink-0">{rank}</span>
 
     {/* tag */}
-    <span className="font-mono text-xs font-semibold text-foreground shrink-0 w-28 truncate">
+    <span className="font-mono text-xs font-bold text-foreground shrink-0 w-28 truncate bg-background px-2 py-1 rounded-md border border-border">
       {pig.tagId}
     </span>
 
     {/* weight highlight */}
-    <span className="text-sm font-bold text-foreground w-16 shrink-0">
-      {pig.weight} <span className="text-xs font-normal text-muted">kg</span>
-    </span>
+    <div className="w-16 shrink-0">
+      <span className="text-base font-bold text-foreground">{pig.weight}</span>
+      <span className="text-xs font-normal text-muted ml-0.5">kg</span>
+    </div>
 
     {/* breed */}
-    <span className="text-xs text-muted flex-1 truncate hidden sm:block">{pig.breed}</span>
+    <span className="text-xs text-muted flex-1 truncate hidden sm:block font-medium">{pig.breed}</span>
 
     {/* badges */}
-    <div className="flex items-center gap-1 shrink-0">
-      <span className={cn('px-1.5 py-0.5 rounded-full text-xs font-medium', SEX_STYLES[pig.sex])}>
+    <div className="flex items-center gap-1.5 shrink-0">
+      <span className={cn('px-2 py-1 rounded-lg text-xs font-bold border-2', SEX_STYLES[pig.sex], pig.sex === 'Male' ? 'border-blue-200' : 'border-pink-200')}>
         {pig.sex[0]}
       </span>
-      <span className={cn('px-1.5 py-0.5 rounded-full text-xs font-medium', getStatusStyle(pig.status))}>
+      <span className={cn('px-2 py-1 rounded-lg text-xs font-semibold border', getStatusStyle(pig.status))}>
         {pig.status}
       </span>
     </div>
@@ -416,69 +427,106 @@ const CageCard = ({ cage, onEdit, onDelete }: { cage: Cage; onEdit: () => void; 
   const totalWeight = pigs.reduce((s, p) => s + p.weight, 0)
   const avgWeight = pigs.length ? (totalWeight / pigs.length).toFixed(1) : '—'
   const occupancyPercent = cage.maxCapacity > 0 ? (pigs.length / cage.maxCapacity) * 100 : 0
-  const occupancyColor = occupancyPercent >= 100 ? 'text-red-600' : occupancyPercent >= 80 ? 'text-orange-600' : 'text-green-600'
+  const occupancyColor = occupancyPercent >= 100 ? 'text-red-600 bg-red-50' : occupancyPercent >= 80 ? 'text-orange-600 bg-orange-50' : 'text-green-600 bg-green-50'
+  const borderColor = occupancyPercent >= 100 ? 'border-red-200' : occupancyPercent >= 80 ? 'border-orange-200' : 'border-green-200'
 
   return (
-    <div className="rounded-2xl border-2 border-border bg-surface p-5 flex flex-col gap-3">
+    <div className={cn(
+      "rounded-2xl border-2 bg-gradient-to-br from-surface to-background p-6 flex flex-col gap-4 shadow-sm hover:shadow-md transition-all duration-300",
+      !cage.isActive && "opacity-60",
+      borderColor
+    )}>
       {/* Header */}
-      <div className="flex items-start justify-between gap-2">
+      <div className="flex items-start justify-between gap-3">
         <div className="flex-1">
-          <div className="flex items-center gap-2 flex-wrap">
-            <PiggyBank className="w-4 h-4 text-success" />
-            <h3 className="text-base font-bold text-foreground">{cage.label}</h3>
-            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-50 border border-green-200 text-green-700">
-              {pigs.length}/{cage.maxCapacity}
-            </span>
-            {!cage.isActive && (
-              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-50 border border-gray-200 text-gray-600">
-                Inactive
-              </span>
-            )}
+          <div className="flex items-center gap-2 mb-2">
+            <div className="p-2 bg-success/10 rounded-lg">
+              <PiggyBank className="w-5 h-5 text-success" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-foreground">{cage.label}</h3>
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className={cn(
+                  "text-xs font-bold px-2.5 py-1 rounded-full border-2",
+                  occupancyColor,
+                  occupancyPercent >= 100 ? 'border-red-300' : occupancyPercent >= 80 ? 'border-orange-300' : 'border-green-300'
+                )}>
+                  {pigs.length}/{cage.maxCapacity} animals
+                </span>
+                {!cage.isActive && (
+                  <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-gray-100 border border-gray-300 text-gray-600">
+                    Inactive
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
-          <p className="text-xs text-muted mt-0.5">
-            Capacity: <span className={cn('font-semibold', occupancyColor)}>{occupancyPercent.toFixed(0)}%</span>
+          
+          {/* Progress bar */}
+          <div className="w-full h-2 bg-border rounded-full overflow-hidden">
+            <div 
+              className={cn(
+                "h-full transition-all duration-500 rounded-full",
+                occupancyPercent >= 100 ? 'bg-red-500' : occupancyPercent >= 80 ? 'bg-orange-500' : 'bg-green-500'
+              )}
+              style={{ width: `${Math.min(occupancyPercent, 100)}%` }}
+            />
+          </div>
+          <p className="text-xs text-muted mt-1">
+            <span className={cn('font-bold', occupancyPercent >= 100 ? 'text-red-600' : occupancyPercent >= 80 ? 'text-orange-600' : 'text-green-600')}>
+              {occupancyPercent.toFixed(0)}%
+            </span> capacity used
           </p>
         </div>
-        <div className="flex items-center gap-1">
-          <div className="text-right shrink-0 mr-2">
-            <p className="text-xs text-muted">Avg weight</p>
-            <p className="text-lg font-bold text-success">{avgWeight}<span className="text-xs font-normal text-muted"> kg</span></p>
+        
+        <div className="flex flex-col items-end gap-2">
+          <div className="text-right bg-success/5 px-4 py-2 rounded-xl border border-success/20">
+            <p className="text-xs text-muted font-medium">Avg Weight</p>
+            <p className="text-2xl font-bold text-success">{avgWeight}<span className="text-sm font-normal text-muted ml-1">kg</span></p>
           </div>
-          <button
-            onClick={onEdit}
-            className="p-1.5 rounded hover:bg-background text-muted hover:text-foreground transition-colors"
-            title="Edit cage"
-          >
-            <Edit2 className="w-4 h-4" />
-          </button>
-          <button
-            onClick={onDelete}
-            className="p-1.5 rounded hover:bg-background text-muted hover:text-red-600 transition-colors"
-            title="Delete cage"
-            disabled={pigs.length > 0}
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={onEdit}
+              className="p-2 rounded-lg hover:bg-background text-muted hover:text-success transition-all hover:scale-110 active:scale-95"
+              title="Edit cage"
+            >
+              <Edit2 className="w-4 h-4" />
+            </button>
+            <button
+              onClick={onDelete}
+              className="p-2 rounded-lg hover:bg-background text-muted hover:text-red-600 transition-all hover:scale-110 active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed"
+              title={pigs.length > 0 ? "Cannot delete cage with animals" : "Delete cage"}
+              disabled={pigs.length > 0}
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Column headers */}
       {pigs.length > 0 && (
-        <div className="flex items-center gap-3 px-3 pb-1 border-b border-border">
-          <span className="w-5 text-xs text-muted shrink-0">#</span>
-          <span className="text-xs text-muted shrink-0 w-28">Tag ID</span>
-          <span className="text-xs text-muted w-16 shrink-0">
-            Weight {sortDir === 'asc' ? '↑' : '↓'}
+        <div className="flex items-center gap-3 px-3 pb-2 border-b-2 border-border">
+          <span className="w-6 text-xs font-bold text-muted shrink-0">#</span>
+          <span className="text-xs font-bold text-muted shrink-0 w-28">TAG ID</span>
+          <span className="text-xs font-bold text-muted w-16 shrink-0 flex items-center gap-1">
+            WEIGHT {sortDir === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />}
           </span>
-          <span className="text-xs text-muted flex-1 hidden sm:block">Breed</span>
-          <span className="text-xs text-muted shrink-0 w-16">Info</span>
+          <span className="text-xs font-bold text-muted flex-1 hidden sm:block">BREED</span>
+          <span className="text-xs font-bold text-muted shrink-0">STATUS</span>
         </div>
       )}
 
       {/* Pig list */}
-      <div className="flex flex-col gap-0.5">
+      <div className="flex flex-col gap-1">
         {pigs.length === 0 ? (
-          <p className="text-xs text-muted text-center py-6">No pigs assigned to this cage.</p>
+          <div className="text-center py-8">
+            <div className="w-16 h-16 rounded-full bg-muted/10 flex items-center justify-center mx-auto mb-3">
+              <PiggyBank className="w-8 h-8 text-muted/30" />
+            </div>
+            <p className="text-sm text-muted font-medium">No animals assigned yet</p>
+            <p className="text-xs text-muted mt-1">Animals will appear here when assigned to this cage</p>
+          </div>
         ) : (
           pigs.map((p, i) => <PigRow key={p.id} pig={p} rank={i + 1} />)
         )}
@@ -486,9 +534,25 @@ const CageCard = ({ cage, onEdit, onDelete }: { cage: Cage; onEdit: () => void; 
 
       {/* Footer totals */}
       {pigs.length > 0 && (
-        <div className="flex items-center justify-between mt-1 pt-2 border-t border-border text-xs text-muted">
-          <span>Total pigs: <strong className="font-bold text-foreground">{pigs.length}</strong></span>
-          <span>Total weight: <strong className="font-bold text-foreground">{totalWeight} kg</strong></span>
+        <div className="flex items-center justify-between pt-3 border-t-2 border-border">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 bg-blue-50 rounded-lg">
+              <Activity className="w-4 h-4 text-blue-600" />
+            </div>
+            <div>
+              <p className="text-xs text-muted">Total Animals</p>
+              <p className="text-sm font-bold text-foreground">{pigs.length}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 bg-purple-50 rounded-lg">
+              <Weight className="w-4 h-4 text-purple-600" />
+            </div>
+            <div>
+              <p className="text-xs text-muted">Total Weight</p>
+              <p className="text-sm font-bold text-foreground">{totalWeight} kg</p>
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -497,8 +561,316 @@ const CageCard = ({ cage, onEdit, onDelete }: { cage: Cage; onEdit: () => void; 
 
 // ─── Main App ─────────────────────────────────────────────────────────────────
 
+// Sorting Tab Component
+const SortingTab = () => {
+  const { pigs, cages, movePig } = useMonitoring()
+  const [sortBy, setSortBy] = useState<'weight-asc' | 'weight-desc' | 'gender-male' | 'gender-female'>('weight-desc')
+  const [selectedCages, setSelectedCages] = useState<string[]>([])
+  const [preview, setPreview] = useState<{ cageId: string; animals: Pig[] }[]>([])
+  const [isSaving, setIsSaving] = useState(false)
+
+  const unassignedPigs = useMemo(() => pigs.filter(p => !p.cageId), [pigs])
+  const activeCages = useMemo(() => cages.filter(c => c.isActive), [cages])
+
+  const toggleCage = (cageId: string) => {
+    setSelectedCages(prev =>
+      prev.includes(cageId) ? prev.filter(id => id !== cageId) : [...prev, cageId]
+    )
+  }
+
+  const generatePreview = () => {
+    if (selectedCages.length === 0) {
+      alert('Please select at least one cage')
+      return
+    }
+
+    let sortedPigs = [...unassignedPigs]
+    
+    // Apply sorting/filtering
+    if (sortBy === 'weight-desc') {
+      sortedPigs.sort((a, b) => b.weight - a.weight)
+    } else if (sortBy === 'weight-asc') {
+      sortedPigs.sort((a, b) => a.weight - b.weight)
+    } else if (sortBy === 'gender-male') {
+      sortedPigs = sortedPigs.filter(p => p.sex === 'Male')
+      sortedPigs.sort((a, b) => b.weight - a.weight)
+    } else if (sortBy === 'gender-female') {
+      sortedPigs = sortedPigs.filter(p => p.sex === 'Female')
+      sortedPigs.sort((a, b) => b.weight - a.weight)
+    }
+
+    // Distribute animals across selected cages
+    const selectedCageObjects = cages.filter(c => selectedCages.includes(c.id))
+    const distribution: { cageId: string; animals: Pig[] }[] = selectedCageObjects.map(c => ({ cageId: c.id, animals: [] }))
+    
+    let cageIndex = 0
+    for (const pig of sortedPigs) {
+      const cage = selectedCageObjects[cageIndex]
+      const currentAssigned = distribution[cageIndex].animals.length
+      
+      if (currentAssigned < cage.maxCapacity) {
+        distribution[cageIndex].animals.push(pig)
+      }
+      
+      cageIndex = (cageIndex + 1) % selectedCageObjects.length
+    }
+
+    setPreview(distribution)
+  }
+
+  const handleSave = async () => {
+    if (preview.length === 0) {
+      alert('Please generate a preview first')
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      for (const group of preview) {
+        for (const pig of group.animals) {
+          await movePig(pig.tagId, group.cageId)
+        }
+      }
+      alert('Animals successfully assigned to cages!')
+      setPreview([])
+      setSelectedCages([])
+    } catch (error) {
+      console.error('Error saving assignments:', error)
+      alert('Failed to save assignments. Please try again.')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Configuration Panel */}
+      <div className="bg-gradient-to-br from-surface to-background border-2 border-border rounded-2xl p-6 shadow-sm">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="p-2.5 bg-blue-500/10 rounded-xl">
+            <Filter className="w-5 h-5 text-blue-600" />
+          </div>
+          <div>
+            <h3 className="text-base font-bold text-foreground">Sort & Group Configuration</h3>
+            <p className="text-xs text-muted">Automatically organize animals into cages based on criteria</p>
+          </div>
+        </div>
+
+        {/* Sort Criteria */}
+        <div className="mb-6">
+          <label className="block text-sm font-bold text-foreground mb-3 flex items-center gap-2">
+            <SortAsc className="w-4 h-4 text-success" />
+            Sort By Criteria:
+          </label>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <button
+              onClick={() => setSortBy('weight-desc')}
+              className={cn(
+                'px-5 py-3.5 rounded-xl text-sm font-semibold transition-all border-2 group flex items-center gap-3',
+                sortBy === 'weight-desc'
+                  ? 'bg-success text-white border-success shadow-lg scale-105'
+                  : 'bg-background text-foreground border-border hover:border-success hover:shadow-md'
+              )}
+            >
+              <ArrowDown className={cn('w-5 h-5', sortBy === 'weight-desc' ? 'text-white' : 'text-success')} />
+              <div className="text-left">
+                <div>Weight (Heaviest First)</div>
+                <div className={cn('text-xs font-normal', sortBy === 'weight-desc' ? 'text-white/80' : 'text-muted')}>
+                  Largest animals first
+                </div>
+              </div>
+            </button>
+            <button
+              onClick={() => setSortBy('weight-asc')}
+              className={cn(
+                'px-5 py-3.5 rounded-xl text-sm font-semibold transition-all border-2 group flex items-center gap-3',
+                sortBy === 'weight-asc'
+                  ? 'bg-success text-white border-success shadow-lg scale-105'
+                  : 'bg-background text-foreground border-border hover:border-success hover:shadow-md'
+              )}
+            >
+              <ArrowUp className={cn('w-5 h-5', sortBy === 'weight-asc' ? 'text-white' : 'text-success')} />
+              <div className="text-left">
+                <div>Weight (Lightest First)</div>
+                <div className={cn('text-xs font-normal', sortBy === 'weight-asc' ? 'text-white/80' : 'text-muted')}>
+                  Smallest animals first
+                </div>
+              </div>
+            </button>
+            <button
+              onClick={() => setSortBy('gender-male')}
+              className={cn(
+                'px-5 py-3.5 rounded-xl text-sm font-semibold transition-all border-2 group flex items-center gap-3',
+                sortBy === 'gender-male'
+                  ? 'bg-blue-600 text-white border-blue-600 shadow-lg scale-105'
+                  : 'bg-background text-foreground border-border hover:border-blue-500 hover:shadow-md'
+              )}
+            >
+              <div className={cn('w-5 h-5 rounded-full flex items-center justify-center font-bold', sortBy === 'gender-male' ? 'bg-white text-blue-600' : 'bg-blue-100 text-blue-600')}>
+                M
+              </div>
+              <div className="text-left">
+                <div>Male Only (by Weight)</div>
+                <div className={cn('text-xs font-normal', sortBy === 'gender-male' ? 'text-white/80' : 'text-muted')}>
+                  Filter male animals
+                </div>
+              </div>
+            </button>
+            <button
+              onClick={() => setSortBy('gender-female')}
+              className={cn(
+                'px-5 py-3.5 rounded-xl text-sm font-semibold transition-all border-2 group flex items-center gap-3',
+                sortBy === 'gender-female'
+                  ? 'bg-pink-600 text-white border-pink-600 shadow-lg scale-105'
+                  : 'bg-background text-foreground border-border hover:border-pink-500 hover:shadow-md'
+              )}
+            >
+              <div className={cn('w-5 h-5 rounded-full flex items-center justify-center font-bold', sortBy === 'gender-female' ? 'bg-white text-pink-600' : 'bg-pink-100 text-pink-600')}>
+                F
+              </div>
+              <div className="text-left">
+                <div>Female Only (by Weight)</div>
+                <div className={cn('text-xs font-normal', sortBy === 'gender-female' ? 'text-white/80' : 'text-muted')}>
+                  Filter female animals
+                </div>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        {/* Cage Selection */}
+        <div className="mb-6">
+          <label className="block text-sm font-bold text-foreground mb-3 flex items-center gap-2">
+            <PiggyBank className="w-4 h-4 text-success" />
+            Select Target Cages 
+            <span className="text-xs font-normal text-muted">({selectedCages.length} selected)</span>
+          </label>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
+            {activeCages.map(cage => (
+              <button
+                key={cage.id}
+                onClick={() => toggleCage(cage.id)}
+                className={cn(
+                  'px-4 py-3 rounded-xl text-sm font-semibold transition-all border-2 hover:scale-105 active:scale-95',
+                  selectedCages.includes(cage.id)
+                    ? 'bg-success text-white border-success shadow-lg'
+                    : 'bg-background text-foreground border-border hover:border-success hover:shadow-md'
+                )}
+              >
+                {cage.label}
+              </button>
+            ))}
+          </div>
+          {activeCages.length === 0 && (
+            <p className="text-sm text-muted italic">No active cages available. Create cages in the Monitoring tab first.</p>
+          )}
+        </div>
+
+        {/* Actions */}
+        <div className="flex flex-wrap gap-3 pt-4 border-t-2 border-border">
+          <button
+            onClick={generatePreview}
+            disabled={selectedCages.length === 0}
+            className="px-6 py-3.5 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 hover:shadow-xl active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-md"
+          >
+            <SortAsc className="w-5 h-5" />
+            Generate Preview
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={preview.length === 0 || isSaving}
+            className="px-6 py-3.5 bg-success text-white rounded-xl text-sm font-bold hover:bg-success/90 hover:shadow-xl active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-md"
+          >
+            <Save className="w-5 h-5" />
+            {isSaving ? 'Saving Assignments...' : 'Save Assignments'}
+          </button>
+          {preview.length > 0 && (
+            <button
+              onClick={() => setPreview([])}
+              className="px-6 py-3.5 border-2 border-border text-foreground rounded-xl text-sm font-bold hover:bg-background hover:shadow-md active:scale-95 transition-all flex items-center gap-2"
+            >
+              <XCircle className="w-5 h-5" />
+              Clear Preview
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Preview Section */}
+      {preview.length > 0 && (
+        <div className="bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-200 rounded-2xl p-6 shadow-md animate-in fade-in slide-in-from-top-4 duration-500">
+          <div className="flex items-center gap-3 mb-5">
+            <div className="p-2.5 bg-green-600/10 rounded-xl">
+              <CheckCircle2 className="w-5 h-5 text-green-600" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-green-900">Assignment Preview</h3>
+              <p className="text-xs text-green-700">Review the distribution before saving</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {preview.map(group => {
+              const cage = cages.find(c => c.id === group.cageId)
+              const filledPercent = cage ? (group.animals.length / cage.maxCapacity) * 100 : 0
+              return (
+                <div key={group.cageId} className="border-2 border-green-300 rounded-xl p-5 bg-white shadow-sm hover:shadow-md transition-shadow">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="font-bold text-foreground flex items-center gap-2">
+                      <PiggyBank className="w-5 h-5 text-success" />
+                      {cage?.label}
+                    </h4>
+                    <span className="text-xs font-bold px-3 py-1.5 rounded-full bg-green-100 border-2 border-green-300 text-green-700">
+                      {group.animals.length}/{cage?.maxCapacity}
+                    </span>
+                  </div>
+                  <div className="w-full h-2 bg-green-100 rounded-full overflow-hidden mb-4">
+                    <div 
+                      className="h-full bg-green-500 rounded-full transition-all duration-500"
+                      style={{ width: `${Math.min(filledPercent, 100)}%` }}
+                    />
+                  </div>
+                  <div className="space-y-1.5 max-h-60 overflow-y-auto">
+                    {group.animals.map(pig => (
+                      <div key={pig.id} className="flex items-center justify-between text-sm py-2 px-3 rounded-lg hover:bg-green-50 bg-gray-50 border border-gray-200">
+                        <span className="font-mono text-xs font-bold bg-white px-2 py-1 rounded border border-gray-300">{pig.tagId}</span>
+                        <span className="font-bold text-foreground">{pig.weight} kg</span>
+                        <span className={cn('px-2.5 py-1 rounded-lg text-xs font-bold border-2', pig.sex === 'Male' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-pink-50 text-pink-700 border-pink-200')}>
+                          {pig.sex}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Unassigned Animals Info */}
+      <div className="bg-gradient-to-br from-surface to-background border-2 border-border rounded-2xl p-6 shadow-sm">
+        <div className="flex items-center gap-3 mb-2">
+          <div className="p-2 bg-orange-500/10 rounded-xl">
+            <Activity className="w-5 h-5 text-orange-600" />
+          </div>
+          <h3 className="text-base font-bold text-foreground">Unassigned Animals</h3>
+        </div>
+        <p className="text-sm text-muted">
+          <strong className="text-foreground font-bold text-lg">{unassignedPigs.length}</strong> animal(s) currently without cage assignment. 
+          {unassignedPigs.length > 0 && " Use the configuration tool above to automatically distribute them across selected cages."}
+        </p>
+      </div>
+    </div>
+  )
+}
+
+// ─── Main App ─────────────────────────────────────────────────────────────────
+
 const MonitoringApp = () => {
-  const { pigs, cages, sortDir, setSortDir, addCage, editCage, removeCage, isLoading } = useMonitoring()
+  const { pigs, cages, addCage, editCage, removeCage, isLoading } = useMonitoring()
+  
+  // Tab state
+  const [activeTab, setActiveTab] = useState<'monitoring' | 'sorting'>('monitoring')
   
   // Dialog states
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -602,70 +974,78 @@ const MonitoringApp = () => {
         <StatCard label="Lightest" value={`${stats.lightest} kg`} color="default" />
       </StatsRow>
 
-      {/* Tag Scanner */}
-      <TagScanner />
-
-      {/* Controls bar */}
-      <ActionsBar>
-        {/* Sort direction toggle */}
-        <div className="flex items-center gap-1 bg-background border border-border rounded-lg p-1">
-          <span className="pl-2 pr-1 text-xs font-semibold text-muted flex items-center gap-1">
-            <ArrowUpDown className="w-3.5 h-3.5" /> Sort by weight
-          </span>
+      {/* Tabs Navigation */}
+      <div className="bg-gradient-to-r from-surface via-background to-surface border border-border rounded-xl p-1.5 mb-6 shadow-sm">
+        <div className="flex gap-1.5">
           <button
+            onClick={() => setActiveTab('monitoring')}
             className={cn(
-              'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors',
-              sortDir === 'asc'
-                ? 'bg-success text-white shadow-sm'
-                : 'text-muted hover:text-foreground hover:bg-background'
+              'flex-1 px-4 py-2.5 text-sm font-semibold flex items-center justify-center gap-2 rounded-lg transition-all duration-300 group',
+              activeTab === 'monitoring'
+                ? 'bg-success text-white shadow-md scale-[1.02] border border-success'
+                : 'bg-transparent text-muted hover:text-foreground hover:bg-surface/50 border border-transparent hover:border-border'
             )}
-            onClick={() => setSortDir('asc')}
           >
-            <ArrowUp className="w-3.5 h-3.5" /> Ascending
+            <LayoutDashboard className={cn('w-4 h-4 transition-transform', activeTab === 'monitoring' ? 'animate-in zoom-in-50' : 'group-hover:scale-110')} />
+            <span>Monitoring</span>
           </button>
           <button
+            onClick={() => setActiveTab('sorting')}
             className={cn(
-              'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors',
-              sortDir === 'desc'
-                ? 'bg-success text-white shadow-sm'
-                : 'text-muted hover:text-foreground hover:bg-background'
+              'flex-1 px-4 py-2.5 text-sm font-semibold flex items-center justify-center gap-2 rounded-lg transition-all duration-300 group',
+              activeTab === 'sorting'
+                ? 'bg-success text-white shadow-md scale-[1.02] border border-success'
+                : 'bg-transparent text-muted hover:text-foreground hover:bg-surface/50 border border-transparent hover:border-border'
             )}
-            onClick={() => setSortDir('desc')}
           >
-            <ArrowDown className="w-3.5 h-3.5" /> Descending
+            <SortAsc className={cn('w-4 h-4 transition-transform', activeTab === 'sorting' ? 'animate-in zoom-in-50' : 'group-hover:scale-110')} />
+            <span>Sorting & Grouping</span>
           </button>
         </div>
+      </div>
 
-        {/* Add cage button */}
-        <PrimaryButton onClick={handleAddCage}>
-          <Plus className="w-4 h-4" />
-          Add Cage
-        </PrimaryButton>
-      </ActionsBar>
+      {/* Tab Content */}
+      {activeTab === 'monitoring' ? (
+        <>
+          {/* Tag Scanner */}
+          <TagScanner />
 
-      {/* Cage grid */}
-      {cages.length === 0 ? (
-        <div className="text-center py-12 bg-surface border border-border rounded-2xl">
-          <PiggyBank className="w-12 h-12 text-muted mx-auto mb-3" />
-          <p className="text-muted mb-4">No cages created yet</p>
-          <button
-            onClick={handleAddCage}
-            className="px-4 py-2 bg-success text-white rounded-lg text-sm font-semibold hover:bg-success/90 transition-colors inline-flex items-center gap-2"
-          >
-            <Plus className="w-4 h-4" /> Create First Cage
-          </button>
-        </div>
+          {/* Controls bar */}
+          <ActionsBar>
+            {/* Add cage button */}
+            <PrimaryButton onClick={handleAddCage}>
+              <Plus className="w-4 h-4" />
+              Add Cage
+            </PrimaryButton>
+          </ActionsBar>
+
+          {/* Cage grid */}
+          {cages.length === 0 ? (
+            <div className="text-center py-12 bg-surface border border-border rounded-2xl">
+              <PiggyBank className="w-12 h-12 text-muted mx-auto mb-3" />
+              <p className="text-muted mb-4">No cages created yet</p>
+              <button
+                onClick={handleAddCage}
+                className="px-4 py-2 bg-success text-white rounded-lg text-sm font-semibold hover:bg-success/90 transition-colors inline-flex items-center gap-2"
+              >
+                <Plus className="w-4 h-4" /> Create First Cage
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+              {cages.map((cage) => (
+                <CageCard
+                  key={cage.id}
+                  cage={cage}
+                  onEdit={() => handleEditCage(cage)}
+                  onDelete={() => handleDeleteCage(cage.id)}
+                />
+              ))}
+            </div>
+          )}
+        </>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          {cages.map((cage) => (
-            <CageCard
-              key={cage.id}
-              cage={cage}
-              onEdit={() => handleEditCage(cage)}
-              onDelete={() => handleDeleteCage(cage.id)}
-            />
-          ))}
-        </div>
+        <SortingTab />
       )}
 
       {/* Cage Dialog */}
