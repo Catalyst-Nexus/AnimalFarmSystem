@@ -131,7 +131,7 @@ export function DataTable<T extends { id: string }>({
   titleIcon,
 }: DataTableProps<T>) {
   return (
-    <div className="bg-surface border border-border rounded-2xl p-6">
+    <div className="bg-surface border border-border rounded-2xl p-8">
       {/* Header */}
       {title && (
         <div className="flex items-center gap-2 mb-4">
@@ -163,14 +163,14 @@ export function DataTable<T extends { id: string }>({
 
       {/* Table */}
       <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="w-full">
           <thead>
             <tr>
               {columns.map((col) => (
                 <th
                   key={String(col.key)}
                   className={cn(
-                    'bg-background text-muted font-semibold text-left px-4 py-3 border-b border-border',
+                    'bg-background text-muted font-bold text-left px-6 py-4 border-b border-border text-base',
                     col.className
                   )}
                 >
@@ -184,18 +184,18 @@ export function DataTable<T extends { id: string }>({
               <tr>
                 <td
                   colSpan={columns.length}
-                  className="text-center text-muted py-8"
+                  className="text-center text-muted py-12 text-base"
                 >
                   {emptyMessage}
                 </td>
               </tr>
             ) : (
               data.map((item) => (
-                <tr key={item.id} className="hover:bg-background transition-colors">
+                <tr key={item.id} className="hover:bg-background/80 transition-colors">
                   {columns.map((col) => (
                     <td
                       key={String(col.key)}
-                      className={cn('px-4 py-3 border-b border-border/50', col.className)}
+                      className={cn('px-6 py-5 border-b border-border/50', col.className)}
                     >
                       {col.render
                         ? col.render(item)
