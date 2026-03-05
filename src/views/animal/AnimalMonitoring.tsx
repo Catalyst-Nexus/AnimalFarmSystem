@@ -593,13 +593,13 @@ const CageCard = ({ cage, onEdit, onDelete }: { cage: Cage; onEdit: () => void; 
 
 // Sorting Tab Component
 const SortingTab = () => {
-  const { pigs, cages, movePig } = useMonitoring()
+  const { pigs, cages } = useMonitoring()
   const [sortBy, setSortBy] = useState<'weight-asc' | 'weight-desc' | 'gender-male' | 'gender-female'>('weight-desc')
   const [selectedCages, setSelectedCages] = useState<string[]>([])
   const [preview, setPreview] = useState<{ cageId: string; animals: Pig[] }[]>([])
+  const [excludedCount, setExcludedCount] = useState(0)
   const [isSaving, setIsSaving] = useState(false)
 
-  const unassignedPigs = useMemo(() => pigs.filter(p => !p.cageId), [pigs])
   const activeCages = useMemo(() => cages.filter(c => c.isActive), [cages])
 
   const toggleCage = (cageId: string) => {
@@ -614,44 +614,48 @@ const SortingTab = () => {
       return
     }
 
-    let sortedPigs = [...unassignedPigs]
-    
-    // Apply sorting/filtering
-    if (sortBy === 'weight-desc') {
-      sortedPigs.sort((a, b) => b.weight - a.weight)
-    } else if (sortBy === 'weight-asc') {
-      sortedPigs.sort((a, b) => a.weight - b.weight)
-    } else if (sortBy === 'gender-male') {
-      sortedPigs = sortedPigs.filter(p => p.sex === 'Male')
-      sortedPigs.sort((a, b) => b.weight - a.weight)
-    } else if (sortBy === 'gender-female') {
-      sortedPigs = sortedPigs.filter(p => p.sex === 'Female')
-      sortedPigs.sort((a, b) => b.weight - a.weight)
-    }
-
-    // Distribute animals across selected cages
+    // Get selected cage objects
     const selectedCageObjects = cages.filter(c => selectedCages.includes(c.id))
-    const distribution: { cageId: string; animals: Pig[] }[] = selectedCageObjects.map(c => ({ cageId: c.id, animals: [] }))
     
-    // Get current occupancy for each cage
-    const currentOccupancy = selectedCageObjects.map(cage => 
-      pigs.filter(p => p.cageId === cage.id).length
-    )
+    // Collect ALL animals from selected cages
+    let allAnimals = pigs.filter(p => selectedCages.includes(p.cageId || ''))
     
-    let cageIndex = 0
-    for (const pig of sortedPigs) {
-      const cage = selectedCageObjects[cageIndex]
-      const alreadyAssigned = distribution[cageIndex].animals.length
-      const existingAnimals = currentOccupancy[cageIndex]
-      const totalOccupancy = existingAnimals + alreadyAssigned
+    // Apply gender filtering if needed
+    const originalCount = allAnimals.length
+    if (sortBy === 'gender-male') {
+      allAnimals = allAnimals.filter(p => p.sex === 'Male')
+    } else if (sortBy === 'gender-female') {
+      allAnimals = allAnimals.filter(p => p.sex === 'Female')
+    }
+    const totalExcluded = originalCount - allAnimals.length
+    
+    // Sort all animals as one group
+    if (sortBy === 'weight-desc' || sortBy === 'gender-male' || sortBy === 'gender-female') {
+      allAnimals.sort((a, b) => b.weight - a.weight) // Heaviest first
+    } else if (sortBy === 'weight-asc') {
+      allAnimals.sort((a, b) => a.weight - b.weight) // Lightest first
+    }
+    
+    // Redistribute sorted animals across selected cages
+    const distribution: { cageId: string; animals: Pig[] }[] = []
+    let animalIndex = 0
+    
+    for (const cage of selectedCageObjects) {
+      const cageAnimals: Pig[] = []
       
-      if (totalOccupancy < cage.maxCapacity) {
-        distribution[cageIndex].animals.push(pig)
+      // Fill this cage up to its max capacity
+      while (animalIndex < allAnimals.length && cageAnimals.length < cage.maxCapacity) {
+        cageAnimals.push(allAnimals[animalIndex])
+        animalIndex++
       }
       
-      cageIndex = (cageIndex + 1) % selectedCageObjects.length
+      distribution.push({
+        cageId: cage.id,
+        animals: cageAnimals
+      })
     }
-
+    
+    setExcludedCount(totalExcluded)
     setPreview(distribution)
   }
 
@@ -661,34 +665,38 @@ const SortingTab = () => {
       return
     }
 
+    if (!confirm('This will redistribute all animals according to the preview. Continue?')) {
+      return
+    }
+
     setIsSaving(true)
-    let successCount = 0
-    let failCount = 0
-    
     try {
+      // Update each animal's cage assignment based on the preview
+      const updates: Promise<void>[] = []
+      
       for (const group of preview) {
-        for (const pig of group.animals) {
-          try {
-            await movePig(pig.tagId, group.cageId)
-            successCount++
-          } catch (error) {
-            console.error(`Failed to move pig ${pig.tagId}:`, error)
-            failCount++
+        for (const animal of group.animals) {
+          // Only update if the animal is being moved to a different cage
+          if (animal.cageId !== group.cageId) {
+            updates.push(
+              updateAnimalCage(animal.id, group.cageId).then(() => {})
+            )
           }
         }
       }
       
-      if (failCount === 0) {
-        alert(`Success! All ${successCount} animals assigned to cages.`)
-      } else {
-        alert(`Partially completed: ${successCount} animals assigned successfully, ${failCount} failed (possibly due to capacity limits).`)
-      }
+      await Promise.all(updates)
       
+      alert('Animals redistributed successfully!')
       setPreview([])
       setSelectedCages([])
+      setExcludedCount(0)
+      
+      // Refresh data
+      window.location.reload()
     } catch (error) {
-      console.error('Error saving assignments:', error)
-      alert('Failed to save assignments. Please try again.')
+      console.error('Error saving redistribution:', error)
+      alert('Failed to redistribute animals. Please try again.')
     } finally {
       setIsSaving(false)
     }
@@ -703,8 +711,8 @@ const SortingTab = () => {
             <Filter className="w-5 h-5 text-blue-600" />
           </div>
           <div>
-            <h3 className="text-base font-bold text-foreground">Sort & Group Configuration</h3>
-            <p className="text-xs text-muted">Automatically organize animals into cages based on criteria</p>
+            <h3 className="text-base font-bold text-foreground">Sort & View Configuration</h3>
+            <p className="text-xs text-muted">Sort and view animals within each selected cage by criteria</p>
           </div>
         </div>
 
@@ -834,11 +842,11 @@ const SortingTab = () => {
             className="px-6 py-3.5 bg-success text-white rounded-xl text-sm font-bold hover:bg-success/90 hover:shadow-xl active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-md"
           >
             <Save className="w-5 h-5" />
-            {isSaving ? 'Saving Assignments...' : 'Save Assignments'}
+            {isSaving ? 'Redistributing...' : 'Save Redistribution'}
           </button>
           {preview.length > 0 && (
             <button
-              onClick={() => setPreview([])}
+              onClick={() => { setPreview([]); setExcludedCount(0); }}
               className="px-6 py-3.5 border-2 border-border text-foreground rounded-xl text-sm font-bold hover:bg-background hover:shadow-md active:scale-95 transition-all flex items-center gap-2"
             >
               <XCircle className="w-5 h-5" />
@@ -855,11 +863,19 @@ const SortingTab = () => {
             <div className="p-2.5 bg-green-600/10 rounded-xl">
               <CheckCircle2 className="w-5 h-5 text-green-600" />
             </div>
-            <div>
-              <h3 className="text-base font-bold text-green-900">Assignment Preview</h3>
-              <p className="text-xs text-green-700">Review the distribution before saving</p>
+            <div className="flex-1">
+              <h3 className="text-base font-bold text-green-900">Redistribution Preview</h3>
+              <p className="text-xs text-green-700">Animals sorted and redistributed across selected cages - review and save to apply</p>
             </div>
           </div>
+          {excludedCount > 0 && (
+            <div className="mb-4 p-3 bg-orange-50 border-2 border-orange-200 rounded-lg flex items-start gap-2">
+              <XCircle className="w-4 h-4 text-orange-600 shrink-0 mt-0.5" />
+              <p className="text-xs text-orange-700">
+                <strong className="font-bold">{excludedCount}</strong> animal(s) hidden due to gender filter criteria.
+              </p>
+            </div>
+          )}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {preview.map(group => {
               const cage = cages.find(c => c.id === group.cageId)
@@ -899,18 +915,27 @@ const SortingTab = () => {
         </div>
       )}
 
-      {/* Unassigned Animals Info */}
+      {/* Animals Info */}
       <div className="bg-gradient-to-br from-surface to-background border-2 border-border rounded-2xl p-6 shadow-sm">
         <div className="flex items-center gap-3 mb-2">
-          <div className="p-2 bg-orange-500/10 rounded-xl">
-            <Activity className="w-5 h-5 text-orange-600" />
+          <div className="p-2 bg-blue-500/10 rounded-xl">
+            <Activity className="w-5 h-5 text-blue-600" />
           </div>
-          <h3 className="text-base font-bold text-foreground">Unassigned Animals</h3>
+          <h3 className="text-base font-bold text-foreground">Animals Summary</h3>
         </div>
-        <p className="text-sm text-muted">
-          <strong className="text-foreground font-bold text-lg">{unassignedPigs.length}</strong> animal(s) currently without cage assignment. 
-          {unassignedPigs.length > 0 && " Use the configuration tool above to automatically distribute them across selected cages."}
-        </p>
+        {selectedCages.length === 0 ? (
+          <p className="text-sm text-muted">
+            Select cages above to see how many animals will be sorted.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            <p className="text-sm text-muted">
+              <strong className="text-foreground font-bold text-lg">
+                {pigs.filter(p => selectedCages.includes(p.cageId || '')).length}
+              </strong> animal(s) from <strong className="text-foreground font-bold">{selectedCages.length}</strong> selected cage(s) will be sorted.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   )
