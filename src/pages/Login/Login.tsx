@@ -2,13 +2,15 @@ import { useState } from 'react'
 import { useNavigate, Link } from 'react-router'
 import { useAuthStore } from '@/store'
 import { cn } from '@/lib/utils'
-import { Lightbulb, AlertCircle } from 'lucide-react'
+import { Lightbulb, AlertCircle, Scan } from 'lucide-react'
+import { FaceLogin } from '@/components/FaceRecognition'
 
 const Login = () => {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [showFaceLogin, setShowFaceLogin] = useState(false)
   const navigate = useNavigate()
   const login = useAuthStore((state) => state.login)
 
@@ -121,6 +123,32 @@ const Login = () => {
           >
             {isLoading ? 'Logging in...' : 'Login'}
           </button>
+
+          {/* Divider */}
+          <div className="relative flex items-center my-2">
+            <div className="flex-grow border-t border-border" />
+            <span className="px-4 text-sm text-muted">or</span>
+            <div className="flex-grow border-t border-border" />
+          </div>
+
+          {/* Face Login Button */}
+          <button
+            type="button"
+            onClick={() => setShowFaceLogin(true)}
+            disabled={isLoading}
+            className={cn(
+              'w-full py-3.5 rounded-lg text-base font-semibold',
+              'bg-surface border-2 border-primary text-primary',
+              'transition-all duration-200',
+              'hover:bg-primary/5 hover:-translate-y-0.5 hover:shadow-lg',
+              'active:translate-y-0',
+              'disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none',
+              'flex items-center justify-center gap-3'
+            )}
+          >
+            <Scan className="w-5 h-5" />
+            Login with Face Recognition
+          </button>
         </form>
 
         <div className="mt-6 p-4 bg-background rounded-lg border border-border">
@@ -145,6 +173,13 @@ const Login = () => {
           </p>
         </div>
       </div>
+
+      {/* Face Login Modal */}
+      <FaceLogin
+        isOpen={showFaceLogin}
+        onClose={() => setShowFaceLogin(false)}
+        onSuccess={() => navigate('/dashboard')}
+      />
     </div>
   )
 }
