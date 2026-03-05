@@ -11,6 +11,7 @@ import {
 import { Tag, Plus, Pencil, Trash2, QrCode, MoreHorizontal, Loader2 } from 'lucide-react'
 import { animalService, cageService } from '@/services/animalService'
 import type { Animal as DBAnimal, Cage } from '@/services/animalService'
+import { checkCageCapacity } from '@/services/cageService'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -725,6 +726,16 @@ export default function AnimalTagging() {
         throw new Error('An animal with this ID already exists')
       }
 
+      // Check cage capacity if a cage is selected
+      if (values.current_cage_id) {
+        const capacityInfo = await checkCageCapacity(values.current_cage_id)
+        if (capacityInfo.isFull) {
+          throw new Error(
+            `Cage is full! Current: ${capacityInfo.currentCount}/${capacityInfo.maxCapacity}. Please select a different cage.`
+          )
+        }
+      }
+
       const newAnimal = await animalService.createAnimal({
         id: values.id,
         type: values.type,
@@ -753,6 +764,16 @@ export default function AnimalTagging() {
 
     setIsSubmitting(true)
     try {
+      // Check cage capacity if cage is being changed or assigned
+      if (values.current_cage_id && values.current_cage_id !== editingAnimal.current_cage_id) {
+        const capacityInfo = await checkCageCapacity(values.current_cage_id, editingAnimal.id)
+        if (capacityInfo.isFull) {
+          throw new Error(
+            `Cage is full! Current: ${capacityInfo.currentCount}/${capacityInfo.maxCapacity}. Please select a different cage.`
+          )
+        }
+      }
+
       const updated = await animalService.updateAnimal(editingAnimal.id, {
         type: values.type,
         sex: values.sex,

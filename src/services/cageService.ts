@@ -178,3 +178,53 @@ export async function getAnimalsByCage(cageId: string): Promise<Animal[]> {
 
   return data || []
 }
+
+/**
+ * Check if a cage has available capacity
+ * @param cageId - The cage ID to check
+ * @param excludeAnimalId - Optional animal ID to exclude from count (useful when updating an existing animal)
+ * @returns Object with capacity information
+ */
+export async function checkCageCapacity(
+  cageId: string,
+  excludeAnimalId?: string
+): Promise<{
+  isFull: boolean
+  currentCount: number
+  maxCapacity: number
+  availableSpots: number
+}> {
+  if (!supabaseModule2) {
+    throw new Error('Supabase is not configured')
+  }
+
+  // Get cage details
+  const { data: cage, error: cageError } = await supabaseModule2
+    .from('cages')
+    .select('max_capacity')
+    .eq('id', cageId)
+    .single()
+
+  if (cageError || !cage) {
+    throw new Error('Cage not found')
+  }
+
+  // Get current animals in cage
+  const animals = await getAnimalsByCage(cageId)
+  
+  // Exclude the specified animal if provided (for update scenarios)
+  const currentCount = excludeAnimalId
+    ? animals.filter(animal => animal.id !== excludeAnimalId).length
+    : animals.length
+
+  const maxCapacity = cage.max_capacity
+  const availableSpots = maxCapacity - currentCount
+  const isFull = currentCount >= maxCapacity
+
+  return {
+    isFull,
+    currentCount,
+    maxCapacity,
+    availableSpots,
+  }
+}
