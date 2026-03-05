@@ -1,4 +1,3 @@
-export { default as CageMonitoring } from './CageMonitoring'
 export { default as AnimalMonitoring } from './AnimalMonitoring'
 export { default as AnimalTagging } from './AnimalTagging'
 export { default as Breeding } from './Breeding'

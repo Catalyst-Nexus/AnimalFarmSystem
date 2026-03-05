@@ -14,6 +14,7 @@ export const isSupabaseConfigured = () => {
 let supabaseInstance: SupabaseClient | null = null
 
 if (isSupabaseConfigured()) {
+  // Single client for all schemas - use .schema() to switch
   supabaseInstance = createClient(supabaseUrl, supabaseAnonKey)
 }
 

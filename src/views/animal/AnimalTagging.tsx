@@ -1,5 +1,4 @@
-import { createContext, useContext, useState, useMemo } from 'react'
-import type { ReactNode } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { cn } from '@/lib/utils'
 import {
   PageHeader,
@@ -8,325 +7,75 @@ import {
   ActionsBar,
   PrimaryButton,
   DataTable,
-  IconButton,
 } from '@/components/ui'
-import { Tag, Plus, Pencil, Trash2, QrCode, MoreHorizontal } from 'lucide-react'
+import { Tag, Plus, Pencil, Trash2, QrCode, MoreHorizontal, Loader2 } from 'lucide-react'
+import { animalService, cageService } from '@/services/animalService'
+import type { Animal as DBAnimal, Cage } from '@/services/animalService'
+import { checkCageCapacity } from '@/services/cageService'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type AnimalSpecies = 'Cow' | 'Pig' | 'Chicken' | 'Goat' | 'Sheep' | 'Horse'
 type AnimalSex = 'Male' | 'Female'
 type AnimalStatus = 'Active' | 'Sick' | 'Deceased' | 'Sold'
-/** Only relevant when species === 'Pig' */
-type PigRole = 'Parent' | 'Child'
-
-interface Animal {
-  id: string
-  /** Auto-generated barcode tag linked on registration */
-  tagId: string
-  species: AnimalSpecies
-  breed: string
-  sex: AnimalSex
-  dateOfBirth: string
-  /** Weight in kg */
-  weight: number
-  status: AnimalStatus
-  facility: string
-  registeredAt: string
-  notes?: string
-  /** Parent or Child — only applicable when species === 'Pig' */
-  pigRole?: PigRole
-  /** tagId of the parent pig — only when pigRole === 'Child' */
-  parentTagId?: string
-}
 
 interface AnimalFormValues {
-  species: AnimalSpecies
-  breed: string
+  id: string // Manual barcode ID created by user
+  type: string // e.g., Pig, Cow, etc.
   sex: AnimalSex
-  dateOfBirth: string
   weight: string
-  facility: string
-  notes: string
-  pigRole: PigRole | ''
-  parentTagId: string
+  status: AnimalStatus
+  current_cage_id: string
+  mother_id: string // Optional parent animal ID
+  father_id: string // Optional parent animal ID
 }
 
-// ─── Static Data ──────────────────────────────────────────────────────────────
+// ─── Constants ────────────────────────────────────────────────────────────
 
-const ANIMALS_DATA: Animal[] = [
-  {
-    id: '1',
-    tagId: 'TAG-2026-001',
-    species: 'Pig',
-    breed: 'Large White',
-    sex: 'Male',
-    dateOfBirth: '2021-04-15',
-    weight: 230,
-    status: 'Active',
-    facility: 'Pen A',
-    registeredAt: '2026-01-05',
-    pigRole: 'Parent',
-    notes: 'Primary breeding boar. High fertility.',
-  },
-  {
-    id: '2',
-    tagId: 'TAG-2026-002',
-    species: 'Pig',
-    breed: 'Landrace',
-    sex: 'Female',
-    dateOfBirth: '2022-06-20',
-    weight: 185,
-    status: 'Active',
-    facility: 'Pen A',
-    registeredAt: '2026-01-08',
-    pigRole: 'Parent',
-    notes: 'Breeding sow. 2nd litter expected April 2026.',
-  },
-  {
-    id: '3',
-    tagId: 'TAG-2026-003',
-    species: 'Pig',
-    breed: 'Large White x Landrace',
-    sex: 'Male',
-    dateOfBirth: '2025-02-10',
-    weight: 72,
-    status: 'Active',
-    facility: 'Pen B',
-    registeredAt: '2026-01-15',
-    pigRole: 'Child',
-    parentTagId: 'TAG-2026-001',
-    notes: 'Offspring of Bruno. Growing well.',
-  },
-  {
-    id: '4',
-    tagId: 'TAG-2026-004',
-    species: 'Pig',
-    breed: 'Large White x Landrace',
-    sex: 'Female',
-    dateOfBirth: '2025-02-10',
-    weight: 68,
-    status: 'Active',
-    facility: 'Pen B',
-    registeredAt: '2026-01-15',
-    pigRole: 'Child',
-    parentTagId: 'TAG-2026-001',
-    notes: 'Littermate of Chico.',
-  },
-  {
-    id: '5',
-    tagId: 'TAG-2026-005',
-    species: 'Pig',
-    breed: 'Duroc',
-    sex: 'Male',
-    dateOfBirth: '2023-08-05',
-    weight: 198,
-    status: 'Sick',
-    facility: 'Pen C',
-    registeredAt: '2026-01-20',
-    pigRole: 'Parent',
-    notes: 'Under observation — mild fever as of March 2026.',
-  },
-  {
-    id: '6',
-    tagId: 'TAG-2026-006',
-    species: 'Pig',
-    breed: 'Duroc x Landrace',
-    sex: 'Female',
-    dateOfBirth: '2025-05-18',
-    weight: 55,
-    status: 'Active',
-    facility: 'Pen C',
-    registeredAt: '2026-02-01',
-    pigRole: 'Child',
-    parentTagId: 'TAG-2026-005',
-    notes: 'Offspring of Chubby. Healthy piglet.',
-  },
-  {
-    id: '7',
-    tagId: 'TAG-2026-007',
-    species: 'Pig',
-    breed: 'Berkshire',
-    sex: 'Male',
-    dateOfBirth: '2024-11-30',
-    weight: 110,
-    status: 'Sold',
-    facility: 'Pen B',
-    registeredAt: '2026-02-10',
-    pigRole: 'Child',
-    parentTagId: 'TAG-2026-002',
-    notes: 'Sold to a nearby farm on 2026-03-01.',
-  },
-  {
-    id: '8',
-    tagId: 'TAG-2026-008',
-    species: 'Pig',
-    breed: 'Hampshire',
-    sex: 'Female',
-    dateOfBirth: '2025-01-22',
-    weight: 60,
-    status: 'Active',
-    facility: 'Pen D',
-    registeredAt: '2026-02-15',
-    pigRole: 'Child',
-    parentTagId: 'TAG-2026-002',
-    notes: 'Offspring of Rosie. Weaned at 4 weeks.',
-  },
-  {
-    id: '9',
-    tagId: 'TAG-2026-009',
-    species: 'Pig',
-    breed: 'Yorkshire',
-    sex: 'Female',
-    dateOfBirth: '2022-03-14',
-    weight: 175,
-    status: 'Active',
-    facility: 'Pen D',
-    registeredAt: '2026-03-01',
-    pigRole: 'Parent',
-    notes: 'Third breeding sow. Excellent mothering.',
-  },
-]
-
-// ─── Context ──────────────────────────────────────────────────────────────────
-
-interface AnimalTaggingContextType {
-  animals: Animal[]
-  addAnimal: (values: AnimalFormValues) => Animal
-  updateAnimal: (id: string, values: AnimalFormValues) => void
-  deleteAnimal: (id: string) => void
-  changeStatus: (id: string, status: AnimalStatus) => void
-}
-
-const AnimalTaggingContext = createContext<AnimalTaggingContextType | undefined>(undefined)
-
-const generateTagId = (existing: Animal[]): string => {
-  const year = new Date().getFullYear()
-  const highest = existing
-    .filter((a) => a.tagId.startsWith(`TAG-${year}`))
-    .map((a) => parseInt(a.tagId.split('-')[2] ?? '0', 10))
-    .reduce((max, n) => Math.max(max, n), 0)
-  return `TAG-${year}-${String(highest + 1).padStart(3, '0')}`
-}
-
-const AnimalTaggingProvider = ({ children }: { children: ReactNode }) => {
-  const [animals, setAnimals] = useState<Animal[]>(ANIMALS_DATA)
-
-  const addAnimal = (values: AnimalFormValues): Animal => {
-    const newAnimal: Animal = {
-      id: crypto.randomUUID(),
-      tagId: generateTagId(animals),
-      species: values.species,
-      breed: values.breed,
-      sex: values.sex,
-      dateOfBirth: values.dateOfBirth,
-      weight: parseFloat(values.weight) || 0,
-      status: 'Active',
-      facility: values.facility,
-      registeredAt: new Date().toISOString().slice(0, 10),
-      notes: values.notes,
-      ...(values.species === 'Pig' && values.pigRole
-        ? {
-            pigRole: values.pigRole as PigRole,
-            parentTagId: values.pigRole === 'Child' ? values.parentTagId : undefined,
-          }
-        : {}),
-    }
-    setAnimals((prev) => [newAnimal, ...prev])
-    return newAnimal
-  }
-
-  const updateAnimal = (id: string, values: AnimalFormValues) => {
-    setAnimals((prev) =>
-      prev.map((a) =>
-        a.id === id
-          ? {
-              ...a,
-              species: values.species,
-              breed: values.breed,
-              sex: values.sex,
-              dateOfBirth: values.dateOfBirth,
-              weight: parseFloat(values.weight) || a.weight,
-              facility: values.facility,
-              notes: values.notes,
-              pigRole:
-                values.species === 'Pig' && values.pigRole
-                  ? (values.pigRole as PigRole)
-                  : undefined,
-              parentTagId:
-                values.species === 'Pig' && values.pigRole === 'Child'
-                  ? values.parentTagId
-                  : undefined,
-            }
-          : a
-      )
-    )
-  }
-
-  const deleteAnimal = (id: string) => setAnimals((prev) => prev.filter((a) => a.id !== id))
-
-  const changeStatus = (id: string, status: AnimalStatus) =>
-    setAnimals((prev) => prev.map((a) => (a.id === id ? { ...a, status } : a)))
-
-  return (
-    <AnimalTaggingContext.Provider value={{ animals, addAnimal, updateAnimal, deleteAnimal, changeStatus }}>
-      {children}
-    </AnimalTaggingContext.Provider>
-  )
-}
-
-const useAnimalTagging = () => {
-  const ctx = useContext(AnimalTaggingContext)
-  if (!ctx) throw new Error('useAnimalTagging must be used inside AnimalTaggingProvider')
-  return ctx
-}
-
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-const SPECIES_OPTIONS: AnimalSpecies[] = ['Cow', 'Pig', 'Chicken', 'Goat', 'Sheep', 'Horse']
 const STATUS_OPTIONS: AnimalStatus[] = ['Active', 'Sick', 'Deceased', 'Sold']
 const TAB_FILTERS = ['All', 'Active', 'Sick', 'Sold', 'Deceased'] as const
 type TabFilter = (typeof TAB_FILTERS)[number]
 
 const EMPTY_FORM: AnimalFormValues = {
-  species: 'Cow',
-  breed: '',
+  id: '',
+  type: '',
   sex: 'Male',
-  dateOfBirth: '',
   weight: '',
-  facility: '',
-  notes: '',
-  pigRole: '',
-  parentTagId: '',
+  status: 'Active',
+  current_cage_id: '',
+  mother_id: '',
+  father_id: '',
 }
 
 const STATUS_STYLES: Record<AnimalStatus, string> = {
-  Active: 'bg-green-100 text-green-700',
-  Sick: 'bg-orange-100 text-orange-700',
-  Deceased: 'bg-red-100 text-red-600',
-  Sold: 'bg-blue-100 text-blue-700',
+  Active: 'bg-green-500 text-white',
+  Sick: 'bg-orange-500 text-white',
+  Deceased: 'bg-gray-700 text-white',
+  Sold: 'bg-blue-500 text-white',
 }
 
-const PIG_ROLE_STYLES: Record<PigRole, string> = {
-  Parent: 'bg-purple-100 text-purple-700',
-  Child: 'bg-yellow-100 text-yellow-700',
+// ─── Old mock data removed ────────────────────────────────────────────────────
+// Note: The old ANIMALS_DATA mock array and context-based implementation have been 
+// replaced with direct Supabase integration via animalService
+
+// ─── Sub-components
+
+const AnimalStatusBadge = ({ status }: { status: AnimalStatus }) => {
+  const icons: Record<AnimalStatus, string> = {
+    Active: '✓',
+    Sick: '⚠',
+    Deceased: '✕',
+    Sold: '→',
+  }
+  
+  return (
+    <span className={cn('inline-flex items-center gap-1.5 px-4 py-2 text-sm font-bold rounded-lg shadow-sm', STATUS_STYLES[status])}>
+      <span className="text-base">{icons[status]}</span>
+      {status}
+    </span>
+  )
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
-
-const AnimalStatusBadge = ({ status }: { status: AnimalStatus }) => (
-  <span className={cn('inline-block px-2.5 py-0.5 text-xs font-medium rounded-full', STATUS_STYLES[status])}>
-    {status}
-  </span>
-)
-
-const PigRoleBadge = ({ role }: { role: PigRole }) => (
-  <span className={cn('inline-block px-2.5 py-0.5 text-xs font-medium rounded-full', PIG_ROLE_STYLES[role])}>
-    {role}
-  </span>
-)
-
-// Deterministic barcode bars generated from a tag string
+// Deterministic barcode visual generated from animal ID
 const BarcodeVisual = ({ value }: { value: string }) => {
   const bars = useMemo(() => {
     let seed = value.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0)
@@ -360,7 +109,7 @@ const BarcodeVisual = ({ value }: { value: string }) => {
 
 // ─── Barcode Modal ────────────────────────────────────────────────────────────
 
-const BarcodeModal = ({ animal, onClose }: { animal: Animal; onClose: () => void }) => (
+const BarcodeModal = ({ animal, onClose }: { animal: DBAnimal; onClose: () => void }) => (
   <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
     <div className="bg-surface border border-border rounded-2xl shadow-2xl w-full max-w-sm p-6">
       <div className="flex items-center justify-between mb-4">
@@ -373,19 +122,17 @@ const BarcodeModal = ({ animal, onClose }: { animal: Animal; onClose: () => void
       </div>
       <div className="mb-5 p-4 bg-background rounded-xl space-y-1.5">
         <p className="text-xs text-muted">
-          {animal.species} · {animal.breed} · {animal.sex}
+          {animal.type} · Sex: {animal.sex}
         </p>
-        <p className="text-xs text-muted">Facility: {animal.facility}</p>
+        <p className="text-xs text-muted">Weight: {animal.weight} kg</p>
+        {animal.mother_id && <p className="text-xs text-muted">Mother: {animal.mother_id}</p>}
+        {animal.father_id && <p className="text-xs text-muted">Father: {animal.father_id}</p>}
         <div className="flex items-center gap-2 pt-1 flex-wrap">
-          <AnimalStatusBadge status={animal.status} />
-          {animal.pigRole && <PigRoleBadge role={animal.pigRole} />}
-          {animal.parentTagId && (
-            <span className="text-xs text-muted">Parent tag: {animal.parentTagId}</span>
-          )}
+          <AnimalStatusBadge status={animal.status as AnimalStatus} />
         </div>
       </div>
-      <BarcodeVisual value={animal.tagId} />
-      <p className="mt-4 text-center text-xs text-muted">Registered on {animal.registeredAt}</p>
+      <BarcodeVisual value={animal.id} />
+      <p className="mt-4 text-center text-xs text-muted">Registered on {new Date(animal.created_at).toLocaleDateString()}</p>
       <button
         className="mt-5 w-full py-2.5 bg-success text-white rounded-lg text-sm font-medium hover:bg-success/90 transition-colors"
         onClick={onClose}
@@ -403,52 +150,142 @@ const LABEL = 'block text-xs font-semibold text-muted uppercase tracking-wide mb
 
 const AnimalModal = ({
   editingAnimal,
+  allAnimals,
+  cages,
+  isSubmitting,
   onClose,
+  onSubmit,
+  onGenerateNextId,
 }: {
-  editingAnimal: Animal | null
+  editingAnimal: DBAnimal | null
+  allAnimals: DBAnimal[]
+  cages: Cage[]
+  isSubmitting: boolean
   onClose: () => void
+  onSubmit: (values: AnimalFormValues) => Promise<void>
+  onGenerateNextId: () => Promise<string>
 }) => {
-  const { animals, addAnimal, updateAnimal } = useAnimalTagging()
-  const parentPigs = animals.filter((a) => a.species === 'Pig' && a.pigRole === 'Parent')
 
   const [form, setForm] = useState<AnimalFormValues>(
     editingAnimal
       ? {
-          species: editingAnimal.species,
-          breed: editingAnimal.breed,
-          sex: editingAnimal.sex,
-          dateOfBirth: editingAnimal.dateOfBirth,
+          id: editingAnimal.id,
+          type: editingAnimal.type,
+          sex: editingAnimal.sex as AnimalSex,
           weight: String(editingAnimal.weight),
-          facility: editingAnimal.facility,
-          notes: editingAnimal.notes ?? '',
-          pigRole: editingAnimal.pigRole ?? '',
-          parentTagId: editingAnimal.parentTagId ?? '',
+          status: editingAnimal.status as AnimalStatus,
+          current_cage_id: editingAnimal.current_cage_id || '',
+          mother_id: editingAnimal.mother_id || '',
+          father_id: editingAnimal.father_id || '',
         }
       : EMPTY_FORM
   )
-  const [registered, setRegistered] = useState<Animal | null>(null)
+  const [error, setError] = useState<string>('')
+  const [registered, setRegistered] = useState<DBAnimal | null>(null)
+  const [motherSearch, setMotherSearch] = useState<string>('')
+  const [fatherSearch, setFatherSearch] = useState<string>('')
+  const [cageSearch, setCageSearch] = useState<string>('')
+  const [showMotherDropdown, setShowMotherDropdown] = useState(false)
+  const [showFatherDropdown, setShowFatherDropdown] = useState(false)
+  const [showCageDropdown, setShowCageDropdown] = useState(false)
+
+  // Auto-generate animal ID on mount (when adding new animal)
+  useEffect(() => {
+    if (!editingAnimal) {
+      onGenerateNextId().then((nextId) => {
+        setForm((prev) => ({ ...prev, id: nextId }))
+      })
+    } else {
+      // Populate search fields when editing
+      const mother = allAnimals.find((a) => a.id === editingAnimal.mother_id)
+      const father = allAnimals.find((a) => a.id === editingAnimal.father_id)
+      const cage = cages.find((c) => c.id === editingAnimal.current_cage_id)
+      if (mother) setMotherSearch(mother.id)
+      if (father) setFatherSearch(father.id)
+      if (cage) setCageSearch(cage.cage_label)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingAnimal])
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      if (!target.closest('[data-parent-select]') && !target.closest('[data-cage-select]')) {
+        setShowMotherDropdown(false)
+        setShowFatherDropdown(false)
+        setShowCageDropdown(false)
+      }
+    }
+    document.addEventListener('click', handleClickOutside)
+    return () => document.removeEventListener('click', handleClickOutside)
+  }, [])
 
   const set = (key: keyof AnimalFormValues, val: string) =>
     setForm((prev) => ({ ...prev, [key]: val }))
 
-  const handleSubmit = () => {
-    if (!form.breed.trim() || !form.dateOfBirth || !form.facility.trim()) {
-      alert('Please fill in all required fields.')
+  // Filter mothers (Female animals only)
+  const filteredMothers = useMemo(() => {
+    return allAnimals.filter((a) => 
+      a.sex === 'Female' && 
+      (a.id.toLowerCase().includes(motherSearch.toLowerCase()) || 
+       a.type.toLowerCase().includes(motherSearch.toLowerCase()))
+    )
+  }, [allAnimals, motherSearch])
+
+  // Filter fathers (Male animals only)
+  const filteredFathers = useMemo(() => {
+    return allAnimals.filter((a) => 
+      a.sex === 'Male' && 
+      (a.id.toLowerCase().includes(fatherSearch.toLowerCase()) || 
+       a.type.toLowerCase().includes(fatherSearch.toLowerCase()))
+    )
+  }, [allAnimals, fatherSearch])
+
+  // Filter cages by label
+  const filteredCages = useMemo(() => {
+    return cages.filter((c) => 
+      c.cage_label.toLowerCase().includes(cageSearch.toLowerCase())
+    )
+  }, [cages, cageSearch])
+
+  const handleSubmit = async () => {
+    setError('')
+
+    if (!form.id.trim()) {
+      setError('Animal ID should be auto-generated. Please try again.')
       return
     }
-    if (form.species === 'Pig' && !form.pigRole) {
-      alert('Please select a pig role (Parent or Child).')
+
+    if (!form.type.trim()) {
+      setError('Please enter an animal type.')
       return
     }
-    if (form.species === 'Pig' && form.pigRole === 'Child' && !form.parentTagId) {
-      alert('Please select the parent pig tag.')
+
+    if (!form.weight.trim()) {
+      setError('Please enter a weight.')
       return
     }
-    if (editingAnimal) {
-      updateAnimal(editingAnimal.id, form)
-      onClose()
-    } else {
-      setRegistered(addAnimal(form))
+
+    if (!form.current_cage_id) {
+      setError('Please select a cage.')
+      return
+    }
+
+    try {
+      await onSubmit(form)
+      if (!editingAnimal) {
+        // Show success screen with the new animal data
+        const successAnimal: DBAnimal = {
+          ...form,
+          weight: parseFloat(form.weight),
+          created_at: new Date().toISOString(),
+        } as DBAnimal
+        setRegistered(successAnimal)
+        setForm(EMPTY_FORM)
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred')
     }
   }
 
@@ -462,15 +299,19 @@ const AnimalModal = ({
           </div>
           <h2 className="text-xl font-bold text-primary mb-1">Animal Registered!</h2>
           <p className="text-sm text-muted mb-6">
-            Barcode tag <strong>{registered.tagId}</strong> has been assigned.
-            {registered.pigRole && (
+            Animal ID <strong>{registered.id}</strong> has been created.
+            {registered.mother_id && (
               <span className="block mt-1">
-                Pig role: <strong>{registered.pigRole}</strong>
-                {registered.parentTagId && ` (parent: ${registered.parentTagId})`}
+                Mother: <strong>{registered.mother_id}</strong>
+              </span>
+            )}
+            {registered.father_id && (
+              <span className="block mt-1">
+                Father: <strong>{registered.father_id}</strong>
               </span>
             )}
           </p>
-          <BarcodeVisual value={registered.tagId} />
+          <BarcodeVisual value={registered.id} />
           <p className="mt-4 text-xs text-muted">Print or scan this barcode to identify the animal.</p>
           <div className="flex gap-3 mt-6">
             <button
@@ -507,105 +348,241 @@ const AnimalModal = ({
           </button>
         </div>
 
-        {!editingAnimal && (
+      {!editingAnimal && (
           <p className="mb-5 text-xs text-muted bg-background border border-border rounded-lg px-4 py-3">
-            A unique barcode tag will be automatically generated and linked to this animal upon registration.
+            The animal barcode ID is auto-generated based on the current year and latest sequential number.
           </p>
         )}
 
+        {error && (
+          <div className="mb-4 p-3 bg-red-100 border border-red-300 rounded-lg text-sm text-red-700">
+            {error}
+          </div>
+        )}
+
         <div className="grid grid-cols-2 gap-4">
-          {/* Species */}
-          <div>
-            <label className={LABEL}>Species</label>
-            <select
+          {/* Animal ID (Barcode) */}
+          <div className="col-span-2">
+            <label className={LABEL}>Animal ID (Barcode) <span className="text-red-500">*</span></label>
+            <input
               className={FIELD}
-              value={form.species}
-              onChange={(e) => {
-                set('species', e.target.value)
-                if (e.target.value !== 'Pig') {
-                  setForm((prev) => ({ ...prev, species: e.target.value as AnimalSpecies, pigRole: '', parentTagId: '' }))
-                }
-              }}
-            >
-              {SPECIES_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
+              placeholder="e.g., TAG-2026-001"
+              value={form.id}
+              onChange={(e) => set('id', e.target.value)}
+              disabled={!!editingAnimal}
+            />
           </div>
 
-          {/* Breed */}
+          {/* Animal Type */}
           <div>
-            <label className={LABEL}>Breed <span className="text-red-500">*</span></label>
-            <input className={FIELD} placeholder="e.g. Holstein" value={form.breed} onChange={(e) => set('breed', e.target.value)} />
+            <label className={LABEL}>Animal Type <span className="text-red-500">*</span></label>
+            <input
+              className={FIELD}
+              placeholder="e.g., Pig"
+              value={form.type}
+              onChange={(e) => set('type', e.target.value)}
+            />
           </div>
 
           {/* Sex */}
           <div>
             <label className={LABEL}>Sex</label>
-            <select className={FIELD} value={form.sex} onChange={(e) => set('sex', e.target.value as AnimalSex)}>
+            <select className={FIELD} value={form.sex} onChange={(e) => set('sex', e.target.value as AnimalSex)} aria-label="Animal sex">
               <option value="Male">Male</option>
               <option value="Female">Female</option>
             </select>
           </div>
 
-          {/* Date of Birth */}
-          <div>
-            <label className={LABEL}>Date of Birth <span className="text-red-500">*</span></label>
-            <input type="date" className={FIELD} value={form.dateOfBirth} onChange={(e) => set('dateOfBirth', e.target.value)} />
-          </div>
-
           {/* Weight */}
           <div>
-            <label className={LABEL}>Weight (kg)</label>
-            <input type="number" min="0" step="0.1" className={FIELD} placeholder="e.g. 540" value={form.weight} onChange={(e) => set('weight', e.target.value)} />
+            <label className={LABEL}>Weight (kg) <span className="text-red-500">*</span></label>
+            <input
+              type="number"
+              min="0"
+              step="0.1"
+              className={FIELD}
+              placeholder="e.g., 100"
+              value={form.weight}
+              onChange={(e) => set('weight', e.target.value)}
+            />
           </div>
 
-          {/* Facility */}
+          {/* Status */}
           <div>
-            <label className={LABEL}>Facility <span className="text-red-500">*</span></label>
-            <input className={FIELD} placeholder="e.g. Barn A" value={form.facility} onChange={(e) => set('facility', e.target.value)} />
+            <label className={LABEL}>Status</label>
+            <select className={FIELD} value={form.status} onChange={(e) => set('status', e.target.value as AnimalStatus)} aria-label="Animal status">
+              {STATUS_OPTIONS.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
           </div>
 
-          {/* Pig Role — only shown for pigs */}
-          {form.species === 'Pig' && (
-            <>
-              <div>
-                <label className={LABEL}>Pig Role <span className="text-red-500">*</span></label>
-                <select className={FIELD} value={form.pigRole} onChange={(e) => set('pigRole', e.target.value)}>
-                  <option value="">-- Select role --</option>
-                  <option value="Parent">Parent</option>
-                  <option value="Child">Child</option>
-                </select>
+          {/* Cage */}
+          <div data-cage-select>
+            <label className={LABEL}>Cage <span className="text-red-500">*</span></label>
+            {cages.length === 0 ? (
+              <p className="mt-1 text-xs text-orange-500">No cages available. Create a cage first.</p>
+            ) : (
+              <div className="relative">
+                <input
+                  type="text"
+                  className={FIELD}
+                  placeholder="Search cages..."
+                  value={cageSearch}
+                  onChange={(e) => setCageSearch(e.target.value)}
+                  onFocus={() => setShowCageDropdown(true)}
+                />
+                {showCageDropdown && (
+                  <div className="absolute z-50 w-full mt-1 bg-background border border-border rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                    <button
+                      type="button"
+                      className="w-full text-left px-3 py-2 hover:bg-surface text-xs text-muted"
+                      onClick={() => {
+                        set('current_cage_id', '')
+                        setCageSearch('')
+                        setShowCageDropdown(false)
+                      }}
+                    >
+                      -- Select cage --
+                    </button>
+                    {filteredCages.length === 0 ? (
+                      <div className="px-3 py-2 text-xs text-muted">No cages found</div>
+                    ) : (
+                      filteredCages.map((c) => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          className="w-full text-left px-3 py-2 hover:bg-surface text-xs border-b border-border last:border-b-0"
+                          onClick={() => {
+                            set('current_cage_id', c.id)
+                            setCageSearch(c.cage_label)
+                            setShowCageDropdown(false)
+                          }}
+                        >
+                          {c.cage_label}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
               </div>
+            )}
+          </div>
 
-              {form.pigRole === 'Child' && (
-                <div>
-                  <label className={LABEL}>Parent Pig Tag <span className="text-red-500">*</span></label>
-                  <select className={FIELD} value={form.parentTagId} onChange={(e) => set('parentTagId', e.target.value)}>
-                    <option value="">-- Select parent --</option>
-                    {parentPigs.map((p) => (
-                      <option key={p.id} value={p.tagId}>{p.tagId}</option>
-                    ))}
-                  </select>
-                  {parentPigs.length === 0 && (
-                    <p className="mt-1 text-xs text-orange-500">No parent pigs registered yet. Register a parent pig first.</p>
+          {/* Mother */}
+          <div data-parent-select>
+            <label className={LABEL}>Mother (Optional)</label>
+            <div className="relative">
+              <input
+                type="text"
+                className={FIELD}
+                placeholder="Search by ID or type..."
+                value={motherSearch}
+                onChange={(e) => setMotherSearch(e.target.value)}
+                onFocus={() => setShowMotherDropdown(true)}
+              />
+              {showMotherDropdown && (
+                <div className="absolute z-50 w-full mt-1 bg-background border border-border rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                  <button
+                    type="button"
+                    className="w-full text-left px-3 py-2 hover:bg-surface text-xs text-muted"
+                    onClick={() => {
+                      set('mother_id', '')
+                      setMotherSearch('')
+                      setShowMotherDropdown(false)
+                    }}
+                  >
+                    -- No mother --
+                  </button>
+                  {filteredMothers.length === 0 ? (
+                    <div className="px-3 py-2 text-xs text-muted">No female animals found</div>
+                  ) : (
+                    filteredMothers.map((a) => (
+                      <button
+                        key={a.id}
+                        type="button"
+                        className="w-full text-left px-3 py-2 hover:bg-surface text-xs border-b border-border last:border-b-0"
+                        onClick={() => {
+                          set('mother_id', a.id)
+                          setMotherSearch(a.id)
+                          setShowMotherDropdown(false)
+                        }}
+                      >
+                        {a.id} (Type: {a.type})
+                      </button>
+                    ))
                   )}
                 </div>
               )}
-            </>
-          )}
+            </div>
+          </div>
 
-          {/* Notes */}
-          <div className="col-span-2">
-            <label className={LABEL}>Notes</label>
-            <textarea className={cn(FIELD, 'resize-none')} rows={3} placeholder="Optional remarks..." value={form.notes} onChange={(e) => set('notes', e.target.value)} />
+          {/* Father */}
+          <div data-parent-select>
+            <label className={LABEL}>Father (Optional)</label>
+            <div className="relative">
+              <input
+                type="text"
+                className={FIELD}
+                placeholder="Search by ID or type..."
+                value={fatherSearch}
+                onChange={(e) => setFatherSearch(e.target.value)}
+                onFocus={() => setShowFatherDropdown(true)}
+              />
+              {showFatherDropdown && (
+                <div className="absolute z-50 w-full mt-1 bg-background border border-border rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                  <button
+                    type="button"
+                    className="w-full text-left px-3 py-2 hover:bg-surface text-xs text-muted"
+                    onClick={() => {
+                      set('father_id', '')
+                      setFatherSearch('')
+                      setShowFatherDropdown(false)
+                    }}
+                  >
+                    -- No father --
+                  </button>
+                  {filteredFathers.length === 0 ? (
+                    <div className="px-3 py-2 text-xs text-muted">No male animals found</div>
+                  ) : (
+                    filteredFathers.map((a) => (
+                      <button
+                        key={a.id}
+                        type="button"
+                        className="w-full text-left px-3 py-2 hover:bg-surface text-xs border-b border-border last:border-b-0"
+                        onClick={() => {
+                          set('father_id', a.id)
+                          setFatherSearch(a.id)
+                          setShowFatherDropdown(false)
+                        }}
+                      >
+                        {a.id} (Type: {a.type})
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
         <div className="flex gap-3 mt-6">
-          <button className="flex-1 py-2.5 border border-border rounded-lg text-sm font-medium text-muted hover:bg-background transition-colors" onClick={onClose}>
+          <button
+            className="flex-1 py-2.5 border border-border rounded-lg text-sm font-medium text-muted hover:bg-background transition-colors disabled:opacity-50"
+            onClick={onClose}
+            disabled={isSubmitting}
+          >
             Cancel
           </button>
-          <button className="flex-1 py-2.5 bg-success text-white rounded-lg text-sm font-medium hover:bg-success/90 transition-colors" onClick={handleSubmit}>
-            {editingAnimal ? 'Save Changes' : 'Register & Generate Tag'}
+          <button
+            className="flex-1 py-2.5 bg-success text-white rounded-lg text-sm font-medium hover:bg-success/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+            onClick={handleSubmit}
+            disabled={isSubmitting}
+          >
+            {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
+            {editingAnimal ? 'Save Changes' : 'Register Animal'}
           </button>
         </div>
       </div>
@@ -615,18 +592,27 @@ const AnimalModal = ({
 
 // ─── Delete Confirm Modal ─────────────────────────────────────────────────────
 
-const DeleteModal = ({ animal, onConfirm, onClose }: { animal: Animal; onConfirm: () => void; onClose: () => void }) => (
+const DeleteModal = ({ animal, isDeleting, onConfirm, onClose }: { animal: DBAnimal; isDeleting: boolean; onConfirm: () => void; onClose: () => void }) => (
   <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
     <div className="bg-surface border border-border rounded-2xl shadow-2xl w-full max-w-sm p-6">
       <h2 className="text-lg font-bold text-primary mb-2">Remove Animal?</h2>
       <p className="text-sm text-muted mb-5">
-        Are you sure you want to remove <strong>{animal.tagId}</strong> from the registry? This cannot be undone.
+        Are you sure you want to remove <strong>{animal.id}</strong> from the registry? This cannot be undone.
       </p>
       <div className="flex gap-3">
-        <button className="flex-1 py-2.5 border border-border rounded-lg text-sm font-medium text-muted hover:bg-background transition-colors" onClick={onClose}>
+        <button
+          className="flex-1 py-2.5 border border-border rounded-lg text-sm font-medium text-muted hover:bg-background transition-colors disabled:opacity-50"
+          onClick={onClose}
+          disabled={isDeleting}
+        >
           Cancel
         </button>
-        <button className="flex-1 py-2.5 bg-red-500 text-white rounded-lg text-sm font-medium hover:bg-red-600 transition-colors" onClick={onConfirm}>
+        <button
+          className="flex-1 py-2.5 bg-red-500 text-white rounded-lg text-sm font-medium hover:bg-red-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+          onClick={onConfirm}
+          disabled={isDeleting}
+        >
+          {isDeleting && <Loader2 className="w-4 h-4 animate-spin" />}
           Remove
         </button>
       </div>
@@ -636,14 +622,18 @@ const DeleteModal = ({ animal, onConfirm, onClose }: { animal: Animal; onConfirm
 
 // ─── Change Status Modal ──────────────────────────────────────────────────────
 
-const StatusModal = ({ animal, onClose }: { animal: Animal; onClose: () => void }) => {
-  const { changeStatus } = useAnimalTagging()
-  const [selected, setSelected] = useState<AnimalStatus>(animal.status)
+const StatusModal = ({ animal, isUpdating, onClose, onStatusChange }: { animal: DBAnimal; isUpdating: boolean; onClose: () => void; onStatusChange: (status: AnimalStatus) => Promise<void> }) => {
+  const [selected, setSelected] = useState<AnimalStatus>(animal.status as AnimalStatus)
   const DOT: Record<AnimalStatus, string> = {
     Active: 'bg-green-500',
     Sick: 'bg-orange-500',
     Deceased: 'bg-red-500',
     Sold: 'bg-blue-500',
+  }
+
+  const handleApply = async () => {
+    await onStatusChange(selected)
+    onClose()
   }
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -652,7 +642,7 @@ const StatusModal = ({ animal, onClose }: { animal: Animal; onClose: () => void 
           <MoreHorizontal className="w-5 h-5 text-success" /> Change Status
         </h2>
         <p className="text-xs text-muted mb-4">
-          Animal: <strong>{animal.tagId}</strong>
+          Animal: <strong>{animal.id}</strong>
         </p>
         <div className="space-y-2 mb-6">
           {STATUS_OPTIONS.map((s) => (
@@ -660,11 +650,10 @@ const StatusModal = ({ animal, onClose }: { animal: Animal; onClose: () => void 
               key={s}
               className={cn(
                 'w-full flex items-center gap-3 px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors',
-                selected === s
-                  ? 'border-success bg-success/10 text-success'
-                  : 'border-border bg-background text-foreground hover:border-success/50'
+                selected === s ? 'border-success bg-success/10 text-success' : 'border-border bg-background text-foreground hover:border-success/50'
               )}
               onClick={() => setSelected(s)}
+              disabled={isUpdating}
             >
               <span className={cn('w-2.5 h-2.5 rounded-full', DOT[s])} />
               {s}
@@ -672,13 +661,19 @@ const StatusModal = ({ animal, onClose }: { animal: Animal; onClose: () => void 
           ))}
         </div>
         <div className="flex gap-3">
-          <button className="flex-1 py-2.5 border border-border rounded-lg text-sm font-medium text-muted hover:bg-background transition-colors" onClick={onClose}>
+          <button
+            className="flex-1 py-2.5 border border-border rounded-lg text-sm font-medium text-muted hover:bg-background transition-colors disabled:opacity-50"
+            onClick={onClose}
+            disabled={isUpdating}
+          >
             Cancel
           </button>
           <button
-            className="flex-1 py-2.5 bg-success text-white rounded-lg text-sm font-medium hover:bg-success/90 transition-colors"
-            onClick={() => { changeStatus(animal.id, selected); onClose() }}
+            className="flex-1 py-2.5 bg-success text-white rounded-lg text-sm font-medium hover:bg-success/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+            onClick={handleApply}
+            disabled={isUpdating}
           >
+            {isUpdating && <Loader2 className="w-4 h-4 animate-spin" />}
             Apply
           </button>
         </div>
@@ -687,17 +682,153 @@ const StatusModal = ({ animal, onClose }: { animal: Animal; onClose: () => void 
   )
 }
 
-// ─── Main App (consumes context) ──────────────────────────────────────────────
+// ─── Main App ─────────────────────────────────────────────────────────────────
 
-const AnimalTaggingApp = () => {
-  const { animals, deleteAnimal } = useAnimalTagging()
+export default function AnimalTagging() {
+  const [animals, setAnimals] = useState<DBAnimal[]>([])
+  const [cages, setCages] = useState<Cage[]>([])
+  const [isLoading, setIsLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<TabFilter>('All')
   const [search, setSearch] = useState('')
   const [showModal, setShowModal] = useState(false)
-  const [editingAnimal, setEditingAnimal] = useState<Animal | null>(null)
-  const [barcodeAnimal, setBarcodeAnimal] = useState<Animal | null>(null)
-  const [deletingAnimal, setDeletingAnimal] = useState<Animal | null>(null)
-  const [statusAnimal, setStatusAnimal] = useState<Animal | null>(null)
+  const [editingAnimal, setEditingAnimal] = useState<DBAnimal | null>(null)
+  const [barcodeAnimal, setBarcodeAnimal] = useState<DBAnimal | null>(null)
+  const [deletingAnimal, setDeletingAnimal] = useState<DBAnimal | null>(null)
+  const [statusAnimal, setStatusAnimal] = useState<DBAnimal | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isDeleteing, setIsDeleting] = useState(false)
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false)
+
+  // Load animals and cages on mount
+  useEffect(() => {
+    const loadData = async () => {
+      setIsLoading(true)
+      try {
+        const [animalsData, cagesData] = await Promise.all([animalService.getAnimals(), cageService.getCages()])
+        setAnimals(animalsData)
+        setCages(cagesData)
+      } catch (err) {
+        console.error('Error loading data:', err)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    loadData()
+  }, [])
+
+  const handleAddAnimal = async (values: AnimalFormValues) => {
+    setIsSubmitting(true)
+    try {
+      // Check if ID already exists
+      const exists = await animalService.animalIdExists(values.id)
+      if (exists) {
+        throw new Error('An animal with this ID already exists')
+      }
+
+      // Check cage capacity if a cage is selected
+      if (values.current_cage_id) {
+        const capacityInfo = await checkCageCapacity(values.current_cage_id)
+        if (capacityInfo.isFull) {
+          throw new Error(
+            `Cage is full! Current: ${capacityInfo.currentCount}/${capacityInfo.maxCapacity}. Please select a different cage.`
+          )
+        }
+      }
+
+      const newAnimal = await animalService.createAnimal({
+        id: values.id,
+        type: values.type,
+        sex: values.sex,
+        weight: parseFloat(values.weight),
+        status: values.status,
+        current_cage_id: values.current_cage_id || undefined,
+        mother_id: values.mother_id || undefined,
+        father_id: values.father_id || undefined,
+      })
+
+      if (newAnimal) {
+        setAnimals((prev) => [newAnimal, ...prev])
+        setShowModal(false)
+      }
+    } catch (err) {
+      console.error('Error adding animal:', err)
+      throw err
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleUpdateAnimal = async (values: AnimalFormValues) => {
+    if (!editingAnimal) return
+
+    setIsSubmitting(true)
+    try {
+      // Check cage capacity if cage is being changed or assigned
+      if (values.current_cage_id && values.current_cage_id !== editingAnimal.current_cage_id) {
+        const capacityInfo = await checkCageCapacity(values.current_cage_id, editingAnimal.id)
+        if (capacityInfo.isFull) {
+          throw new Error(
+            `Cage is full! Current: ${capacityInfo.currentCount}/${capacityInfo.maxCapacity}. Please select a different cage.`
+          )
+        }
+      }
+
+      const updated = await animalService.updateAnimal(editingAnimal.id, {
+        type: values.type,
+        sex: values.sex,
+        weight: parseFloat(values.weight),
+        status: values.status,
+        current_cage_id: values.current_cage_id || undefined,
+        mother_id: values.mother_id || undefined,
+        father_id: values.father_id || undefined,
+      })
+
+      if (updated) {
+        setAnimals((prev) => prev.map((a) => (a.id === editingAnimal.id ? updated : a)))
+        setShowModal(false)
+        setEditingAnimal(null)
+      }
+    } catch (err) {
+      console.error('Error updating animal:', err)
+      throw err
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleDeleteAnimal = async () => {
+    if (!deletingAnimal) return
+
+    setIsDeleting(true)
+    try {
+      const success = await animalService.deleteAnimal(deletingAnimal.id)
+      if (success) {
+        setAnimals((prev) => prev.filter((a) => a.id !== deletingAnimal.id))
+        setDeletingAnimal(null)
+      }
+    } catch (err) {
+      console.error('Error deleting animal:', err)
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
+  const handleStatusChange = async (status: AnimalStatus) => {
+    if (!statusAnimal) return
+
+    setIsUpdatingStatus(true)
+    try {
+      const updated = await animalService.updateAnimal(statusAnimal.id, { status })
+      if (updated) {
+        setAnimals((prev) => prev.map((a) => (a.id === statusAnimal.id ? updated : a)))
+      }
+    } catch (err) {
+      console.error('Error updating status:', err)
+    } finally {
+      setIsUpdatingStatus(false)
+    }
+  }
 
   const filtered = useMemo(() => {
     let list = animals
@@ -706,10 +837,9 @@ const AnimalTaggingApp = () => {
       const q = search.toLowerCase()
       list = list.filter(
         (a) =>
-          a.tagId.toLowerCase().includes(q) ||
-          a.species.toLowerCase().includes(q) ||
-          a.breed.toLowerCase().includes(q) ||
-          a.facility.toLowerCase().includes(q)
+          a.id.toLowerCase().includes(q) ||
+          a.type.toLowerCase().includes(q) ||
+          a.sex.toLowerCase().includes(q)
       )
     }
     return list
@@ -727,32 +857,28 @@ const AnimalTaggingApp = () => {
 
   const columns = [
     {
-      key: 'tagId' as const,
-      header: 'Tag ID',
-      render: (a: Animal) => (
+      key: 'id' as const,
+      header: 'Animal ID',
+      render: (a: DBAnimal) => (
         <button
-          className="flex items-center gap-2 font-mono text-xs font-semibold text-success hover:underline"
+          className="flex items-center gap-2 font-mono text-sm font-bold text-success hover:text-success/80 transition-colors"
           onClick={() => setBarcodeAnimal(a)}
+          title="Click to view barcode"
         >
-          <Tag className="w-3.5 h-3.5" /> {a.tagId}
+          <Tag className="w-5 h-5" /> {a.id}
         </button>
       ),
     },
     {
-      key: 'species' as const,
-      header: 'Species / Breed',
-      render: (a: Animal) => (
-        <span className="text-sm">
-          {a.species}
-          <span className="text-muted"> / {a.breed}</span>
-        </span>
-      ),
+      key: 'type' as const,
+      header: 'Type',
+      render: (a: DBAnimal) => <span className="text-base font-semibold text-foreground">{a.type}</span>,
     },
     {
       key: 'sex' as const,
       header: 'Sex',
-      render: (a: Animal) => (
-        <span className={cn('text-xs font-medium px-2 py-0.5 rounded-full', a.sex === 'Male' ? 'bg-blue-50 text-blue-600' : 'bg-pink-50 text-pink-600')}>
+      render: (a: DBAnimal) => (
+        <span className={cn('text-sm font-semibold px-3 py-1 rounded-full', a.sex === 'Male' ? 'bg-blue-100 text-blue-700' : 'bg-pink-100 text-pink-700')}>
           {a.sex}
         </span>
       ),
@@ -760,50 +886,101 @@ const AnimalTaggingApp = () => {
     {
       key: 'weight' as const,
       header: 'Weight',
-      render: (a: Animal) => <span className="text-sm">{a.weight} kg</span>,
+      render: (a: DBAnimal) => <span className="text-base font-medium text-foreground">{a.weight} kg</span>,
     },
     {
-      key: 'facility' as const,
-      header: 'Facility',
-      render: (a: Animal) => <span className="text-sm text-muted">{a.facility}</span>,
+      key: 'cage' as const,
+      header: 'Cage',
+      render: (a: DBAnimal) => {
+        const cage = cages.find((c) => c.id === a.current_cage_id)
+        return (
+          <span className="text-sm font-medium text-muted">
+            {cage ? cage.cage_label : <span className="italic text-muted">No cage</span>}
+          </span>
+        )
+      },
     },
     {
       key: 'status' as const,
       header: 'Status',
-      render: (a: Animal) => (
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <AnimalStatusBadge status={a.status} />
-          {a.pigRole && <PigRoleBadge role={a.pigRole} />}
+      render: (a: DBAnimal) => <AnimalStatusBadge status={a.status as AnimalStatus} />,
+    },
+    {
+      key: 'parents' as const,
+      header: 'Parents',
+      render: (a: DBAnimal) => (
+        <div className="space-y-1.5">
+          {a.mother_id && (
+            <div className="text-sm bg-purple-50 text-purple-700 px-2.5 py-1.5 rounded-lg border border-purple-200">
+              <span className="font-semibold">Mother:</span> <span className="font-mono">{a.mother_id}</span>
+            </div>
+          )}
+          {a.father_id && (
+            <div className="text-sm bg-cyan-50 text-cyan-700 px-2.5 py-1.5 rounded-lg border border-cyan-200">
+              <span className="font-semibold">Father:</span> <span className="font-mono">{a.father_id}</span>
+            </div>
+          )}
+          {!a.mother_id && !a.father_id && <span className="text-muted text-sm">No parents</span>}
         </div>
       ),
     },
     {
       key: 'actions' as const,
       header: 'Actions',
-      render: (a: Animal) => (
-        <div className="flex items-center gap-1">
-          <IconButton onClick={() => setBarcodeAnimal(a)} title="View Barcode" variant="success">
-            <QrCode className="w-4 h-4" />
-          </IconButton>
-          <IconButton onClick={() => setStatusAnimal(a)} title="Change Status">
-            <MoreHorizontal className="w-4 h-4" />
-          </IconButton>
-          <IconButton onClick={() => { setEditingAnimal(a); setShowModal(true) }} title="Edit">
-            <Pencil className="w-4 h-4" />
-          </IconButton>
-          <IconButton onClick={() => setDeletingAnimal(a)} title="Remove" variant="danger">
-            <Trash2 className="w-4 h-4" />
-          </IconButton>
+      render: (a: DBAnimal) => (
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <button
+            onClick={() => setBarcodeAnimal(a)}
+            title="View Barcode"
+            className="p-2.5 bg-success/10 text-success hover:bg-success/20 rounded-lg transition-colors"
+          >
+            <QrCode className="w-5 h-5" />
+          </button>
+          <button
+            onClick={() => setStatusAnimal(a)}
+            title="Change Status"
+            className="p-2.5 bg-warning/10 text-warning hover:bg-warning/20 rounded-lg transition-colors"
+          >
+            <MoreHorizontal className="w-5 h-5" />
+          </button>
+          <button
+            onClick={() => {
+              setEditingAnimal(a)
+              setShowModal(true)
+            }}
+            title="Edit"
+            className="p-2.5 bg-primary/10 text-primary hover:bg-primary/20 rounded-lg transition-colors"
+          >
+            <Pencil className="w-5 h-5" />
+          </button>
+          <button
+            onClick={() => setDeletingAnimal(a)}
+            title="Remove"
+            className="p-2.5 bg-danger/10 text-danger hover:bg-danger/20 rounded-lg transition-colors"
+          >
+            <Trash2 className="w-5 h-5" />
+          </button>
         </div>
       ),
     },
   ]
 
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin text-success mx-auto mb-2" />
+          <p className="text-sm text-muted">Loading...</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <div>
+    <div className="w-full">
       <PageHeader
         title="Animal Tagging"
-        subtitle="Register animals and link each one to a unique barcode tag."
+        subtitle="Register animals with unique barcode IDs and track parental relationships."
         icon={<Tag className="w-6 h-6" />}
       />
 
@@ -834,18 +1011,24 @@ const AnimalTaggingApp = () => {
       </div>
 
       <ActionsBar>
-        <PrimaryButton onClick={() => { setEditingAnimal(null); setShowModal(true) }}>
+        <PrimaryButton
+          onClick={() => {
+            setEditingAnimal(null)
+            setShowModal(true)
+          }}
+        >
           <Plus className="w-4 h-4" /> Register Animal
         </PrimaryButton>
       </ActionsBar>
 
-      <DataTable
+      <DataTable<DBAnimal>
         data={filtered}
+        // @ts-expect-error: "parents" is a computed column not in DBAnimal type
         columns={columns}
         emptyMessage="No animals found."
         searchValue={search}
         onSearchChange={setSearch}
-        searchPlaceholder="Search by tag, species, breed, facility..."
+        searchPlaceholder="Search by ID, type, sex..."
         title="Animal Registry"
         titleIcon={<Tag className="w-5 h-5" />}
         keyField="id"
@@ -854,28 +1037,34 @@ const AnimalTaggingApp = () => {
       {showModal && (
         <AnimalModal
           editingAnimal={editingAnimal}
-          onClose={() => { setShowModal(false); setEditingAnimal(null) }}
+          allAnimals={animals}
+          cages={cages}
+          isSubmitting={isSubmitting}
+          onClose={() => {
+            setShowModal(false)
+            setEditingAnimal(null)
+          }}
+          onSubmit={editingAnimal ? handleUpdateAnimal : handleAddAnimal}
+          onGenerateNextId={() => animalService.generateNextAnimalId()}
         />
       )}
       {barcodeAnimal && <BarcodeModal animal={barcodeAnimal} onClose={() => setBarcodeAnimal(null)} />}
       {deletingAnimal && (
         <DeleteModal
           animal={deletingAnimal}
-          onConfirm={() => { deleteAnimal(deletingAnimal.id); setDeletingAnimal(null) }}
+          isDeleting={isDeleteing}
+          onConfirm={handleDeleteAnimal}
           onClose={() => setDeletingAnimal(null)}
         />
       )}
-      {statusAnimal && <StatusModal animal={statusAnimal} onClose={() => setStatusAnimal(null)} />}
+      {statusAnimal && (
+        <StatusModal
+          animal={statusAnimal}
+          isUpdating={isUpdatingStatus}
+          onClose={() => setStatusAnimal(null)}
+          onStatusChange={handleStatusChange}
+        />
+      )}
     </div>
-  )
-}
-
-// ─── Page Export ──────────────────────────────────────────────────────────────
-
-export default function AnimalTagging() {
-  return (
-    <AnimalTaggingProvider>
-      <AnimalTaggingApp />
-    </AnimalTaggingProvider>
   )
 }

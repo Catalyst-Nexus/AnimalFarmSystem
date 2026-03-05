@@ -35,7 +35,6 @@ const Layout = ({ children }: LayoutProps) => {
         <Header />
         <main
           className={cn(
-            'max-w-7xl',
             compactMode ? 'p-4' : 'p-6 lg:p-8'
           )}
         >
