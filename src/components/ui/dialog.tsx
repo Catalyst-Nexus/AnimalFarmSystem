@@ -259,6 +259,7 @@ export const FormColorPicker = ({
         onChange={(e) => onChange(e.target.value)}
         className="w-16 h-10 border border-border rounded-lg cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
         disabled={disabled}
+        title={label}
       />
       <input
         id={id}

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Settings, Plus, RefreshCw } from 'lucide-react'
+import { Settings, Plus, RefreshCw, Palette, Tag, Tags, Hash, PawPrint } from 'lucide-react'
 import {
   PageHeader,
   StatsRow,
@@ -465,189 +465,297 @@ export default function AnimalAdmin() {
   // ─── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="p-6 space-y-6">
-      <PageHeader 
-        icon={<Settings className="w-6 h-6" />} 
-        title="Animal Administration" 
-        subtitle="Manage animal types, tag colors, tag types, and tag codes"
-      />
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 p-6 space-y-6">
+      <div className="max-w-7xl mx-auto">
+        <PageHeader 
+          icon={<Settings className="w-7 h-7" />} 
+          title="Animal Administration" 
+          subtitle="Manage animal types, tag colors, tag types, and tag codes"
+        />
 
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
-          {error}
+        {error && (
+          <div className="bg-red-50 border-l-4 border-red-500 text-red-700 px-5 py-4 rounded-lg shadow-sm animate-in slide-in-from-top">
+            <p className="font-medium">Error</p>
+            <p className="text-sm mt-1">{error}</p>
+          </div>
+        )}
+
+        {/* Enhanced Stats Cards with Gradients and Icons */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <div className="group relative bg-white rounded-2xl p-6 shadow-sm hover:shadow-xl transition-all duration-300 border border-gray-100 overflow-hidden">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-blue-500/10 to-purple-500/10 rounded-bl-full transform translate-x-8 -translate-y-8 group-hover:scale-110 transition-transform duration-300" />
+            <div className="relative">
+              <div className="flex items-center justify-between mb-3">
+                <div className="p-3 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl shadow-lg">
+                  <PawPrint className="w-6 h-6 text-white" />
+                </div>
+                <span className="text-3xl font-bold bg-gradient-to-br from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                  {animalTypes.length}
+                </span>
+              </div>
+              <p className="text-sm font-medium text-gray-600 uppercase tracking-wider">Animal Types</p>
+            </div>
+          </div>
+
+          <div className="group relative bg-white rounded-2xl p-6 shadow-sm hover:shadow-xl transition-all duration-300 border border-gray-100 overflow-hidden">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-green-500/10 to-emerald-500/10 rounded-bl-full transform translate-x-8 -translate-y-8 group-hover:scale-110 transition-transform duration-300" />
+            <div className="relative">
+              <div className="flex items-center justify-between mb-3">
+                <div className="p-3 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl shadow-lg">
+                  <Palette className="w-6 h-6 text-white" />
+                </div>
+                <span className="text-3xl font-bold bg-gradient-to-br from-green-600 to-emerald-600 bg-clip-text text-transparent">
+                  {tagColors.length}
+                </span>
+              </div>
+              <p className="text-sm font-medium text-gray-600 uppercase tracking-wider">Tag Colors</p>
+            </div>
+          </div>
+
+          <div className="group relative bg-white rounded-2xl p-6 shadow-sm hover:shadow-xl transition-all duration-300 border border-gray-100 overflow-hidden">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-orange-500/10 to-red-500/10 rounded-bl-full transform translate-x-8 -translate-y-8 group-hover:scale-110 transition-transform duration-300" />
+            <div className="relative">
+              <div className="flex items-center justify-between mb-3">
+                <div className="p-3 bg-gradient-to-br from-orange-500 to-red-600 rounded-xl shadow-lg">
+                  <Tag className="w-6 h-6 text-white" />
+                </div>
+                <span className="text-3xl font-bold bg-gradient-to-br from-orange-600 to-red-600 bg-clip-text text-transparent">
+                  {tagTypes.length}
+                </span>
+              </div>
+              <p className="text-sm font-medium text-gray-600 uppercase tracking-wider">Tag Types</p>
+            </div>
+          </div>
+
+          <div className="group relative bg-white rounded-2xl p-6 shadow-sm hover:shadow-xl transition-all duration-300 border border-gray-100 overflow-hidden">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-amber-500/10 to-yellow-500/10 rounded-bl-full transform translate-x-8 -translate-y-8 group-hover:scale-110 transition-transform duration-300" />
+            <div className="relative">
+              <div className="flex items-center justify-between mb-3">
+                <div className="p-3 bg-gradient-to-br from-amber-500 to-yellow-600 rounded-xl shadow-lg">
+                  <Hash className="w-6 h-6 text-white" />
+                </div>
+                <span className="text-3xl font-bold bg-gradient-to-br from-amber-600 to-yellow-600 bg-clip-text text-transparent">
+                  {tagCodes.length}
+                </span>
+              </div>
+              <p className="text-sm font-medium text-gray-600 uppercase tracking-wider">Total Tag Codes</p>
+            </div>
+          </div>
         </div>
-      )}
 
-      <StatsRow>
-        <StatCard
-          label="Animal Types"
-          value={animalTypes.length}
-          color="default"
-        />
-        <StatCard
-          label="Tag Colors"
-          value={tagColors.length}
-          color="success"
-        />
-        <StatCard label="Tag Types" value={tagTypes.length} color="default" />
-        <StatCard
-          label="Total Tag Codes"
-          value={tagCodes.length}
-          color="warning"
-        />
-      </StatsRow>
+        {/* Modern Enhanced Tabs */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white">
+            <nav className="flex space-x-2 px-6 pt-4">
+              {[
+                { key: 'animal-types', label: 'Animal Types', icon: PawPrint },
+                { key: 'tag-colors', label: 'Tag Colors', icon: Palette },
+                { key: 'tag-types', label: 'Tag Types', icon: Tag },
+                { key: 'tag-codes', label: 'Tag Codes', icon: Tags }
+              ].map((tab) => (
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key as TabKey)}
+                  className={`
+                    flex items-center gap-2 px-5 py-3 font-medium text-sm rounded-t-xl transition-all duration-200
+                    ${activeTab === tab.key 
+                      ? 'bg-white text-green-600 border-t-2 border-x border-green-500 shadow-sm -mb-px' 
+                      : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                    }
+                  `}
+                >
+                  <tab.icon className="w-4 h-4" />
+                  {tab.label}
+                </button>
+              ))}
+            </nav>
+          </div>
 
-      <Tabs
-        tabs={tabs}
-        activeTab={activeTab}
-        onTabChange={(key) => setActiveTab(key as TabKey)}
-      />
+          <div className="p-6">
+            {/* ─── Animal Types Tab ─────────────────────────────────────────── */}
+            {activeTab === 'animal-types' && (
+              <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-xl font-semibold text-gray-800">Manage Animal Types</h2>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={loadAllData}
+                      className="flex items-center gap-2 px-4 py-2.5 text-gray-700 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 shadow-sm"
+                    >
+                      <RefreshCw className="w-4 h-4" />
+                      Refresh
+                    </button>
+                    <button
+                      onClick={() => handleOpenAnimalTypeDialog()}
+                      className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl hover:from-green-600 hover:to-emerald-700 transition-all duration-200 shadow-md hover:shadow-lg font-medium"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Add Animal Type
+                    </button>
+                  </div>
+                </div>
 
-      {/* ─── Animal Types Tab ─────────────────────────────────────────── */}
-      {activeTab === 'animal-types' && (
-        <>
-          <ActionsBar>
-            <PrimaryButton onClick={() => handleOpenAnimalTypeDialog()}>
-              <Plus className="w-4 h-4" />
-              Add Animal Type
-            </PrimaryButton>
-            <PrimaryButton onClick={loadAllData}>
-              <RefreshCw className="w-4 h-4" />
-              Refresh
-            </PrimaryButton>
-          </ActionsBar>
+                <AnimalTypesList
+                  animalTypes={filteredAnimalTypes}
+                  search={animalTypeSearch}
+                  onSearchChange={setAnimalTypeSearch}
+                  onEdit={handleOpenAnimalTypeDialog}
+                  onDelete={handleDeleteAnimalType}
+                  isLoading={isLoading}
+                />
 
-          <AnimalTypesList
-            animalTypes={filteredAnimalTypes}
-            search={animalTypeSearch}
-            onSearchChange={setAnimalTypeSearch}
-            onEdit={handleOpenAnimalTypeDialog}
-            onDelete={handleDeleteAnimalType}
-            isLoading={isLoading}
-          />
+                <AnimalTypeDialog
+                  open={showAnimalTypeDialog}
+                  onClose={handleCloseAnimalTypeDialog}
+                  animalName={formAnimalName}
+                  onAnimalNameChange={setFormAnimalName}
+                  onSave={handleSaveAnimalType}
+                  isEditing={!!editingAnimalTypeId}
+                  isLoading={animalTypeLoading}
+                />
+              </div>
+            )}
 
-          <AnimalTypeDialog
-            open={showAnimalTypeDialog}
-            onClose={handleCloseAnimalTypeDialog}
-            animalName={formAnimalName}
-            onAnimalNameChange={setFormAnimalName}
-            onSave={handleSaveAnimalType}
-            isEditing={!!editingAnimalTypeId}
-            isLoading={animalTypeLoading}
-          />
-        </>
-      )}
+            {/* ─── Tag Colors Tab ───────────────────────────────────────────── */}
+            {activeTab === 'tag-colors' && (
+              <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-xl font-semibold text-gray-800">Manage Tag Colors</h2>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={loadAllData}
+                      className="flex items-center gap-2 px-4 py-2.5 text-gray-700 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 shadow-sm"
+                    >
+                      <RefreshCw className="w-4 h-4" />
+                      Refresh
+                    </button>
+                    <button
+                      onClick={() => handleOpenTagColorDialog()}
+                      className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl hover:from-green-600 hover:to-emerald-700 transition-all duration-200 shadow-md hover:shadow-lg font-medium"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Add Tag Color
+                    </button>
+                  </div>
+                </div>
 
-      {/* ─── Tag Colors Tab ───────────────────────────────────────────── */}
-      {activeTab === 'tag-colors' && (
-        <>
-          <ActionsBar>
-            <PrimaryButton onClick={() => handleOpenTagColorDialog()}>
-              <Plus className="w-4 h-4" />
-              Add Tag Color
-            </PrimaryButton>
-            <PrimaryButton onClick={loadAllData}>
-              <RefreshCw className="w-4 h-4" />
-              Refresh
-            </PrimaryButton>
-          </ActionsBar>
+                <TagColorsList
+                  tagColors={filteredTagColors}
+                  search={tagColorSearch}
+                  onSearchChange={setTagColorSearch}
+                  onEdit={handleOpenTagColorDialog}
+                  onDelete={handleDeleteTagColor}
+                  isLoading={isLoading}
+                />
 
-          <TagColorsList
-            tagColors={filteredTagColors}
-            search={tagColorSearch}
-            onSearchChange={setTagColorSearch}
-            onEdit={handleOpenTagColorDialog}
-            onDelete={handleDeleteTagColor}
-            isLoading={isLoading}
-          />
+                <TagColorDialog
+                  open={showTagColorDialog}
+                  onClose={handleCloseTagColorDialog}
+                  colorName={formColorName}
+                  colorHex={formColorHex}
+                  onColorNameChange={setFormColorName}
+                  onColorHexChange={setFormColorHex}
+                  onSave={handleSaveTagColor}
+                  isEditing={!!editingTagColorId}
+                  isLoading={tagColorLoading}
+                />
+              </div>
+            )}
 
-          <TagColorDialog
-            open={showTagColorDialog}
-            onClose={handleCloseTagColorDialog}
-            colorName={formColorName}
-            colorHex={formColorHex}
-            onColorNameChange={setFormColorName}
-            onColorHexChange={setFormColorHex}
-            onSave={handleSaveTagColor}
-            isEditing={!!editingTagColorId}
-            isLoading={tagColorLoading}
-          />
-        </>
-      )}
+            {/* ─── Tag Types Tab ────────────────────────────────────────────── */}
+            {activeTab === 'tag-types' && (
+              <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-xl font-semibold text-gray-800">Manage Tag Types</h2>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={loadAllData}
+                      className="flex items-center gap-2 px-4 py-2.5 text-gray-700 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 shadow-sm"
+                    >
+                      <RefreshCw className="w-4 h-4" />
+                      Refresh
+                    </button>
+                    <button
+                      onClick={() => handleOpenTagTypeDialog()}
+                      className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl hover:from-green-600 hover:to-emerald-700 transition-all duration-200 shadow-md hover:shadow-lg font-medium"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Add Tag Type
+                    </button>
+                  </div>
+                </div>
 
-      {/* ─── Tag Types Tab ────────────────────────────────────────────── */}
-      {activeTab === 'tag-types' && (
-        <>
-          <ActionsBar>
-            <PrimaryButton onClick={() => handleOpenTagTypeDialog()}>
-              <Plus className="w-4 h-4" />
-              Add Tag Type
-            </PrimaryButton>
-            <PrimaryButton onClick={loadAllData}>
-              <RefreshCw className="w-4 h-4" />
-              Refresh
-            </PrimaryButton>
-          </ActionsBar>
+                <TagTypesList
+                  tagTypes={filteredTagTypes}
+                  search={tagTypeSearch}
+                  onSearchChange={setTagTypeSearch}
+                  onEdit={handleOpenTagTypeDialog}
+                  onDelete={handleDeleteTagType}
+                  isLoading={isLoading}
+                />
 
-          <TagTypesList
-            tagTypes={filteredTagTypes}
-            search={tagTypeSearch}
-            onSearchChange={setTagTypeSearch}
-            onEdit={handleOpenTagTypeDialog}
-            onDelete={handleDeleteTagType}
-            isLoading={isLoading}
-          />
+                <TagTypeDialog
+                  open={showTagTypeDialog}
+                  onClose={handleCloseTagTypeDialog}
+                  type={formType}
+                  onTypeChange={setFormType}
+                  onSave={handleSaveTagType}
+                  isEditing={!!editingTagTypeId}
+                  isLoading={tagTypeLoading}
+                />
+              </div>
+            )}
 
-          <TagTypeDialog
-            open={showTagTypeDialog}
-            onClose={handleCloseTagTypeDialog}
-            type={formType}
-            onTypeChange={setFormType}
-            onSave={handleSaveTagType}
-            isEditing={!!editingTagTypeId}
-            isLoading={tagTypeLoading}
-          />
-        </>
-      )}
+            {/* ─── Tag Codes Tab ────────────────────────────────────────────── */}
+            {activeTab === 'tag-codes' && (
+              <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-xl font-semibold text-gray-800">Manage Tag Codes</h2>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={loadAllData}
+                      className="flex items-center gap-2 px-4 py-2.5 text-gray-700 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 shadow-sm"
+                    >
+                      <RefreshCw className="w-4 h-4" />
+                      Refresh
+                    </button>
+                    <button
+                      onClick={() => handleOpenTagCodeDialog()}
+                      className="flex items-center gap-2 px-4 py-2.5 text-gray-700 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 shadow-sm"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Add Single Tag Code
+                    </button>
+                    <button
+                      onClick={handleOpenBulkTagCodeDialog}
+                      className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl hover:from-green-600 hover:to-emerald-700 transition-all duration-200 shadow-md hover:shadow-lg font-medium"
+                    >
+                      <Tags className="w-4 h-4" />
+                      Bulk Create Tag Codes
+                    </button>
+                  </div>
+                </div>
 
-      {/* ─── Tag Codes Tab ────────────────────────────────────────────── */}
-      {activeTab === 'tag-codes' && (
-        <>
-          <ActionsBar>
-            <PrimaryButton onClick={() => handleOpenTagCodeDialog()}>
-              <Plus className="w-4 h-4" />
-              Add Single Tag Code
-            </PrimaryButton>
-            <PrimaryButton onClick={handleOpenBulkTagCodeDialog}>
-              <Plus className="w-4 h-4" />
-              Bulk Create Tag Codes
-            </PrimaryButton>
-            <PrimaryButton onClick={loadAllData}>
-              <RefreshCw className="w-4 h-4" />
-              Refresh
-            </PrimaryButton>
-          </ActionsBar>
+                <TagCodesList
+                  tagCodes={filteredTagCodes}
+                  search={tagCodeSearch}
+                  onSearchChange={setTagCodeSearch}
+                  onEdit={handleOpenTagCodeDialog}
+                  onDelete={handleDeleteTagCode}
+                  isLoading={isLoading}
+                />
 
-          <TagCodesList
-            tagCodes={filteredTagCodes}
-            search={tagCodeSearch}
-            onSearchChange={setTagCodeSearch}
-            onEdit={handleOpenTagCodeDialog}
-            onDelete={handleDeleteTagCode}
-            isLoading={isLoading}
-          />
-
-          <TagCodeDialog
-            open={showTagCodeDialog}
-            onClose={handleCloseTagCodeDialog}
-            animalTypeId={formAnimalTypeId}
-            tagColorId={formTagColorId}
-            tagTypeId={formTagTypeId}
-            tagCode={formTagCode}
-            onAnimalTypeIdChange={setFormAnimalTypeId}
-            onTagColorIdChange={setFormTagColorId}
-            onTagTypeIdChange={setFormTagTypeId}
-            onTagCodeChange={setFormTagCode}
+                <TagCodeDialog
+                  open={showTagCodeDialog}
+                  onClose={handleCloseTagCodeDialog}
+                  animalTypeId={formAnimalTypeId}
+                  tagColorId={formTagColorId}
+                  tagTypeId={formTagTypeId}
+                  tagCode={formTagCode}
+                  onAnimalTypeIdChange={setFormAnimalTypeId}
+                  onTagColorIdChange={setFormTagColorId}
+                  onTagTypeIdChange={setFormTagTypeId}
+                  onTagCodeChange={setFormTagCode}
             animalTypes={animalTypes}
             tagColors={tagColors}
             tagTypes={tagTypes}
@@ -675,8 +783,11 @@ export default function AnimalAdmin() {
             onSave={handleBulkCreateTagCodes}
             isLoading={bulkLoading}
           />
-        </>
-      )}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
