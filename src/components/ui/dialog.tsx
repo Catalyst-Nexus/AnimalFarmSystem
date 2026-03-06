@@ -73,6 +73,8 @@ interface FormInputProps {
   type?: 'text' | 'email' | 'textarea'
   rows?: number
   required?: boolean
+  disabled?: boolean
+  description?: string
 }
 
 export const FormInput = ({
@@ -84,6 +86,8 @@ export const FormInput = ({
   type = 'text',
   rows = 4,
   required = false,
+  disabled = false,
+  description,
 }: FormInputProps) => (
   <div className="space-y-1.5">
     <label htmlFor={id} className="block text-sm font-medium text-foreground">
@@ -93,25 +97,246 @@ export const FormInput = ({
     {type === 'textarea' ? (
       <textarea
         id={id}
-        className="w-full px-3 py-2.5 border border-border rounded-lg text-sm bg-background text-foreground placeholder:text-muted focus:outline-none focus:border-success resize-none"
+        className="w-full px-3 py-2.5 border border-border rounded-lg text-sm bg-background text-foreground placeholder:text-muted focus:outline-none focus:border-success resize-none disabled:opacity-50 disabled:cursor-not-allowed"
         rows={rows}
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         required={required}
+        disabled={disabled}
       />
     ) : (
       <input
         id={id}
         type={type}
-        className="w-full px-3 py-2.5 border border-border rounded-lg text-sm bg-background text-foreground placeholder:text-muted focus:outline-none focus:border-success"
+        className="w-full px-3 py-2.5 border border-border rounded-lg text-sm bg-background text-foreground placeholder:text-muted focus:outline-none focus:border-success disabled:opacity-50 disabled:cursor-not-allowed"
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         required={required}
+        disabled={disabled}
       />
+    )}
+    {description && (
+      <p className="text-xs text-muted">{description}</p>
     )}
   </div>
 )
+
+// Form Select Component
+interface FormSelectOption {
+  value: string
+  label: string
+}
+
+interface FormSelectProps {
+  id: string
+  label: string
+  value: string
+  onChange: (value: string) => void
+  options: FormSelectOption[]
+  placeholder?: string
+  required?: boolean
+  disabled?: boolean
+  description?: string
+}
+
+export const FormSelect = ({
+  id,
+  label,
+  value,
+  onChange,
+  options,
+  placeholder = 'Select an option',
+  required = false,
+  disabled = false,
+  description,
+}: FormSelectProps) => (
+  <div className="space-y-1.5">
+    <label htmlFor={id} className="block text-sm font-medium text-foreground">
+      {label}
+      {required && <span className="text-error ml-1">*</span>}
+    </label>
+    <select
+      id={id}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="w-full px-3 py-2.5 border border-border rounded-lg text-sm bg-background text-foreground focus:outline-none focus:border-success disabled:opacity-50 disabled:cursor-not-allowed"
+      disabled={disabled}
+      required={required}
+    >
+      <option value="">{placeholder}</option>
+      {options.map((option) => (
+        <option key={option.value} value={option.value}>
+          {option.label}
+        </option>
+      ))}
+    </select>
+    {description && (
+      <p className="text-xs text-muted">{description}</p>
+    )}
+  </div>
+)
+
+// Form Number Component
+interface FormNumberProps {
+  id: string
+  label: string
+  value: string | number
+  onChange: (value: string) => void
+  placeholder?: string
+  min?: number
+  max?: number
+  required?: boolean
+  disabled?: boolean
+  description?: string
+}
+
+export const FormNumber = ({
+  id,
+  label,
+  value,
+  onChange,
+  placeholder,
+  min,
+  max,
+  required = false,
+  disabled = false,
+  description,
+}: FormNumberProps) => (
+  <div className="space-y-1.5">
+    <label htmlFor={id} className="block text-sm font-medium text-foreground">
+      {label}
+      {required && <span className="text-error ml-1">*</span>}
+    </label>
+    <input
+      id={id}
+      type="number"
+      className="w-full px-3 py-2.5 border border-border rounded-lg text-sm bg-background text-foreground placeholder:text-muted focus:outline-none focus:border-success disabled:opacity-50 disabled:cursor-not-allowed"
+      placeholder={placeholder}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      min={min}
+      max={max}
+      required={required}
+      disabled={disabled}
+    />
+    {description && (
+      <p className="text-xs text-muted">{description}</p>
+    )}
+  </div>
+)
+
+// Form Color Picker Component
+interface FormColorPickerProps {
+  id: string
+  label: string
+  value: string
+  onChange: (value: string) => void
+  required?: boolean
+  disabled?: boolean
+  description?: string
+}
+
+export const FormColorPicker = ({
+  id,
+  label,
+  value,
+  onChange,
+  required = false,
+  disabled = false,
+  description,
+}: FormColorPickerProps) => (
+  <div className="space-y-1.5">
+    <label htmlFor={id} className="block text-sm font-medium text-foreground">
+      {label}
+      {required && <span className="text-error ml-1">*</span>}
+    </label>
+    <div className="flex gap-2">
+      <input
+        type="color"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-16 h-10 border border-border rounded-lg cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+        disabled={disabled}
+        title={label}
+      />
+      <input
+        id={id}
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="#FF0000"
+        className="flex-1 px-3 py-2.5 border border-border rounded-lg text-sm bg-background text-foreground placeholder:text-muted focus:outline-none focus:border-success font-mono disabled:opacity-50 disabled:cursor-not-allowed"
+        disabled={disabled}
+        required={required}
+      />
+    </div>
+    {description && (
+      <p className="text-xs text-muted">{description}</p>
+    )}
+  </div>
+)
+
+// Form Checkbox Component
+interface FormCheckboxProps {
+  id: string
+  label: string
+  checked: boolean
+  onChange: (checked: boolean) => void
+  description?: string
+  disabled?: boolean
+}
+
+export const FormCheckbox = ({
+  id,
+  label,
+  checked,
+  onChange,
+  description,
+  disabled = false,
+}: FormCheckboxProps) => (
+  <div className="space-y-1.5">
+    <div className="flex items-center gap-2">
+      <input
+        id={id}
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="w-4 h-4 text-success border-border rounded focus:ring-success disabled:opacity-50 disabled:cursor-not-allowed"
+        disabled={disabled}
+      />
+      <label htmlFor={id} className="text-sm text-foreground cursor-pointer">
+        {label} {checked ? '✓' : ''}
+      </label>
+    </div>
+    {description && (
+      <p className="text-xs text-muted">{description}</p>
+    )}
+  </div>
+)
+
+// Form Preview Component
+interface FormPreviewProps {
+  children: ReactNode
+  variant?: 'info' | 'warning' | 'success'
+}
+
+export const FormPreview = ({
+  children,
+  variant = 'info',
+}: FormPreviewProps) => {
+  const variantClasses = {
+    info: 'bg-blue-50 border-blue-200 text-gray-700',
+    warning: 'bg-yellow-50 border-yellow-200 text-yellow-800',
+    success: 'bg-green-50 border-green-200 text-green-800',
+  }
+
+  return (
+    <div className={`border rounded-lg p-3 ${variantClasses[variant]}`}>
+      {children}
+    </div>
+  )
+}
 
 export default BaseDialog

@@ -2,16 +2,30 @@ import { supabase, isSupabaseConfigured } from './supabase'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+interface JoinedTagInfo {
+  tag_animals_colors: {
+    tag_code: number
+    animal_types: { animal_name: string }
+    tag_colors: { color: string; color_name: string }
+    tag_types: { type: string }
+  }
+}
+
 export interface Animal {
-  id: string // Manual barcode ID
+  id: string // Tag code ID (UUID)
+  tag_animals_colors_id: string | null
   current_cage_id: string | null
   mother_id: string | null
   father_id: string | null
-  type: string
   sex: string
   weight: number
   status: string
+  is_active: boolean
   created_at: string
+  // Joined data for display
+  type?: string // Computed: "TAG_TYPE | ANIMAL_NAME"
+  formattedTagCode?: string // Computed: "TAG_TYPE-TAG_CODE" (e.g., "EAR-1")
+  animalType?: string // Computed: Animal name only
 }
 
 export interface Cage {
@@ -38,7 +52,15 @@ export const animalService = {
       const { data, error } = await supabase!
         .schema('module2')
         .from('animals')
-        .select('*')
+        .select(`
+          *,
+          tag_animals_colors!tag_animals_colors_id(
+            tag_code,
+            animal_types!animal_type_id(animal_name),
+            tag_colors!tag_color_id(color, color_name),
+            tag_types!tag_type_id(type)
+          )
+        `)
         .order('created_at', { ascending: false })
 
       if (error) {
@@ -46,7 +68,20 @@ export const animalService = {
         return []
       }
 
-      return data || []
+      // Format the data to include type string
+      const formattedData = (data || []).map((animal: Animal & Partial<JoinedTagInfo>) => {
+        const tagInfo = animal.tag_animals_colors
+        const type = tagInfo
+          ? `${tagInfo.tag_types?.type || ''} | ${tagInfo.animal_types?.animal_name || ''}`
+          : ''
+        const formattedTagCode = tagInfo
+          ? `${tagInfo.tag_types?.type || ''}-${tagInfo.tag_code || ''}`
+          : ''
+        const animalType = tagInfo?.animal_types?.animal_name || ''
+        return { ...animal, type, formattedTagCode, animalType }
+      })
+
+      return formattedData
     } catch (err) {
       console.error('Error fetching animals:', err)
       return []
@@ -81,48 +116,70 @@ export const animalService = {
    * Create a new animal
    */
   async createAnimal(animal: {
-    id: string // Manual barcode ID
-    type: string
+    id: string // Tag animals colors ID (creates 1:1 relationship)
+    tag_animals_colors_id: string
     sex: string
     weight: number
     status: string
     current_cage_id?: string | null
     mother_id?: string | null
     father_id?: string | null
-  }): Promise<Animal | null> {
+  }): Promise<Animal> {
     if (!isSupabaseConfigured()) {
-      console.warn('Supabase not configured')
-      return null
+      throw new Error('Supabase not configured')
     }
 
     try {
+      const insertData = {
+        id: animal.id,
+        tag_animals_colors_id: animal.tag_animals_colors_id,
+        sex: animal.sex,
+        weight: animal.weight,
+        status: animal.status,
+        current_cage_id: animal.current_cage_id || null,
+        mother_id: animal.mother_id || null,
+        father_id: animal.father_id || null,
+      }
+
       const { data, error } = await supabase!
         .schema('module2')
         .from('animals')
-        .insert([
-          {
-            id: animal.id,
-            type: animal.type,
-            sex: animal.sex,
-            weight: animal.weight,
-            status: animal.status,
-            current_cage_id: animal.current_cage_id || null,
-            mother_id: animal.mother_id || null,
-            father_id: animal.father_id || null,
-          },
-        ])
-        .select()
+        .insert([insertData])
+        .select(`
+          *,
+          tag_animals_colors!tag_animals_colors_id(
+            tag_code,
+            animal_types!animal_type_id(animal_name),
+            tag_colors!tag_color_id(color, color_name),
+            tag_types!tag_type_id(type)
+          )
+        `)
         .single()
 
       if (error) {
         console.error('Error creating animal:', error)
-        return null
+        console.error('Error details:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        })
+        throw new Error(`Database error: ${error.message}${error.hint ? ` (${error.hint})` : ''}`)
       }
 
-      return data
+      // Format the data to include type string
+      const tagInfo = (data as Animal & Partial<JoinedTagInfo>).tag_animals_colors
+      const type = tagInfo
+        ? `${tagInfo.tag_types?.type || ''} | ${tagInfo.animal_types?.animal_name || ''}`
+        : ''
+      const formattedTagCode = tagInfo
+        ? `${tagInfo.tag_types?.type || ''}-${tagInfo.tag_code || ''}`
+        : ''
+      const animalType = tagInfo?.animal_types?.animal_name || ''
+      return { ...data, type, formattedTagCode, animalType }
     } catch (err) {
       console.error('Error creating animal:', err)
-      return null
+      throw err
     }
   },
 
@@ -132,7 +189,6 @@ export const animalService = {
   async updateAnimal(
     id: string,
     updates: Partial<{
-      type: string
       sex: string
       weight: number
       status: string
@@ -152,7 +208,15 @@ export const animalService = {
         .from('animals')
         .update(updates)
         .eq('id', id)
-        .select()
+        .select(`
+          *,
+          tag_animals_colors!tag_animals_colors_id(
+            tag_code,
+            animal_types!animal_type_id(animal_name),
+            tag_colors!tag_color_id(color, color_name),
+            tag_types!tag_type_id(type)
+          )
+        `)
         .single()
 
       if (error) {
@@ -160,7 +224,16 @@ export const animalService = {
         return null
       }
 
-      return data
+      // Format the data to include type string
+      const tagInfo = (data as Animal & Partial<JoinedTagInfo>).tag_animals_colors
+      const type = tagInfo
+        ? `${tagInfo.tag_types?.type || ''} | ${tagInfo.animal_types?.animal_name || ''}`
+        : ''
+      const formattedTagCode = tagInfo
+        ? `${tagInfo.tag_types?.type || ''}-${tagInfo.tag_code || ''}`
+        : ''
+      const animalType = tagInfo?.animal_types?.animal_name || ''
+      return { ...data, type, formattedTagCode, animalType }
     } catch (err) {
       console.error('Error updating animal:', err)
       return null
@@ -264,6 +337,45 @@ export const animalService = {
       console.error('Error generating next animal ID:', err)
       return `TAG-${new Date().getFullYear()}-001`
     }
+  },
+
+  /**
+   * Fetch animals with their tag info (tag_code from tag_animals_colors)
+   */
+  async getAnimalsWithTag(): Promise<(Animal & { tag_code: number | null; cage_label: string | null })[]> {
+    if (!isSupabaseConfigured()) return []
+    try {
+      const { data, error } = await supabase!
+        .schema('module2')
+        .from('animals')
+        .select('*, tag_animals_colors(tag_code), cages(cage_label)')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+      if (error) { console.error('Error fetching animals with tag:', error); return [] }
+      return (data || []).map((a: any) => ({
+        ...a,
+        tag_code: a.tag_animals_colors?.tag_code ?? null,
+        cage_label: a.cages?.cage_label ?? null,
+      }))
+    } catch (err) { console.error('Error fetching animals with tag:', err); return [] }
+  },
+
+  /**
+   * Fetch animals by cage ID
+   */
+  async getAnimalsByCage(cageId: string): Promise<Animal[]> {
+    if (!isSupabaseConfigured()) return []
+    try {
+      const { data, error } = await supabase!
+        .schema('module2')
+        .from('animals')
+        .select('*')
+        .eq('current_cage_id', cageId)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+      if (error) { console.error('Error fetching animals by cage:', error); return [] }
+      return data || []
+    } catch (err) { console.error('Error fetching animals by cage:', err); return [] }
   },
 }
 
