@@ -108,7 +108,7 @@ export const animalService = {
    * Create a new animal
    */
   async createAnimal(animal: {
-    id: string // Tag code ID (e.g., "EAR-1")
+    id: string // Tag animals colors ID (creates 1:1 relationship)
     tag_animals_colors_id: string
     sex: string
     weight: number
@@ -116,28 +116,27 @@ export const animalService = {
     current_cage_id?: string | null
     mother_id?: string | null
     father_id?: string | null
-  }): Promise<Animal | null> {
+  }): Promise<Animal> {
     if (!isSupabaseConfigured()) {
-      console.warn('Supabase not configured')
-      return null
+      throw new Error('Supabase not configured')
     }
 
     try {
+      const insertData = {
+        id: animal.id,
+        tag_animals_colors_id: animal.tag_animals_colors_id,
+        sex: animal.sex,
+        weight: animal.weight,
+        status: animal.status,
+        current_cage_id: animal.current_cage_id || null,
+        mother_id: animal.mother_id || null,
+        father_id: animal.father_id || null,
+      }
+
       const { data, error } = await supabase!
         .schema('module2')
         .from('animals')
-        .insert([
-          {
-            id: animal.id,
-            tag_animals_colors_id: animal.tag_animals_colors_id,
-            sex: animal.sex,
-            weight: animal.weight,
-            status: animal.status,
-            current_cage_id: animal.current_cage_id || null,
-            mother_id: animal.mother_id || null,
-            father_id: animal.father_id || null,
-          },
-        ])
+        .insert([insertData])
         .select(`
           *,
           tag_animals_colors!tag_animals_colors_id(
@@ -150,7 +149,13 @@ export const animalService = {
 
       if (error) {
         console.error('Error creating animal:', error)
-        return null
+        console.error('Error details:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        })
+        throw new Error(`Database error: ${error.message}${error.hint ? ` (${error.hint})` : ''}`)
       }
 
       // Format the data to include type string
@@ -161,7 +166,7 @@ export const animalService = {
       return { ...data, type }
     } catch (err) {
       console.error('Error creating animal:', err)
-      return null
+      throw err
     }
   },
 
