@@ -14,6 +14,7 @@ export interface AnimalType {
 export interface TagColor {
   id: string
   color: string
+  color_name: string
   created_at: string
 }
 
@@ -141,7 +142,10 @@ export const fetchTagColors = async (): Promise<TagColor[]> => {
   }
 }
 
-export const createTagColor = async (color: string): Promise<TagColor> => {
+export const createTagColor = async (
+  colorName: string,
+  colorHex: string
+): Promise<TagColor> => {
   if (!isSupabaseConfigured()) {
     throw new Error('Supabase not configured')
   }
@@ -149,7 +153,7 @@ export const createTagColor = async (color: string): Promise<TagColor> => {
   try {
     const { data, error } = await module2()
       .from('tag_colors')
-      .insert([{ color }])
+      .insert([{ color: colorHex, color_name: colorName }])
       .select()
       .single()
 
@@ -163,7 +167,8 @@ export const createTagColor = async (color: string): Promise<TagColor> => {
 
 export const updateTagColor = async (
   id: string,
-  color: string
+  colorName: string,
+  colorHex: string
 ): Promise<void> => {
   if (!isSupabaseConfigured()) {
     throw new Error('Supabase not configured')
@@ -172,7 +177,7 @@ export const updateTagColor = async (
   try {
     const { error } = await module2()
       .from('tag_colors')
-      .update({ color })
+      .update({ color: colorHex, color_name: colorName })
       .eq('id', id)
 
     if (error) throw error

@@ -45,7 +45,10 @@ export default function TagColorsList({
             <thead className="bg-gray-50 border-b">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Color
+                  Color Preview
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Color Name
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Created At
@@ -59,8 +62,20 @@ export default function TagColorsList({
               {tagColors.map((tagColor) => (
                 <tr key={tagColor.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="w-8 h-8 rounded border border-gray-200"
+                        style={{ backgroundColor: tagColor.color }}
+                        title={tagColor.color}
+                      />
+                      <span className="text-sm font-mono text-gray-600">
+                        {tagColor.color}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
                     <span className="text-sm font-medium text-gray-900">
-                      {tagColor.color}
+                      {tagColor.color_name}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">

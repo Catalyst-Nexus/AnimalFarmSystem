@@ -81,7 +81,8 @@ export default function AnimalAdmin() {
   const [editingTagColorId, setEditingTagColorId] = useState<string | null>(
     null
   )
-  const [formColor, setFormColor] = useState('')
+  const [formColorName, setFormColorName] = useState('')
+  const [formColorHex, setFormColorHex] = useState('#FF0000')
   const [tagColorLoading, setTagColorLoading] = useState(false)
 
   // ─── Tag Type form state ───────────────────────────────────────────────────
@@ -193,10 +194,12 @@ export default function AnimalAdmin() {
   const handleOpenTagColorDialog = (tagColor?: TagColor) => {
     if (tagColor) {
       setEditingTagColorId(tagColor.id)
-      setFormColor(tagColor.color)
+      setFormColorName(tagColor.color_name)
+      setFormColorHex(tagColor.color)
     } else {
       setEditingTagColorId(null)
-      setFormColor('')
+      setFormColorName('')
+      setFormColorHex('#FF0000')
     }
     setShowTagColorDialog(true)
   }
@@ -204,21 +207,26 @@ export default function AnimalAdmin() {
   const handleCloseTagColorDialog = () => {
     setShowTagColorDialog(false)
     setEditingTagColorId(null)
-    setFormColor('')
+    setFormColorName('')
+    setFormColorHex('#FF0000')
   }
 
   const handleSaveTagColor = async () => {
-    if (!formColor.trim()) {
+    if (!formColorName.trim()) {
       alert('Please enter a color name')
+      return
+    }
+    if (!formColorHex.trim()) {
+      alert('Please select a color')
       return
     }
 
     setTagColorLoading(true)
     try {
       if (editingTagColorId) {
-        await updateTagColor(editingTagColorId, formColor.trim())
+        await updateTagColor(editingTagColorId, formColorName.trim(), formColorHex.trim())
       } else {
-        await createTagColor(formColor.trim())
+        await createTagColor(formColorName.trim(), formColorHex.trim())
       }
       await fetchTagColors().then(setTagColors)
       handleCloseTagColorDialog()
@@ -556,8 +564,10 @@ export default function AnimalAdmin() {
           <TagColorDialog
             open={showTagColorDialog}
             onClose={handleCloseTagColorDialog}
-            color={formColor}
-            onColorChange={setFormColor}
+            colorName={formColorName}
+            colorHex={formColorHex}
+            onColorNameChange={setFormColorName}
+            onColorHexChange={setFormColorHex}
             onSave={handleSaveTagColor}
             isEditing={!!editingTagColorId}
             isLoading={tagColorLoading}
