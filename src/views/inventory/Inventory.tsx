@@ -22,22 +22,24 @@ import {
   deleteBrand,
   createUnit,
   deleteUnit,
-  fetchRationRequests,
-  approveRationRequest,
-  rejectRationRequest,
+  fetchStockTransactions,
+  approveStockTransaction,
+  rejectStockTransaction,
   type DeliveryItem,
   type Category,
   type Brand,
   type Unit,
-  type RationRequest,
+  type StockTransaction,
 } from "@/services/inventoryService";
 
 import DeliveryItemsList from "./DeliveryItemsList";
 import DeliveryItemDialog from "./DeliveryItemDialog";
 import RequestsList from "./RequestsList";
+import StockOverview from "./StockOverview";
 
 const TABS = [
   { key: "items", label: "Delivery Items" },
+  { key: "stock", label: "Stock Overview" },
   { key: "requests", label: "Requests" },
   { key: "lookups", label: "Categories / Brands / Units" },
 ];
@@ -53,7 +55,9 @@ export default function Inventory() {
   const [brands, setBrands] = useState<Brand[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
 
-  const [rationRequests, setRationRequests] = useState<RationRequest[]>([]);
+  const [stockTransactions, setStockTransactions] = useState<
+    StockTransaction[]
+  >([]);
 
   const [itemSearch, setItemSearch] = useState("");
   const [requestSearch, setRequestSearch] = useState("");
@@ -90,13 +94,13 @@ export default function Inventory() {
         fetchCategories(),
         fetchBrands(),
         fetchUnits(),
-        fetchRationRequests(),
+        fetchStockTransactions(),
       ]);
       setDeliveryItems(di);
       setCategories(cats);
       setBrands(brs);
       setUnits(uns);
-      setRationRequests(reqs);
+      setStockTransactions(reqs);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load data");
     } finally {
@@ -295,17 +299,18 @@ export default function Inventory() {
   };
 
   // ─── Request handlers (module4 rations) ──────────────────────────────────
-  const handleApproveRequest = async (req: RationRequest) => {
+  const handleApproveRequest = async (req: StockTransaction) => {
     if (
       !confirm(
-        `Approve request for ${req.quantity_used} ${req.unit?.name || "units"} of "${req.delivery_item?.description || "item"}"? This will deduct from stock.`,
+        `Approve request for ${req.quantity} ${req.unit?.name || "units"} of "${req.delivery_item?.description || "item"}"? This will deduct from stock.`,
       )
     )
       return;
-    const result = await approveRationRequest(
+    const result = await approveStockTransaction(
       req.id,
       req.delivery_item_id,
-      req.quantity_used,
+      req.quantity,
+      "warehouse_admin",
     );
     if (!result.success) {
       alert(result.error);
@@ -314,9 +319,9 @@ export default function Inventory() {
     await loadAll();
   };
 
-  const handleRejectRequest = async (req: RationRequest) => {
+  const handleRejectRequest = async (req: StockTransaction) => {
     if (!confirm("Reject this request?")) return;
-    const result = await rejectRationRequest(req.id);
+    const result = await rejectStockTransaction(req.id, "warehouse_admin");
     if (!result.success) {
       alert(result.error);
       return;
@@ -330,7 +335,7 @@ export default function Inventory() {
     0,
   );
   const activeCount = deliveryItems.filter((i) => i.status === "active").length;
-  const pendingRequestCount = rationRequests.filter(
+  const pendingRequestCount = stockTransactions.filter(
     (r) => r.status === "pending",
   ).length;
 
@@ -398,6 +403,31 @@ export default function Inventory() {
         </>
       )}
 
+      {/* ─── Stock Overview Tab ───────────────────────────────────────────── */}
+      {activeTab === "stock" && (
+        <>
+          <ActionsBar>
+            <PrimaryButton onClick={loadAll} disabled={isLoading}>
+              <RefreshCw
+                className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`}
+              />
+              Refresh
+            </PrimaryButton>
+          </ActionsBar>
+
+          {isLoading ? (
+            <div className="text-center py-12">
+              <p className="text-muted">Loading...</p>
+            </div>
+          ) : (
+            <StockOverview
+              items={deliveryItems}
+              transactions={stockTransactions}
+            />
+          )}
+        </>
+      )}
+
       {/* ─── Requests Tab ─────────────────────────────────────────────── */}
       {activeTab === "requests" && (
         <>
@@ -416,7 +446,7 @@ export default function Inventory() {
             </div>
           ) : (
             <RequestsList
-              requests={rationRequests}
+              requests={stockTransactions}
               search={requestSearch}
               onSearchChange={setRequestSearch}
               onApprove={handleApproveRequest}

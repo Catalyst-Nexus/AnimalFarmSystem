@@ -1,14 +1,14 @@
 import { useState, useMemo } from "react";
 import { Check, X, Search } from "lucide-react";
 import { IconButton } from "@/components/ui";
-import type { RationRequest } from "@/services/inventoryService";
+import type { StockTransaction } from "@/services/inventoryService";
 
 interface RequestsListProps {
-  requests: RationRequest[];
+  requests: StockTransaction[];
   search: string;
   onSearchChange: (val: string) => void;
-  onApprove: (req: RationRequest) => void;
-  onReject: (req: RationRequest) => void;
+  onApprove: (req: StockTransaction) => void;
+  onReject: (req: StockTransaction) => void;
 }
 
 export default function RequestsList({
@@ -33,8 +33,8 @@ export default function RequestsList({
         (r) =>
           r.delivery_item?.description?.toLowerCase().includes(q) ||
           r.delivery_item?.category?.name?.toLowerCase().includes(q) ||
-          r.ration_type?.name?.toLowerCase().includes(q) ||
-          r.administered_by?.toLowerCase().includes(q),
+          r.requested_by?.toLowerCase().includes(q) ||
+          r.purpose?.toLowerCase().includes(q),
       );
     }
     return result;
@@ -118,28 +118,28 @@ export default function RequestsList({
           <thead>
             <tr>
               <th className="bg-background text-muted font-semibold text-left px-4 py-3 border-b border-border">
-                Delivery Item
+                Item
               </th>
               <th className="bg-background text-muted font-semibold text-left px-4 py-3 border-b border-border">
-                Ration Type
+                Category
               </th>
               <th className="bg-background text-muted font-semibold text-right px-4 py-3 border-b border-border">
-                Qty Requested
+                Requested Qty
               </th>
               <th className="bg-background text-muted font-semibold text-right px-4 py-3 border-b border-border">
                 Available Stock
               </th>
               <th className="bg-background text-muted font-semibold text-left px-4 py-3 border-b border-border">
-                Administered By
-              </th>
-              <th className="bg-background text-muted font-semibold text-center px-4 py-3 border-b border-border">
-                Meal #
+                Requested By
               </th>
               <th className="bg-background text-muted font-semibold text-left px-4 py-3 border-b border-border">
-                Date Given
+                Purpose
               </th>
               <th className="bg-background text-muted font-semibold text-left px-4 py-3 border-b border-border">
                 Status
+              </th>
+              <th className="bg-background text-muted font-semibold text-left px-4 py-3 border-b border-border">
+                Date
               </th>
               <th className="bg-background text-muted font-semibold text-right px-4 py-3 border-b border-border">
                 Actions
@@ -151,15 +151,15 @@ export default function RequestsList({
               <tr>
                 <td colSpan={9} className="text-center text-muted py-8">
                   {requests.length === 0
-                    ? "No requests from module 4 yet. Requests appear here when the feeding module submits ration entries."
+                    ? "No stock requests yet. Requests appear here when the storage module submits them."
                     : "No requests match the current filter."}
                 </td>
               </tr>
             ) : (
               filtered.map((req) => {
                 const item = req.delivery_item;
-                const stockUnit = item?.unit_delivery?.name || "";
-                const reqUnit = req.unit?.name || stockUnit;
+                const unitName =
+                  req.unit?.name || item?.unit_delivery?.name || "";
                 return (
                   <tr
                     key={req.id}
@@ -170,39 +170,43 @@ export default function RequestsList({
                         <span className="font-medium text-foreground">
                           {item?.description || "—"}
                         </span>
-                        <span className="inline-block w-fit px-2 py-0.5 text-xs rounded-full bg-primary/10 text-primary">
-                          {item?.category?.name || "—"}
-                        </span>
+                        {item?.brand?.name && (
+                          <span className="text-xs text-muted">
+                            {item.brand.name}
+                          </span>
+                        )}
                       </div>
                     </td>
-                    <td className="px-4 py-3 border-b border-border/50 text-foreground">
-                      {req.ration_type?.name || "—"}
+                    <td className="px-4 py-3 border-b border-border/50">
+                      <span className="inline-block px-2 py-0.5 text-xs rounded-full bg-primary/10 text-primary">
+                        {item?.category?.name || "—"}
+                      </span>
                     </td>
                     <td className="px-4 py-3 border-b border-border/50 text-foreground text-right font-semibold">
-                      {fmt(req.quantity_used)}{" "}
-                      <span className="text-muted text-xs">{reqUnit}</span>
+                      {fmt(req.quantity)}{" "}
+                      <span className="text-muted text-xs">{unitName}</span>
                     </td>
                     <td className="px-4 py-3 border-b border-border/50 text-foreground text-right">
                       {item ? fmt(item.quantity_delivery) : "—"}{" "}
-                      <span className="text-muted text-xs">{stockUnit}</span>
+                      <span className="text-muted text-xs">
+                        {item?.unit_delivery?.name || ""}
+                      </span>
                     </td>
                     <td className="px-4 py-3 border-b border-border/50 text-foreground">
-                      {req.administered_by || "—"}
+                      {req.requested_by || "—"}
                     </td>
-                    <td className="px-4 py-3 border-b border-border/50 text-foreground text-center">
-                      {req.meal_number ?? "—"}
-                    </td>
-                    <td className="px-4 py-3 border-b border-border/50 text-muted">
-                      {req.date_given
-                        ? new Date(req.date_given).toLocaleDateString("en-US", {
-                            year: "numeric",
-                            month: "short",
-                            day: "numeric",
-                          })
-                        : "—"}
+                    <td className="px-4 py-3 border-b border-border/50 text-muted max-w-37.5 truncate">
+                      {req.purpose || "—"}
                     </td>
                     <td className="px-4 py-3 border-b border-border/50">
                       {statusBadge(req.status)}
+                    </td>
+                    <td className="px-4 py-3 border-b border-border/50 text-muted">
+                      {new Date(req.created_at).toLocaleDateString("en-US", {
+                        year: "numeric",
+                        month: "short",
+                        day: "numeric",
+                      })}
                     </td>
                     <td className="px-4 py-3 border-b border-border/50">
                       <div className="flex items-center justify-end gap-1">
