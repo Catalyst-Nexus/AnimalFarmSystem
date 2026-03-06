@@ -70,15 +70,22 @@ interface Cage {
 }
 
 // Helper to convert DB animals to UI Pigs
-const convertAnimalToPig = (animal: DBAnimal): Pig => ({
-  id: animal.id,
-  tagId: animal.id,
-  breed: animal.type || 'Unknown',
-  sex: (animal.sex === 'Male' || animal.sex === 'Female') ? animal.sex : 'Male',
-  weight: Number(animal.weight) || 0,
-  status: animal.status || 'Unknown',
-  cageId: animal.current_cage_id,
-})
+const convertAnimalToPig = (animal: DBAnimal): Pig => {
+  // type format: "TAG_TYPE-CODE | ANIMAL_NAME" (e.g., "EAR-1 | Pig")
+  const typeParts = animal.type?.split(' | ') || []
+  const tagCode = typeParts[0] || animal.id
+  const animalName = typeParts[1] || 'Unknown'
+  
+  return {
+    id: animal.id,
+    tagId: tagCode, // Display as "EAR-1" format
+    breed: animalName, // Display animal type name
+    sex: (animal.sex === 'Male' || animal.sex === 'Female') ? animal.sex : 'Male',
+    weight: Number(animal.weight) || 0,
+    status: animal.status || 'Unknown',
+    cageId: animal.current_cage_id,
+  }
+}
 
 // Helper to convert DB cages to UI Cages
 const convertDBCage = (cage: DBCage): Cage => ({
@@ -153,7 +160,7 @@ interface MonitoringContextType {
   addCage: (cage: Omit<DBCage, 'id' | 'created_at'>) => Promise<void>
   editCage: (id: string, updates: Partial<Omit<DBCage, 'id' | 'created_at'>>) => Promise<void>
   removeCage: (id: string) => Promise<void>
-  updatePigWeight: (tagId: string, newWeight: number) => Promise<void>
+  updatePigWeight: (pigId: string, newWeight: number) => Promise<void>
 }
 
 const MonitoringContext = createContext<MonitoringContextType | undefined>(undefined)
@@ -198,7 +205,7 @@ const MonitoringProvider = ({ children }: { children: ReactNode }) => {
   }
 
   /** Manually move a pig to a different cage */
-  const movePig = async (tagId: string, cageId: string) => {
+  const movePig = async (pigId: string, cageId: string) => {
     try {
       const targetCage = cages.find(c => c.id === cageId)
       if (targetCage) {
@@ -209,9 +216,9 @@ const MonitoringProvider = ({ children }: { children: ReactNode }) => {
         }
       }
       
-      await updateAnimalCage(tagId, cageId)
+      await updateAnimalCage(pigId, cageId)
       setPigs((prev) =>
-        prev.map((p) => (p.tagId === tagId ? { ...p, cageId } : p))
+        prev.map((p) => (p.id === pigId ? { ...p, cageId } : p))
       )
       showToast(`Animal moved to ${targetCage?.label}`, 'success')
     } catch (error) {
@@ -262,11 +269,11 @@ const MonitoringProvider = ({ children }: { children: ReactNode }) => {
     }
   }
 
-  const updatePigWeight = async (tagId: string, newWeight: number) => {
+  const updatePigWeight = async (pigId: string, newWeight: number) => {
     try {
-      await animalService.updateAnimal(tagId, { weight: newWeight })
+      await animalService.updateAnimal(pigId, { weight: newWeight })
       setPigs((prev) =>
-        prev.map((p) => (p.tagId === tagId ? { ...p, weight: newWeight } : p))
+        prev.map((p) => (p.id === pigId ? { ...p, weight: newWeight } : p))
       )
       showToast('Weight updated', 'success')
     } catch (error) {
@@ -543,7 +550,7 @@ const MovePigButton = ({ pig }: { pig: Pig }) => {
                   <button
                     key={c.id}
                     className="flex items-center justify-between w-full px-3 py-2.5 rounded-lg text-xs font-medium transition-all hover:bg-success/10 hover:text-success text-foreground group"
-                    onClick={() => { movePig(pig.tagId, c.id); setOpen(false) }}
+                    onClick={() => { movePig(pig.id, c.id); setOpen(false) }}
                   >
                     <span className="flex items-center gap-2">
                       <MoveRight className="w-3 h-3 text-muted group-hover:text-success transition-colors" />
@@ -879,8 +886,8 @@ const MonitoringSheetTab = () => {
 
     setUpdatingPigs(prev => new Set(prev).add(pig.tagId))
     try {
-      await updatePigWeight(pig.tagId, newWeight)
-      if (scannedPig && scannedPig !== 'not-found' && scannedPig.tagId === pig.tagId) {
+      await updatePigWeight(pig.id, newWeight)
+      if (scannedPig && scannedPig !== 'not-found' && scannedPig.id === pig.id) {
         setScannedPig(null)
         setScanInput('')
       }
