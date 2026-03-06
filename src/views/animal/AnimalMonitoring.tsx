@@ -25,6 +25,7 @@ import {
   Save,
   LayoutDashboard,
   SortAsc,
+  ClipboardList,
 } from 'lucide-react'
 import {
   getCages,
@@ -36,6 +37,7 @@ import {
   type Cage as DBCage,
   type Animal as DBAnimal,
 } from '@/services/cageService'
+import { animalService } from '@/services/animalService'
 import CageDialog from './CageDialog'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -93,6 +95,7 @@ interface MonitoringContextType {
   addCage: (cage: Omit<DBCage, 'id' | 'created_at'>) => Promise<void>
   editCage: (id: string, updates: Partial<Omit<DBCage, 'id' | 'created_at'>>) => Promise<void>
   removeCage: (id: string) => Promise<void>
+  updatePigWeight: (tagId: string, newWeight: number) => Promise<void>
 }
 
 const MonitoringContext = createContext<MonitoringContextType | undefined>(undefined)
@@ -195,6 +198,19 @@ const MonitoringProvider = ({ children }: { children: ReactNode }) => {
     }
   }
 
+  /** Update a pig's weight */
+  const updatePigWeight = async (tagId: string, newWeight: number) => {
+    try {
+      await animalService.updateAnimal(tagId, { weight: newWeight })
+      setPigs((prev) =>
+        prev.map((p) => (p.tagId === tagId ? { ...p, weight: newWeight } : p))
+      )
+    } catch (error) {
+      console.error('Error updating pig weight:', error)
+      throw error
+    }
+  }
+
   return (
     <MonitoringContext.Provider
       value={{
@@ -210,6 +226,7 @@ const MonitoringProvider = ({ children }: { children: ReactNode }) => {
         addCage,
         editCage,
         removeCage,
+        updatePigWeight,
       }}
     >
       {children}
@@ -499,7 +516,7 @@ const CageCard = ({ cage, onEdit, onDelete }: { cage: Cage; onEdit: () => void; 
                 "h-full transition-all duration-500 rounded-full",
                 occupancyPercent >= 100 ? 'bg-red-500' : occupancyPercent >= 80 ? 'bg-orange-500' : 'bg-green-500'
               )}
-              style={{ width: `${Math.min(occupancyPercent, 100)}%` }}
+              {...({ style: { width: `${Math.min(occupancyPercent, 100)}%` } })}
             />
           </div>
           <p className="text-xs text-muted mt-1">
@@ -589,7 +606,373 @@ const CageCard = ({ cage, onEdit, onDelete }: { cage: Cage; onEdit: () => void; 
   )
 }
 
-// ─── Main App ─────────────────────────────────────────────────────────────────
+// ─── Monitoring Sheet Tab ─────────────────────────────────────────────────────
+
+const MonitoringSheetTab = () => {
+  const { pigs, cages, scanTag, updatePigWeight } = useMonitoring()
+  const [selectedCages, setSelectedCages] = useState<string[]>([])
+  const [scanInput, setScanInput] = useState('')
+  const [scannedPig, setScannedPig] = useState<Pig | 'not-found' | null>(null)
+  const [editingWeights, setEditingWeights] = useState<Record<string, string>>({})
+  const [updatingPigs, setUpdatingPigs] = useState<Set<string>>(new Set())
+  const scanInputRef = useRef<HTMLInputElement>(null)
+
+  const activeCages = useMemo(() => cages.filter(c => c.isActive), [cages])
+  
+  const toggleCage = (cageId: string) => {
+    setSelectedCages(prev =>
+      prev.includes(cageId) ? prev.filter(id => id !== cageId) : [...prev, cageId]
+    )
+  }
+
+  const selectAllCages = () => {
+    setSelectedCages(activeCages.map(c => c.id))
+  }
+
+  const clearAllCages = () => {
+    setSelectedCages([])
+  }
+
+  const animalsToMonitor = useMemo(() => {
+    return pigs.filter(p => selectedCages.includes(p.cageId || ''))
+      .sort((a, b) => {
+        // Sort by cage first, then by weight descending
+        const cageA = cages.find(c => c.id === a.cageId)?.label || ''
+        const cageB = cages.find(c => c.id === b.cageId)?.label || ''
+        if (cageA !== cageB) return cageA.localeCompare(cageB)
+        return b.weight - a.weight
+      })
+  }, [pigs, selectedCages, cages])
+
+  const handleScan = () => {
+    const trimmed = scanInput.trim()
+    if (!trimmed) return
+    const pig = scanTag(trimmed)
+    setScannedPig(pig ?? 'not-found')
+    if (pig) {
+      // Initialize editing weight with current weight
+      setEditingWeights(prev => ({ ...prev, [pig.tagId]: pig.weight.toString() }))
+      // Scroll to the pig in the list if it's in selected cages
+      if (selectedCages.includes(pig.cageId || '')) {
+        const element = document.getElementById(`pig-row-${pig.tagId}`)
+        element?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }
+    }
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') handleScan()
+  }
+
+  const handleClearScan = () => {
+    setScanInput('')
+    setScannedPig(null)
+    scanInputRef.current?.focus()
+  }
+
+  const handleWeightChange = (tagId: string, value: string) => {
+    setEditingWeights(prev => ({ ...prev, [tagId]: value }))
+  }
+
+  const handleUpdateWeight = async (pig: Pig) => {
+    const newWeightStr = editingWeights[pig.tagId]
+    if (!newWeightStr) return
+    
+    const newWeight = parseFloat(newWeightStr)
+    if (isNaN(newWeight) || newWeight <= 0) {
+      alert('Please enter a valid weight')
+      return
+    }
+
+    if (newWeight === pig.weight) {
+      return // No change
+    }
+
+    setUpdatingPigs(prev => new Set(prev).add(pig.tagId))
+    try {
+      await updatePigWeight(pig.tagId, newWeight)
+      // Clear scanned pig if it was this one
+      if (scannedPig && scannedPig !== 'not-found' && scannedPig.tagId === pig.tagId) {
+        setScannedPig(null)
+        setScanInput('')
+      }
+    } catch (error) {
+      alert('Failed to update weight. Please try again.')
+    } finally {
+      setUpdatingPigs(prev => {
+        const next = new Set(prev)
+        next.delete(pig.tagId)
+        return next
+      })
+    }
+  }
+
+  const cage = scannedPig && scannedPig !== 'not-found'
+    ? cages.find((c) => c.id === scannedPig.cageId)
+    : null
+
+  return (
+    <div className="space-y-6">
+      {/* Scanner Panel */}
+      <div className="bg-gradient-to-br from-surface to-background border-2 border-border rounded-2xl p-6 shadow-sm">
+        <div className="flex items-center gap-3 mb-5">
+          <div className="p-2 bg-success/10 rounded-lg">
+            <ScanBarcode className="w-5 h-5 text-success" />
+          </div>
+          <div>
+            <h3 className="text-base font-bold text-foreground">Quick Tag Scanner</h3>
+            <p className="text-xs text-muted">Scan or enter tag ID to highlight and update animal weight</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 mb-4">
+          <div className="flex-1 relative">
+            <input
+              ref={scanInputRef}
+              className="w-full px-4 py-3 pl-10 border-2 border-border rounded-xl text-sm bg-background text-foreground placeholder:text-muted focus:outline-none focus:border-success focus:ring-4 focus:ring-success/10 font-mono transition-all"
+              placeholder="Enter tag ID (e.g., TAG-2026-003)"
+              value={scanInput}
+              onChange={(e) => { setScanInput(e.target.value); setScannedPig(null) }}
+              onKeyDown={handleKeyDown}
+            />
+            <ScanBarcode className="w-4 h-4 text-muted absolute left-3 top-1/2 -translate-y-1/2" />
+          </div>
+          <button
+            className="px-6 py-3 bg-success text-white rounded-xl text-sm font-semibold hover:bg-success/90 hover:shadow-lg active:scale-95 transition-all flex items-center gap-2 shadow-sm"
+            onClick={handleScan}
+          >
+            <CheckCircle2 className="w-4 h-4" /> Scan
+          </button>
+          {scannedPig !== null && (
+            <button
+              className="px-4 py-3 border-2 border-border rounded-xl text-sm font-medium text-muted hover:bg-background hover:border-foreground transition-all"
+              onClick={handleClearScan}
+            >
+              Clear
+            </button>
+          )}
+        </div>
+
+        {/* Scan Result */}
+        {scannedPig === 'not-found' && (
+          <div className="flex items-start gap-3 p-4 bg-red-50 border-2 border-red-200 rounded-xl animate-in fade-in slide-in-from-top-2 duration-300">
+            <XCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-red-700">Tag not found</p>
+              <p className="text-xs text-red-600 mt-1">No animal registered with tag <span className="font-mono bg-red-100 px-1.5 py-0.5 rounded">{scanInput}</span>.</p>
+            </div>
+          </div>
+        )}
+
+        {scannedPig && scannedPig !== 'not-found' && (
+          <div className="flex flex-wrap items-start gap-4 p-4 bg-green-50 border border-green-200 rounded-xl">
+            <div className="flex items-center justify-center w-14 h-14 rounded-full bg-white border-2 border-green-300 shrink-0">
+              <Weight className="w-6 h-6 text-green-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1">
+                <CheckCircle2 className="w-4 h-4 text-green-600" />
+                <span className="text-sm font-bold text-green-800">Tag found</span>
+                <span className="font-mono text-xs bg-white border border-green-200 px-2 py-0.5 rounded text-green-700">{scannedPig.tagId}</span>
+              </div>
+              <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
+                <span>
+                  <span className="text-muted text-xs uppercase tracking-wide">Current Weight </span>
+                  <strong className="text-2xl font-bold text-green-700">{scannedPig.weight}</strong>
+                  <span className="text-muted ml-1">kg</span>
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="text-muted text-xs uppercase tracking-wide">Breed </span>
+                  <span className="font-medium text-foreground">{scannedPig.breed}</span>
+                </span>
+              </div>
+              {cage && (
+                <p className="mt-1 text-xs text-muted">
+                  Currently in <strong className="text-green-700">{cage.label}</strong>
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Cage Selection Panel */}
+      <div className="bg-gradient-to-br from-surface to-background border-2 border-border rounded-2xl p-6 shadow-sm">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-blue-500/10 rounded-lg">
+              <PiggyBank className="w-5 h-5 text-blue-600" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-foreground">Select Cages to Monitor</h3>
+              <p className="text-xs text-muted">{selectedCages.length} cage(s) selected • {animalsToMonitor.length} animal(s)</p>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={selectAllCages}
+              className="px-3 py-1.5 text-xs font-semibold text-success border-2 border-success rounded-lg hover:bg-success hover:text-white transition-all"
+            >
+              Select All
+            </button>
+            <button
+              onClick={clearAllCages}
+              className="px-3 py-1.5 text-xs font-semibold text-muted border-2 border-border rounded-lg hover:bg-background transition-all"
+            >
+              Clear All
+            </button>
+          </div>
+        </div>
+        
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+          {activeCages.map(cage => {
+            const animalCount = pigs.filter(p => p.cageId === cage.id).length
+            return (
+              <button
+                key={cage.id}
+                onClick={() => toggleCage(cage.id)}
+                className={cn(
+                  'px-3 py-2.5 rounded-xl text-xs font-semibold transition-all border-2 hover:scale-105 active:scale-95',
+                  selectedCages.includes(cage.id)
+                    ? 'bg-success text-white border-success shadow-lg'
+                    : 'bg-background text-foreground border-border hover:border-success hover:shadow-md'
+                )}
+              >
+                <div>{cage.label}</div>
+                <div className={cn('text-[10px] font-normal mt-0.5', selectedCages.includes(cage.id) ? 'text-white/80' : 'text-muted')}>
+                  {animalCount} animals
+                </div>
+              </button>
+            )
+          })}
+        </div>
+        
+        {activeCages.length === 0 && (
+          <p className="text-sm text-muted italic">No active cages available.</p>
+        )}
+      </div>
+
+      {/* Monitoring List */}
+      {selectedCages.length === 0 ? (
+        <div className="text-center py-12 bg-surface border-2 border-border rounded-2xl">
+          <ClipboardList className="w-12 h-12 text-muted mx-auto mb-3" />
+          <p className="text-muted mb-2">No cages selected</p>
+          <p className="text-xs text-muted">Select cages above to start monitoring animals</p>
+        </div>
+      ) : animalsToMonitor.length === 0 ? (
+        <div className="text-center py-12 bg-surface border-2 border-border rounded-2xl">
+          <PiggyBank className="w-12 h-12 text-muted mx-auto mb-3" />
+          <p className="text-muted mb-2">No animals in selected cages</p>
+          <p className="text-xs text-muted">Animals will appear here when assigned to selected cages</p>
+        </div>
+      ) : (
+        <div className="bg-gradient-to-br from-surface to-background border-2 border-border rounded-2xl p-6 shadow-sm">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2 bg-purple-500/10 rounded-lg">
+              <ClipboardList className="w-5 h-5 text-purple-600" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-foreground">Monitoring Sheet</h3>
+              <p className="text-xs text-muted">Update weights for animals in selected cages</p>
+            </div>
+          </div>
+
+          {/* Table Header */}
+          <div className="grid grid-cols-12 gap-3 px-4 py-3 bg-background rounded-xl mb-2 border-2 border-border font-bold text-xs text-muted">
+            <div className="col-span-3">TAG ID</div>
+            <div className="col-span-2">CAGE</div>
+            <div className="col-span-2">BREED</div>
+            <div className="col-span-1">SEX</div>
+            <div className="col-span-2">CURRENT (kg)</div>
+            <div className="col-span-2">UPDATE</div>
+          </div>
+
+          {/* Animal Rows */}
+          <div className="space-y-2 max-h-[500px] overflow-y-auto">
+            {animalsToMonitor.map((pig) => {
+              const currentCage = cages.find(c => c.id === pig.cageId)
+              const isUpdating = updatingPigs.has(pig.tagId)
+              const isHighlighted = scannedPig && scannedPig !== 'not-found' && scannedPig.tagId === pig.tagId
+              const editWeight = editingWeights[pig.tagId] ?? pig.weight.toString()
+              
+              return (
+                <div
+                  key={pig.id}
+                  id={`pig-row-${pig.tagId}`}
+                  className={cn(
+                    'grid grid-cols-12 gap-3 px-4 py-3 rounded-xl transition-all',
+                    isHighlighted 
+                      ? 'bg-green-50 border-2 border-green-400 shadow-lg animate-in fade-in slide-in-from-top-2 duration-300' 
+                      : 'bg-surface border border-border hover:border-success/50 hover:shadow-md'
+                  )}
+                >
+                  {/* Tag ID */}
+                  <div className="col-span-3 flex items-center">
+                    <span className="font-mono text-xs font-bold bg-background px-2 py-1 rounded border border-border truncate">
+                      {pig.tagId}
+                    </span>
+                  </div>
+                  
+                  {/* Cage */}
+                  <div className="col-span-2 flex items-center">
+                    <span className="text-xs font-medium text-muted truncate">
+                      {currentCage?.label || 'N/A'}
+                    </span>
+                  </div>
+                  
+                  {/* Breed */}
+                  <div className="col-span-2 flex items-center">
+                    <span className="text-xs text-muted truncate">{pig.breed}</span>
+                  </div>
+                  
+                  {/* Sex */}
+                  <div className="col-span-1 flex items-center">
+                    <span className={cn('px-2 py-1 rounded-lg text-xs font-bold border-2', SEX_STYLES[pig.sex], pig.sex === 'Male' ? 'border-blue-200' : 'border-pink-200')}>
+                      {pig.sex[0]}
+                    </span>
+                  </div>
+                  
+                  {/* Current Weight */}
+                  <div className="col-span-2 flex items-center">
+                    <span className="text-sm font-bold text-foreground">{pig.weight} kg</span>
+                  </div>
+                  
+                  {/* Update Weight */}
+                  <div className="col-span-2 flex items-center gap-2">
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      className="w-20 px-2 py-1 border-2 border-border rounded-lg text-xs font-semibold bg-background text-foreground focus:outline-none focus:border-success focus:ring-2 focus:ring-success/20"
+                      value={editWeight}
+                      onChange={(e) => handleWeightChange(pig.tagId, e.target.value)}
+                      disabled={isUpdating}
+                      aria-label="New weight in kg"
+                    />
+                    <button
+                      onClick={() => handleUpdateWeight(pig)}
+                      disabled={isUpdating || editWeight === pig.weight.toString()}
+                      className="p-1.5 bg-success text-white rounded-lg hover:bg-success/90 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Update weight"
+                    >
+                      {isUpdating ? (
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <Save className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Sorting Tab ──────────────────────────────────────────────────────────────
 
 // Sorting Tab Component
 const SortingTab = () => {
@@ -894,7 +1277,7 @@ const SortingTab = () => {
                   <div className="w-full h-2 bg-green-100 rounded-full overflow-hidden mb-4">
                     <div 
                       className="h-full bg-green-500 rounded-full transition-all duration-500"
-                      style={{ width: `${Math.min(filledPercent, 100)}%` }}
+                      {...({ style: { width: `${Math.min(filledPercent, 100)}%` } })}
                     />
                   </div>
                   <div className="space-y-1.5 max-h-60 overflow-y-auto">
@@ -947,7 +1330,7 @@ const MonitoringApp = () => {
   const { pigs, cages, addCage, editCage, removeCage, isLoading } = useMonitoring()
   
   // Tab state
-  const [activeTab, setActiveTab] = useState<'monitoring' | 'sorting'>('monitoring')
+  const [activeTab, setActiveTab] = useState<'monitoring' | 'sheet' | 'sorting'>('monitoring')
   
   // Dialog states
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -1067,6 +1450,18 @@ const MonitoringApp = () => {
             <span>Monitoring</span>
           </button>
           <button
+            onClick={() => setActiveTab('sheet')}
+            className={cn(
+              'flex-1 px-4 py-2.5 text-sm font-semibold flex items-center justify-center gap-2 rounded-lg transition-all duration-300 group',
+              activeTab === 'sheet'
+                ? 'bg-success text-white shadow-md scale-[1.02] border border-success'
+                : 'bg-transparent text-muted hover:text-foreground hover:bg-surface/50 border border-transparent hover:border-border'
+            )}
+          >
+            <ClipboardList className={cn('w-4 h-4 transition-transform', activeTab === 'sheet' ? 'animate-in zoom-in-50' : 'group-hover:scale-110')} />
+            <span>Monitoring Sheet</span>
+          </button>
+          <button
             onClick={() => setActiveTab('sorting')}
             className={cn(
               'flex-1 px-4 py-2.5 text-sm font-semibold flex items-center justify-center gap-2 rounded-lg transition-all duration-300 group',
@@ -1121,6 +1516,8 @@ const MonitoringApp = () => {
             </div>
           )}
         </>
+      ) : activeTab === 'sheet' ? (
+        <MonitoringSheetTab />
       ) : (
         <SortingTab />
       )}
