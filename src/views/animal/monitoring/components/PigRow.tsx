@@ -61,10 +61,19 @@ export const PigRow = ({ pig, rank, bulkMode, selected, onToggleSelect }: PigRow
       </span>
     )}
 
-    {/* tag */}
-    <span className="font-mono text-[11px] font-bold text-foreground shrink-0 w-28 truncate bg-background px-2.5 py-1 rounded-lg border border-border/60">
-      {pig.tagId}
-    </span>
+    {/* tag with color indicator */}
+    <div className="flex items-center gap-1.5 shrink-0 w-28">
+      {pig.tagColor && (
+        <div 
+          className="w-3 h-3 rounded-full border border-border/60 shrink-0" 
+          style={{ backgroundColor: pig.tagColor }}
+          title={pig.tagColorName || pig.tagColor}
+        />
+      )}
+      <span className="font-mono text-[11px] font-bold text-foreground truncate bg-background px-2.5 py-1 rounded-lg border border-border/60 flex-1">
+        {pig.tagId}
+      </span>
+    </div>
 
     {/* weight highlight */}
     <div className="w-16 shrink-0 flex items-baseline gap-0.5">

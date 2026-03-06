@@ -5,6 +5,8 @@ export type SortDir = 'asc' | 'desc'
 export interface Pig {
   id: string
   tagId: string
+  tagColor?: string
+  tagColorName?: string
   breed: string
   sex: 'Male' | 'Female'
   weight: number
@@ -26,15 +28,22 @@ export interface Toast {
 }
 
 // Helper to convert DB animals to UI Pigs
-export const convertAnimalToPig = (animal: DBAnimal): Pig => {
+export const convertAnimalToPig = (animal: DBAnimal & any): Pig => {
   // type format: "TAG_TYPE-CODE | ANIMAL_NAME" (e.g., "EAR-1 | Pig")
   const typeParts = animal.type?.split(' | ') || []
   const tagCode = typeParts[0] || animal.id
   const animalName = typeParts[1] || 'Unknown'
   
+  // Extract tag color from joined data
+  const tagInfo = animal.tag_animals_colors
+  const tagColor = tagInfo?.tag_colors?.color
+  const tagColorName = tagInfo?.tag_colors?.color_name
+  
   return {
     id: animal.id,
     tagId: tagCode, // Display as "EAR-1" format
+    tagColor,
+    tagColorName,
     breed: animalName, // Display animal type name
     sex: (animal.sex === 'Male' || animal.sex === 'Female') ? animal.sex : 'Male',
     weight: Number(animal.weight) || 0,
