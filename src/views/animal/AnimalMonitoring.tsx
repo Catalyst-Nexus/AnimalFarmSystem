@@ -161,6 +161,7 @@ interface MonitoringContextType {
   editCage: (id: string, updates: Partial<Omit<DBCage, 'id' | 'created_at'>>) => Promise<void>
   removeCage: (id: string) => Promise<void>
   updatePigWeight: (pigId: string, newWeight: number) => Promise<void>
+  bulkMovePigs: (pigIds: string[], cageId: string) => Promise<void>
 }
 
 const MonitoringContext = createContext<MonitoringContextType | undefined>(undefined)
@@ -283,6 +284,31 @@ const MonitoringProvider = ({ children }: { children: ReactNode }) => {
     }
   }
 
+  const bulkMovePigs = async (pigIds: string[], cageId: string) => {
+    try {
+      const targetCage = cages.find(c => c.id === cageId)
+      if (targetCage) {
+        const currentOccupancy = pigs.filter(p => p.cageId === cageId).length
+        const availableSpace = targetCage.maxCapacity - currentOccupancy
+        
+        if (pigIds.length > availableSpace) {
+          showToast(`Only ${availableSpace} space(s) available in ${targetCage.label}`, 'warning')
+          return
+        }
+      }
+      
+      await Promise.all(pigIds.map(id => updateAnimalCage(id, cageId)))
+      setPigs((prev) =>
+        prev.map((p) => (pigIds.includes(p.id) ? { ...p, cageId } : p))
+      )
+      showToast(`${pigIds.length} animal(s) moved to ${targetCage?.label}`, 'success')
+    } catch (error) {
+      console.error('Error moving pigs:', error)
+      showToast('Failed to move animals', 'error')
+      throw error
+    }
+  }
+
   return (
     <MonitoringContext.Provider
       value={{
@@ -299,6 +325,7 @@ const MonitoringProvider = ({ children }: { children: ReactNode }) => {
         editCage,
         removeCage,
         updatePigWeight,
+        bulkMovePigs,
       }}
     >
       {children}
@@ -313,15 +340,6 @@ const useMonitoring = () => {
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-
-const getStatusStyle = (status: string): string => {
-  const statusLower = status.toLowerCase()
-  if (statusLower.includes('active')) return 'bg-emerald-50 text-emerald-700 border-emerald-200'
-  if (statusLower.includes('sick')) return 'bg-amber-50 text-amber-700 border-amber-200'
-  if (statusLower.includes('deceased') || statusLower.includes('dead')) return 'bg-red-50 text-red-600 border-red-200'
-  if (statusLower.includes('sold')) return 'bg-sky-50 text-sky-700 border-sky-200'
-  return 'bg-gray-50 text-gray-600 border-gray-200'
-}
 
 const getStatusDot = (status: string): string => {
   const statusLower = status.toLowerCase()
@@ -359,155 +377,6 @@ const OccupancyRing = ({ percent, size = 56, strokeWidth = 5 }: { percent: numbe
       <span className="absolute inset-0 flex items-center justify-center text-xs font-bold" style={{ color }}>
         {Math.round(percent)}%
       </span>
-    </div>
-  )
-}
-
-// ─── Tag Scanner Panel ────────────────────────────────────────────────────────
-
-const TagScanner = () => {
-  const { scanTag, cages } = useMonitoring()
-  const [input, setInput] = useState('')
-  const [result, setResult] = useState<Pig | 'not-found' | null>(null)
-  const [isScanning, setIsScanning] = useState(false)
-  const inputRef = useRef<HTMLInputElement>(null)
-
-  const handleScan = () => {
-    const trimmed = input.trim()
-    if (!trimmed) return
-    setIsScanning(true)
-    // Small delay for visual feedback
-    setTimeout(() => {
-      const pig = scanTag(trimmed)
-      setResult(pig ?? 'not-found')
-      setIsScanning(false)
-    }, 300)
-  }
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') handleScan()
-  }
-
-  const handleClear = () => {
-    setInput('')
-    setResult(null)
-    inputRef.current?.focus()
-  }
-
-  const cage = result && result !== 'not-found'
-    ? cages.find((c) => c.id === result.cageId)
-    : null
-
-  return (
-    <div className="relative overflow-hidden bg-surface border border-border rounded-2xl shadow-sm mb-6">
-      {/* Accent gradient top */}
-      <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-success via-emerald-400 to-teal-500" />
-
-      <div className="p-6">
-        <div className="flex items-center gap-3 mb-5">
-          <div className="p-2.5 bg-gradient-to-br from-success/20 to-emerald-500/10 rounded-xl">
-            <ScanBarcode className="w-5 h-5 text-success" />
-          </div>
-          <div>
-            <h3 className="text-base font-bold text-foreground">Quick Tag Scanner</h3>
-            <p className="text-xs text-muted">Scan or type a tag ID, then press Enter</p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3 mb-4">
-          <div className="flex-1 relative group">
-            <input
-              ref={inputRef}
-              className="w-full px-4 py-3 pl-11 border-2 border-border rounded-xl text-sm bg-background text-foreground placeholder:text-muted/60 focus:outline-none focus:border-success focus:ring-4 focus:ring-success/10 font-mono transition-all"
-              placeholder="Enter tag ID..."
-              value={input}
-              onChange={(e) => { setInput(e.target.value); setResult(null) }}
-              onKeyDown={handleKeyDown}
-            />
-            <ScanBarcode className="w-4 h-4 text-muted/50 group-focus-within:text-success absolute left-3.5 top-1/2 -translate-y-1/2 transition-colors" />
-            {input && !result && (
-              <kbd className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono text-muted bg-border/50 px-1.5 py-0.5 rounded">
-                Enter
-              </kbd>
-            )}
-          </div>
-          <button
-            className={cn(
-              'px-5 py-3 rounded-xl text-sm font-semibold transition-all flex items-center gap-2 shadow-sm',
-              isScanning
-                ? 'bg-success/80 text-white cursor-wait'
-                : 'bg-success text-white hover:bg-success/90 hover:shadow-md active:scale-95'
-            )}
-            onClick={handleScan}
-            disabled={isScanning || !input.trim()}
-          >
-            {isScanning ? (
-              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            ) : (
-              <Zap className="w-4 h-4" />
-            )}
-            Scan
-          </button>
-          {result !== null && (
-            <button
-              className="px-4 py-3 border border-border rounded-xl text-sm font-medium text-muted hover:bg-surface hover:text-foreground transition-all"
-              onClick={handleClear}
-            >
-              Clear
-            </button>
-          )}
-        </div>
-
-        {/* Result */}
-        {result === 'not-found' && (
-          <div className="flex items-start gap-3 p-4 bg-red-50/80 border border-red-200 rounded-xl animate-in fade-in slide-in-from-top-2 duration-300">
-            <div className="p-1.5 bg-red-100 rounded-lg shrink-0">
-              <XCircle className="w-4 h-4 text-red-500" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-red-700">No match found</p>
-              <p className="text-xs text-red-600/80 mt-0.5">Tag <span className="font-mono bg-red-100 px-1.5 py-0.5 rounded text-red-700">{input}</span> is not registered.</p>
-            </div>
-          </div>
-        )}
-
-        {result && result !== 'not-found' && (
-          <div className="animate-in fade-in slide-in-from-top-2 duration-300 bg-gradient-to-r from-emerald-50/80 to-green-50/50 border border-emerald-200 rounded-xl p-5">
-            <div className="flex items-start gap-4">
-              {/* Circular weight display */}
-              <div className="w-16 h-16 rounded-2xl bg-white border-2 border-emerald-200 flex flex-col items-center justify-center shrink-0 shadow-sm">
-                <span className="text-lg font-black text-emerald-700 leading-tight">{result.weight}</span>
-                <span className="text-[10px] font-medium text-emerald-500 -mt-0.5">kg</span>
-              </div>
-
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  <span className="text-sm font-bold text-emerald-800">Tag Found</span>
-                  <span className="font-mono text-xs bg-white border border-emerald-200 px-2 py-0.5 rounded-md text-emerald-700">{result.tagId}</span>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <span className="inline-flex items-center gap-1.5 text-xs font-medium text-foreground bg-white px-2.5 py-1 rounded-lg border border-border">
-                    <Hash className="w-3 h-3 text-muted" /> {result.breed}
-                  </span>
-                  <span className={cn('inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold border', SEX_STYLES[result.sex])}>
-                    {result.sex}
-                  </span>
-                  <span className={cn('inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border', getStatusStyle(result.status))}>
-                    <span className={cn('w-1.5 h-1.5 rounded-full', getStatusDot(result.status))} />
-                    {result.status}
-                  </span>
-                </div>
-                {cage && (
-                  <p className="mt-2 text-xs text-muted flex items-center gap-1">
-                    <PiggyBank className="w-3 h-3" /> Located in <strong className="text-emerald-700 ml-0.5">{cage.label}</strong>
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
     </div>
   )
 }
@@ -574,15 +443,60 @@ const MovePigButton = ({ pig }: { pig: Pig }) => {
 
 // ─── Pig Row (inside cage card) ───────────────────────────────────────────────
 
-const PigRow = ({ pig, rank }: { pig: Pig; rank: number }) => (
-  <div className="flex items-center gap-3 py-2.5 px-3 rounded-xl hover:bg-background/80 transition-all group bg-surface/30 border border-transparent hover:border-border/60 hover:shadow-sm">
-    {/* rank */}
-    <span className={cn(
-      'w-6 h-6 text-center text-[10px] font-black rounded-full flex items-center justify-center shrink-0',
-      rank <= 3 ? 'bg-success/15 text-success' : 'bg-muted/10 text-muted'
-    )}>
-      {rank}
-    </span>
+const PigRow = ({ pig, rank, bulkMode, selected, onToggleSelect }: { 
+  pig: Pig; 
+  rank: number;
+  bulkMode?: boolean;
+  selected?: boolean;
+  onToggleSelect?: () => void;
+}) => {
+  const [isDragging, setIsDragging] = useState(false)
+
+  const handleDragStart = (e: React.DragEvent) => {
+    setIsDragging(true)
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('pigId', pig.id)
+    e.dataTransfer.setData('pigTag', pig.tagId)
+  }
+
+  const handleDragEnd = () => {
+    setIsDragging(false)
+  }
+
+  return (
+  <div 
+    draggable={!bulkMode}
+    onDragStart={handleDragStart}
+    onDragEnd={handleDragEnd}
+    className={cn(
+      'flex items-center gap-3 py-2.5 px-3 rounded-xl transition-all group bg-surface/30 border hover:shadow-sm',
+      bulkMode ? 'cursor-pointer' : 'cursor-move hover:bg-background/80',
+      isDragging && 'opacity-50',
+      selected && 'bg-success/10 border-success/50 border-2',
+      !selected && 'border-transparent hover:border-border/60'
+    )}
+    onClick={() => bulkMode && onToggleSelect?.()}
+  >
+    {/* rank or checkbox */}
+    {bulkMode ? (
+      <div className="w-6 h-6 flex items-center justify-center shrink-0">
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={onToggleSelect}
+          className="w-4 h-4 rounded border-2 border-border text-success focus:ring-2 focus:ring-success/20 cursor-pointer"
+          onClick={(e) => e.stopPropagation()}
+          aria-label="Select animal for bulk transfer"
+        />
+      </div>
+    ) : (
+      <span className={cn(
+        'w-6 h-6 text-center text-[10px] font-black rounded-full flex items-center justify-center shrink-0',
+        rank <= 3 ? 'bg-success/15 text-success' : 'bg-muted/10 text-muted'
+      )}>
+        {rank}
+      </span>
+    )}
 
     {/* tag */}
     <span className="font-mono text-[11px] font-bold text-foreground shrink-0 w-28 truncate bg-background px-2.5 py-1 rounded-lg border border-border/60">
@@ -609,31 +523,72 @@ const PigRow = ({ pig, rank }: { pig: Pig; rank: number }) => (
       </span>
     </div>
 
-    {/* move button */}
-    <div className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-      <MovePigButton pig={pig} />
-    </div>
+    {/* move button - always visible now */}
+    {!bulkMode && (
+      <div className="shrink-0">
+        <MovePigButton pig={pig} />
+      </div>
+    )}
   </div>
-)
+  )
+}
 
 // ─── Cage Card ────────────────────────────────────────────────────────────────
 
-const CageCard = ({ cage, onEdit, onDelete }: { cage: Cage; onEdit: () => void; onDelete: () => void }) => {
-  const { pigsInCage, sortDir } = useMonitoring()
+const CageCard = ({ cage, onEdit, onDelete, bulkMode, selectedPigs, onToggleSelect }: { 
+  cage: Cage; 
+  onEdit: () => void; 
+  onDelete: () => void;
+  bulkMode?: boolean;
+  selectedPigs?: Set<string>;
+  onToggleSelect?: (pigId: string) => void;
+}) => {
+  const { pigsInCage, sortDir, movePig } = useMonitoring()
   const [isExpanded, setIsExpanded] = useState(true)
+  const [isDragOver, setIsDragOver] = useState(false)
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    setIsDragOver(true)
+  }
+
+  const handleDragLeave = () => {
+    setIsDragOver(false)
+  }
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragOver(false)
+    
+    const pigId = e.dataTransfer.getData('pigId')
+    
+    if (pigId) {
+      try {
+        await movePig(pigId, cage.id)
+      } catch (error) {
+        // Error handled by movePig
+      }
+    }
+  }
   const pigs = pigsInCage(cage.id)
   const totalWeight = pigs.reduce((s, p) => s + p.weight, 0)
-  const avgWeight = pigs.length ? (totalWeight / pigs.length).toFixed(1) : '—'
   const occupancyPercent = cage.maxCapacity > 0 ? (pigs.length / cage.maxCapacity) * 100 : 0
   const maleCount = pigs.filter(p => p.sex === 'Male').length
   const femaleCount = pigs.filter(p => p.sex === 'Female').length
 
   return (
-    <div className={cn(
-      "relative overflow-hidden rounded-2xl border bg-surface shadow-sm hover:shadow-lg transition-all duration-300 group/card",
-      !cage.isActive && "opacity-60",
-      occupancyPercent >= 100 ? 'border-red-200' : occupancyPercent >= 80 ? 'border-orange-200' : 'border-border'
-    )}>
+    <div 
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      className={cn(
+        "relative overflow-hidden rounded-2xl border bg-surface shadow-sm hover:shadow-lg transition-all duration-300 group/card",
+        !cage.isActive && "opacity-60",
+        isDragOver && "ring-4 ring-success/30 border-success scale-[1.02]",
+        occupancyPercent >= 100 ? 'border-red-200' : occupancyPercent >= 80 ? 'border-orange-200' : 'border-border'
+      )}
+    >
       {/* Top accent bar */}
       <div className={cn(
         'absolute inset-x-0 top-0 h-1',
@@ -645,25 +600,23 @@ const CageCard = ({ cage, onEdit, onDelete }: { cage: Cage; onEdit: () => void; 
       {/* Header */}
       <div className="p-5 pb-0">
         <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <OccupancyRing percent={occupancyPercent} />
-            <div>
-              <h3 className="text-base font-bold text-foreground flex items-center gap-2">
-                {cage.label}
-                {!cage.isActive && (
-                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-gray-100 border border-gray-300 text-gray-500 uppercase tracking-wider">
-                    Inactive
-                  </span>
-                )}
-              </h3>
-              <div className="flex items-center gap-3 mt-1">
-                <span className="text-xs text-muted">
-                  <strong className={cn(
-                    'font-black',
-                    occupancyPercent >= 100 ? 'text-red-600' : occupancyPercent >= 80 ? 'text-orange-600' : 'text-success'
-                  )}>
-                    {pigs.length}
-                  </strong>/{cage.maxCapacity} animals
+          <div>
+            <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+              {cage.label}
+              {!cage.isActive && (
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-gray-100 border border-gray-300 text-gray-500 uppercase tracking-wider">
+                  Inactive
+                </span>
+              )}
+            </h3>
+            <div className="flex items-center gap-3 mt-1">
+              <span className="text-xs text-muted">
+                <strong className={cn(
+                  'font-black',
+                  occupancyPercent >= 100 ? 'text-red-600' : occupancyPercent >= 80 ? 'text-orange-600' : 'text-success'
+                )}>
+                  {pigs.length}
+                </strong>/{cage.maxCapacity} animals
                 </span>
                 {pigs.length > 0 && (
                   <span className="text-[11px] text-muted flex items-center gap-1.5">
@@ -673,7 +626,6 @@ const CageCard = ({ cage, onEdit, onDelete }: { cage: Cage; onEdit: () => void; 
                   </span>
                 )}
               </div>
-            </div>
           </div>
 
           <div className="flex items-center gap-1">
@@ -704,16 +656,6 @@ const CageCard = ({ cage, onEdit, onDelete }: { cage: Cage; onEdit: () => void; 
 
         {/* Stats strip */}
         <div className="flex items-center gap-4 mt-4 pb-4 border-b border-border/60">
-          <div className="flex items-center gap-1.5">
-            <div className="p-1 bg-emerald-50 rounded">
-              <Weight className="w-3 h-3 text-emerald-600" />
-            </div>
-            <div>
-              <p className="text-[10px] text-muted leading-tight">Avg</p>
-              <p className="text-sm font-black text-foreground leading-tight">{avgWeight}<span className="text-[10px] text-muted ml-0.5">kg</span></p>
-            </div>
-          </div>
-          <div className="w-px h-8 bg-border/60" />
           <div className="flex items-center gap-1.5">
             <div className="p-1 bg-purple-50 rounded">
               <TrendingUp className="w-3 h-3 text-purple-600" />
@@ -780,11 +722,20 @@ const CageCard = ({ cage, onEdit, onDelete }: { cage: Cage; onEdit: () => void; 
                 <div className="w-14 h-14 rounded-2xl bg-muted/5 flex items-center justify-center mx-auto mb-3 border border-dashed border-muted/20">
                   <PiggyBank className="w-7 h-7 text-muted/20" />
                 </div>
-                <p className="text-sm text-muted/60 font-medium">Empty cage</p>
-                <p className="text-xs text-muted/40 mt-0.5">Assign animals to see them here</p>
+                <p className="text-sm text-muted/60 font-medium">{isDragOver ? 'Drop animal here' : 'Empty cage'}</p>
+                <p className="text-xs text-muted/40 mt-0.5">{isDragOver ? 'Release to assign to this cage' : 'Assign animals to see them here'}</p>
               </div>
             ) : (
-              pigs.map((p, i) => <PigRow key={p.id} pig={p} rank={i + 1} />)
+              pigs.map((p, i) => (
+                <PigRow 
+                  key={p.id} 
+                  pig={p} 
+                  rank={i + 1}
+                  bulkMode={bulkMode}
+                  selected={selectedPigs?.has(p.id)}
+                  onToggleSelect={() => onToggleSelect?.(p.id)}
+                />
+              ))
             )}
           </div>
         </div>
@@ -1490,12 +1441,17 @@ const SortingTab = () => {
 // ─── Main App ─────────────────────────────────────────────────────────────────
 
 const MonitoringApp = () => {
-  const { pigs, cages, addCage, editCage, removeCage, isLoading, refreshData } = useMonitoring()
+  const { pigs, cages, addCage, editCage, removeCage, isLoading, refreshData, bulkMovePigs } = useMonitoring()
   const { showToast } = useToast()
   
   const [activeTab, setActiveTab] = useState<'monitoring' | 'sheet' | 'sorting'>('monitoring')
   const [searchQuery, setSearchQuery] = useState('')
   const [isRefreshing, setIsRefreshing] = useState(false)
+  
+  // Bulk transfer mode
+  const [bulkMode, setBulkMode] = useState(false)
+  const [selectedPigs, setSelectedPigs] = useState<Set<string>>(new Set())
+  const [bulkMoveDropdownOpen, setBulkMoveDropdownOpen] = useState(false)
   
   // Dialog states
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -1595,6 +1551,44 @@ const MonitoringApp = () => {
     }
   }
 
+  const toggleBulkMode = () => {
+    setBulkMode(!bulkMode)
+    setSelectedPigs(new Set())
+    setBulkMoveDropdownOpen(false)
+  }
+
+  const togglePigSelection = (pigId: string) => {
+    setSelectedPigs(prev => {
+      const next = new Set(prev)
+      if (next.has(pigId)) {
+        next.delete(pigId)
+      } else {
+        next.add(pigId)
+      }
+      return next
+    })
+  }
+
+  const deselectAll = () => {
+    setSelectedPigs(new Set())
+  }
+
+  const handleBulkMove = async (targetCageId: string) => {
+    if (selectedPigs.size === 0) {
+      showToast('No animals selected', 'warning')
+      return
+    }
+
+    try {
+      await bulkMovePigs(Array.from(selectedPigs), targetCageId)
+      setSelectedPigs(new Set())
+      setBulkMode(false)
+      setBulkMoveDropdownOpen(false)
+    } catch {
+      // Error handled in context
+    }
+  }
+
   const tabs = [
     { key: 'monitoring' as const, label: 'Monitoring', icon: LayoutDashboard, count: cages.length },
     { key: 'sheet' as const, label: 'Weight Sheet', icon: ClipboardList },
@@ -1675,8 +1669,6 @@ const MonitoringApp = () => {
       {/* Tab Content */}
       {activeTab === 'monitoring' ? (
         <>
-          <TagScanner />
-
           {/* Controls bar */}
           <div className="flex items-center justify-between gap-3 mb-5">
             {/* Search */}
@@ -1691,6 +1683,19 @@ const MonitoringApp = () => {
             </div>
             <div className="flex items-center gap-2">
               <button
+                onClick={toggleBulkMode}
+                className={cn(
+                  'px-3 py-2 border rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5',
+                  bulkMode
+                    ? 'bg-purple-600 text-white border-purple-600 shadow-md'
+                    : 'border-border text-muted hover:text-foreground hover:bg-background'
+                )}
+                title="Bulk transfer mode"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                {bulkMode ? 'Bulk Mode' : 'Bulk Transfer'}
+              </button>
+              <button
                 onClick={handleRefresh}
                 disabled={isRefreshing}
                 className="p-2 border border-border rounded-lg text-muted hover:text-foreground hover:bg-background transition-all disabled:opacity-50"
@@ -1704,6 +1709,83 @@ const MonitoringApp = () => {
               </PrimaryButton>
             </div>
           </div>
+
+          {/* Bulk transfer action bar */}
+          {bulkMode && (
+            <div className="mb-5 p-4 bg-purple-50 border-2 border-purple-200 rounded-xl animate-in slide-in-from-top-2 fade-in duration-300">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-purple-600 text-white rounded-lg">
+                    <CheckCircle2 className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-purple-900">
+                      {selectedPigs.size} animal{selectedPigs.size !== 1 ? 's' : ''} selected
+                    </p>
+                    <p className="text-xs text-purple-600">Click animals to select, then choose target cage</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {selectedPigs.size > 0 && (
+                    <>
+                      <button
+                        onClick={deselectAll}
+                        className="px-3 py-1.5 text-xs font-semibold text-purple-600 border border-purple-300 rounded-lg hover:bg-white transition-all"
+                      >
+                        Clear
+                      </button>
+                      <div className="relative">
+                        <button 
+                          onClick={() => setBulkMoveDropdownOpen(!bulkMoveDropdownOpen)}
+                          className="px-3 py-1.5 text-xs font-semibold bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-all flex items-center gap-1.5"
+                        >
+                          <MoveRight className="w-3.5 h-3.5" />
+                          Move To...
+                        </button>
+                        {bulkMoveDropdownOpen && (
+                          <>
+                            <div className="fixed inset-0 z-20" onClick={() => setBulkMoveDropdownOpen(false)} />
+                            <div className="absolute right-0 top-full mt-1.5 z-30 bg-white border-2 border-purple-200 rounded-xl shadow-xl p-1.5 min-w-[180px] animate-in fade-in zoom-in-95 duration-150">
+                              <p className="text-[10px] font-bold text-muted uppercase tracking-wider px-2.5 py-1.5 mb-1">Select Cage</p>
+                              {cages.filter(c => c.isActive).map(cage => {
+                                const occupancy = pigs.filter(p => p.cageId === cage.id).length
+                                const available = cage.maxCapacity - occupancy
+                                const canFit = available >= selectedPigs.size
+                                return (
+                                  <button
+                                    key={cage.id}
+                                    onClick={() => canFit && handleBulkMove(cage.id)}
+                                    disabled={!canFit}
+                                    className={cn(
+                                      'flex items-center justify-between w-full px-3 py-2.5 rounded-lg text-xs font-medium transition-all',
+                                      canFit
+                                        ? 'hover:bg-purple-500 hover:text-white text-foreground'
+                                        : 'opacity-50 cursor-not-allowed text-muted'
+                                    )}
+                                  >
+                                    <span className="flex items-center gap-2">
+                                      <MoveRight className="w-3 h-3" />
+                                      {cage.label}
+                                    </span>
+                                    <span className={cn(
+                                      'text-[10px] font-bold px-1.5 py-0.5 rounded-full',
+                                      canFit ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'
+                                    )}>
+                                      {available} left
+                                    </span>
+                                  </button>
+                                )
+                              })}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Cage grid */}
           {filteredCages.length === 0 && !searchQuery ? (
@@ -1732,6 +1814,9 @@ const MonitoringApp = () => {
                   cage={cage}
                   onEdit={() => handleEditCage(cage)}
                   onDelete={() => handleDeleteCage(cage.id)}
+                  bulkMode={bulkMode}
+                  selectedPigs={selectedPigs}
+                  onToggleSelect={togglePigSelection}
                 />
               ))}
             </div>
