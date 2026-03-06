@@ -198,6 +198,8 @@ const AnimalModal = ({
   const [showMotherDropdown, setShowMotherDropdown] = useState(false)
   const [showFatherDropdown, setShowFatherDropdown] = useState(false)
   const [showCageDropdown, setShowCageDropdown] = useState(false)
+  const [batch, setBatch] = useState<AnimalFormValues[]>([])
+  const [isRegisteringBatch, setIsRegisteringBatch] = useState(false)
 
   // Load all data on mount
   useEffect(() => {
@@ -348,57 +350,92 @@ const AnimalModal = ({
       return
     }
 
-    try {
-      await onSubmit(form)
-      if (!editingAnimal) {
-        // Get the selected tag code info for display
-        const selectedTagCode = allTagCodes.find((tc) => tc.id === form.tag_animals_colors_id)
-        // Show success screen with the new animal data
-        const successAnimal: DBAnimal = {
-          id: form.formattedTagCode,
-          tag_animals_colors_id: form.tag_animals_colors_id,
-          type: selectedTagCode ? `${selectedTagCode.tag_types?.type} | ${selectedTagCode.animal_types?.animal_name}` : '',
-          sex: form.sex,
-          weight: parseFloat(form.weight),
-          status: form.status,
-          current_cage_id: form.current_cage_id,
-          mother_id: form.mother_id,
-          father_id: form.father_id,
-          is_active: true,
-          created_at: new Date().toISOString(),
-        } as DBAnimal
-        setRegistered(successAnimal)
-        setForm(EMPTY_FORM)
+    // If editing, submit directly. Otherwise add to batch
+    if (editingAnimal) {
+      try {
+        await onSubmit(form)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'An error occurred')
       }
+    } else {
+      // Add to batch for new animals
+      setBatch((prev) => [...prev, form])
+      setForm(EMPTY_FORM)
+      setError('')
+    }
+  }
+
+  const handleRemoveFromBatch = (index: number) => {
+    setBatch((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  const handleRegisterBatch = async () => {
+    if (batch.length === 0) {
+      setError('No animals in batch to register.')
+      return
+    }
+
+    setIsRegisteringBatch(true)
+    try {
+      for (const formValues of batch) {
+        await onSubmit(formValues)
+      }
+      // Show success and close
+      setRegistered({
+        id: '',
+        tag_animals_colors_id: '',
+        type: `Batch of ${batch.length} animals registered successfully!`,
+        sex: 'Male',
+        weight: 0,
+        status: 'Active',
+        current_cage_id: '',
+        mother_id: '',
+        father_id: '',
+        is_active: true,
+        created_at: new Date().toISOString(),
+      } as DBAnimal)
+      setBatch([])
+      setForm(EMPTY_FORM)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
+      setError(err instanceof Error ? err.message : 'An error occurred while registering batch')
+    } finally {
+      setIsRegisteringBatch(false)
     }
   }
 
   // Success screen after registration
   if (registered) {
+    const isBatch = registered.type?.includes('Batch of')
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
         <div className="bg-surface border border-border rounded-2xl shadow-2xl w-full max-w-md p-8 text-center">
           <div className="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
             <Tag className="w-7 h-7 text-green-600" />
           </div>
-          <h2 className="text-xl font-bold text-primary mb-1">Animal Registered!</h2>
+          <h2 className="text-xl font-bold text-primary mb-1">
+            {isBatch ? 'Batch Registered!' : 'Animal Registered!'}
+          </h2>
           <p className="text-sm text-muted mb-6">
-            Tag Code <strong>{registered.id}</strong> has been assigned.
-            {registered.mother_id && (
-              <span className="block mt-1">
-                Mother: <strong>{registered.mother_id}</strong>
-              </span>
-            )}
-            {registered.father_id && (
-              <span className="block mt-1">
-                Father: <strong>{registered.father_id}</strong>
-              </span>
+            {isBatch ? (
+              <span>{registered.type}</span>
+            ) : (
+              <>
+                Tag Code <strong>{registered.id || registered.formattedTagCode}</strong> has been assigned.
+                {registered.mother_id && (
+                  <span className="block mt-1">
+                    Mother: <strong>{registered.mother_id}</strong>
+                  </span>
+                )}
+                {registered.father_id && (
+                  <span className="block mt-1">
+                    Father: <strong>{registered.father_id}</strong>
+                  </span>
+                )}
+              </>
             )}
           </p>
-          <BarcodeVisual value={registered.id} />
-          <p className="mt-4 text-xs text-muted">Print or scan this barcode to identify the animal.</p>
+          {!isBatch && <BarcodeVisual value={registered.id} />}
+          {!isBatch && <p className="mt-4 text-xs text-muted">Print or scan this barcode to identify the animal.</p>}
           <div className="flex gap-3 mt-6">
             <button
               className="flex-1 py-2.5 border border-border rounded-lg text-sm font-medium text-muted hover:bg-background transition-colors"
@@ -407,7 +444,7 @@ const AnimalModal = ({
                 setForm(EMPTY_FORM)
               }}
             >
-              Register Another
+              {isBatch ? 'Continue' : 'Register Another'}
             </button>
             <button
               className="flex-1 py-2.5 bg-success text-white rounded-lg text-sm font-medium hover:bg-success/90 transition-colors"
@@ -799,22 +836,76 @@ const AnimalModal = ({
           </div>
         </div>
 
+        {/* Batch Items Display */}
+        {batch.length > 0 && (
+          <div className="mt-6 p-4 bg-success/10 border border-success/30 rounded-xl">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-success">Batch Queue ({batch.length} animals)</h3>
+              <button
+                type="button"
+                className="text-xs text-muted hover:text-foreground transition-colors"
+                onClick={() => setBatch([])}
+              >
+                Clear
+              </button>
+            </div>
+            <div className="max-h-40 overflow-y-auto space-y-2">
+              {batch.map((item, idx) => (
+                <div key={idx} className="flex items-center justify-between bg-background p-2 rounded text-xs">
+                  <div className="flex-1">
+                    <span className="font-mono font-semibold">{item.formattedTagCode}</span>
+                    <span className="text-muted ml-2">· {item.sex} · {item.weight} kg · Cage:</span>
+                    <span className="font-medium ml-1">{cages.find((c) => c.id === item.current_cage_id)?.cage_label || 'N/A'}</span>
+                  </div>
+                  <button
+                    type="button"
+                    className="ml-2 text-danger hover:text-danger/80 transition-colors px-2 py-1"
+                    onClick={() => handleRemoveFromBatch(idx)}
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="flex gap-3 mt-6">
           <button
             className="flex-1 py-2.5 border border-border rounded-lg text-sm font-medium text-muted hover:bg-background transition-colors disabled:opacity-50"
             onClick={onClose}
-            disabled={isSubmitting}
+            disabled={isSubmitting || isRegisteringBatch}
           >
             Cancel
           </button>
-          <button
-            className="flex-1 py-2.5 bg-success text-white rounded-lg text-sm font-medium hover:bg-success/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-            onClick={handleSubmit}
-            disabled={isSubmitting || !form.tag_animals_colors_id}
-          >
-            {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
-            {editingAnimal ? 'Save Changes' : 'Register Animal'}
-          </button>
+          {batch.length > 0 && (
+            <button
+              className="flex-1 py-2.5 bg-warning text-white rounded-lg text-sm font-medium hover:bg-warning/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              onClick={() => setBatch([])}
+              disabled={isRegisteringBatch}
+            >
+              Clear Batch
+            </button>
+          )}
+          {batch.length > 0 ? (
+            <button
+              className="flex-1 py-2.5 bg-success text-white rounded-lg text-sm font-medium hover:bg-success/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              onClick={handleRegisterBatch}
+              disabled={isRegisteringBatch}
+            >
+              {isRegisteringBatch && <Loader2 className="w-4 h-4 animate-spin" />}
+              Register All ({batch.length})
+            </button>
+          ) : (
+            <button
+              className="flex-1 py-2.5 bg-success text-white rounded-lg text-sm font-medium hover:bg-success/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              onClick={handleSubmit}
+              disabled={isSubmitting || !form.tag_animals_colors_id}
+            >
+              {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
+              {editingAnimal ? 'Save Changes' : 'Add to Batch'}
+            </button>
+          )}
         </div>
       </div>
     </div>
