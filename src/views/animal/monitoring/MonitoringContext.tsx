@@ -9,7 +9,9 @@ import {
   updateAnimalCage,
   type Cage as DBCage,
 } from '@/services/cageService'
+import { getUserFacilityInsertId } from '@/services/facilityFilterService'
 import { animalService } from '@/services/animalService'
+import { useAuthStore } from '@/store/authStore'
 import { useToast } from './ToastContext'
 import type { Pig, Cage, SortDir } from './types'
 import { convertAnimalToPig, convertDBCage } from './types'
@@ -39,14 +41,16 @@ export const MonitoringProvider = ({ children }: { children: ReactNode }) => {
   const [sortDir, setSortDir] = useState<SortDir>('desc')
   const [isLoading, setIsLoading] = useState(true)
   const { showToast } = useToast()
+  const user = useAuthStore((s) => s.user)
 
   // Fetch data from Supabase
   const refreshData = async () => {
+    if (!user?.id) return
     try {
       setIsLoading(true)
       const [animalsData, cagesData] = await Promise.all([
-        getAnimals(),
-        getCages(),
+        getAnimals(user.id),
+        getCages(user.id),
       ])
       
       setPigs(animalsData.map(convertAnimalToPig))
@@ -59,11 +63,11 @@ export const MonitoringProvider = ({ children }: { children: ReactNode }) => {
     }
   }
 
-  // Load data on mount
+  // Load data on mount and when user changes
   useEffect(() => {
     refreshData()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [user?.id])
 
   const pigsInCage = (cageId: string): Pig[] => {
     const list = pigs.filter((p) => p.cageId === cageId)
@@ -75,6 +79,8 @@ export const MonitoringProvider = ({ children }: { children: ReactNode }) => {
   /** Manually move a pig to a different cage */
   const movePig = async (pigId: string, cageId: string) => {
     try {
+      if (!user?.id) throw new Error('User not authenticated')
+      
       const targetCage = cages.find(c => c.id === cageId)
       if (targetCage) {
         const currentOccupancy = pigs.filter(p => p.cageId === cageId).length
@@ -84,7 +90,7 @@ export const MonitoringProvider = ({ children }: { children: ReactNode }) => {
         }
       }
       
-      await updateAnimalCage(pigId, cageId)
+      await updateAnimalCage(pigId, user.id, cageId)
       setPigs((prev) =>
         prev.map((p) => (p.id === pigId ? { ...p, cageId } : p))
       )
@@ -101,7 +107,10 @@ export const MonitoringProvider = ({ children }: { children: ReactNode }) => {
 
   const addCage = async (cage: Omit<DBCage, 'id' | 'created_at'>) => {
     try {
-      const newCage = await createCage(cage)
+      if (!user?.id) throw new Error('User not authenticated')
+      const userFacilityId = await getUserFacilityInsertId(user.id)
+      if (!userFacilityId) throw new Error('No facility assigned to user')
+      const newCage = await createCage({ ...cage, user_facility_id: userFacilityId })
       setCages((prev) => [...prev, convertDBCage(newCage)])
       showToast('Cage added successfully', 'success')
     } catch (error) {
@@ -113,7 +122,8 @@ export const MonitoringProvider = ({ children }: { children: ReactNode }) => {
 
   const editCage = async (id: string, updates: Partial<Omit<DBCage, 'id' | 'created_at'>>) => {
     try {
-      const updatedCage = await updateCage(id, updates)
+      if (!user?.id) throw new Error('User not authenticated')
+      const updatedCage = await updateCage(id, user.id, updates)
       setCages((prev) =>
         prev.map((c) => (c.id === id ? convertDBCage(updatedCage) : c))
       )
@@ -127,7 +137,8 @@ export const MonitoringProvider = ({ children }: { children: ReactNode }) => {
 
   const removeCage = async (id: string) => {
     try {
-      await deleteCage(id)
+      if (!user?.id) throw new Error('User not authenticated')
+      await deleteCage(id, user.id)
       setCages((prev) => prev.filter((c) => c.id !== id))
       showToast('Cage deleted', 'success')
     } catch (error) {
@@ -139,7 +150,9 @@ export const MonitoringProvider = ({ children }: { children: ReactNode }) => {
 
   const updatePigWeight = async (pigId: string, newWeight: number) => {
     try {
-      await animalService.updateAnimal(pigId, { weight: newWeight })
+      if (!user?.id) throw new Error('User not authenticated')
+      
+      await animalService.updateAnimal(pigId, user.id, { weight: newWeight })
       setPigs((prev) =>
         prev.map((p) => (p.id === pigId ? { ...p, weight: newWeight } : p))
       )
@@ -153,6 +166,8 @@ export const MonitoringProvider = ({ children }: { children: ReactNode }) => {
 
   const bulkMovePigs = async (pigIds: string[], cageId: string) => {
     try {
+      if (!user?.id) throw new Error('User not authenticated')
+      
       const targetCage = cages.find(c => c.id === cageId)
       if (targetCage) {
         const currentOccupancy = pigs.filter(p => p.cageId === cageId).length
@@ -164,7 +179,7 @@ export const MonitoringProvider = ({ children }: { children: ReactNode }) => {
         }
       }
       
-      await Promise.all(pigIds.map(id => updateAnimalCage(id, cageId)))
+      await Promise.all(pigIds.map(id => updateAnimalCage(id, user.id, cageId)))
       setPigs((prev) =>
         prev.map((p) => (pigIds.includes(p.id) ? { ...p, cageId } : p))
       )

@@ -1,4 +1,5 @@
 import { supabase, isSupabaseConfigured } from './supabase'
+import { getUserFacilityIds, applyFacilityFilter } from './facilityFilterService'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -40,16 +41,20 @@ export interface Cage {
 
 export const animalService = {
   /**
-   * Fetch all animals from the database
+   * Fetch all animals from the database filtered by user's facilities
+   * @param userId - The user ID to filter animals by their assigned facilities
    */
-  async getAnimals(): Promise<Animal[]> {
+  async getAnimals(userId: string): Promise<Animal[]> {
     if (!isSupabaseConfigured()) {
       console.warn('Supabase not configured')
       return []
     }
 
     try {
-      const { data, error } = await supabase!
+      // Get user's facility IDs
+      const facilityIds = await getUserFacilityIds(userId)
+
+      let query = supabase!
         .schema('module2')
         .from('animals')
         .select(`
@@ -61,7 +66,11 @@ export const animalService = {
             tag_types!tag_type_id(type)
           )
         `)
-        .order('created_at', { ascending: false })
+
+      // Apply facility filter
+      query = applyFacilityFilter(query, facilityIds)
+      
+      const { data, error } = await query.order('created_at', { ascending: false })
 
       if (error) {
         console.error('Error fetching animals:', error)
@@ -89,16 +98,26 @@ export const animalService = {
   },
 
   /**
-   * Get a single animal by ID
+   * Get a single animal by ID filtered by user's facilities
+   * @param id - The animal ID
+   * @param userId - The user ID to verify facility access
    */
-  async getAnimalById(id: string): Promise<Animal | null> {
+  async getAnimalById(id: string, userId: string): Promise<Animal | null> {
     if (!isSupabaseConfigured()) {
       console.warn('Supabase not configured')
       return null
     }
 
     try {
-      const { data, error } = await supabase!.schema('module2').from('animals').select('*').eq('id', id).single()
+      // Get user's facility IDs
+      const facilityIds = await getUserFacilityIds(userId)
+
+      let query = supabase!.schema('module2').from('animals').select('*').eq('id', id)
+      
+      // Apply facility filter
+      query = applyFacilityFilter(query, facilityIds)
+      
+      const { data, error } = await query.single()
 
       if (error) {
         console.error(`Error fetching animal ${id}:`, error)
@@ -114,6 +133,7 @@ export const animalService = {
 
   /**
    * Create a new animal
+   * @param animal - The animal data including user_facility_id
    */
   async createAnimal(animal: {
     id: string // Tag animals colors ID (creates 1:1 relationship)
@@ -121,6 +141,7 @@ export const animalService = {
     sex: string
     weight: number
     status: string
+    user_facility_id: string // REQUIRED: Facility assignment
     current_cage_id?: string | null
     mother_id?: string | null
     father_id?: string | null
@@ -136,6 +157,7 @@ export const animalService = {
         sex: animal.sex,
         weight: animal.weight,
         status: animal.status,
+        user_facility_id: animal.user_facility_id,
         current_cage_id: animal.current_cage_id || null,
         mother_id: animal.mother_id || null,
         father_id: animal.father_id || null,
@@ -184,10 +206,14 @@ export const animalService = {
   },
 
   /**
-   * Update an existing animal
+   * Update an existing animal (respects facility filtering)
+   * @param id - The animal ID
+   * @param userId - The user ID to verify facility access
+   * @param updates - The fields to update
    */
   async updateAnimal(
     id: string,
+    userId: string,
     updates: Partial<{
       sex: string
       weight: number
@@ -195,6 +221,7 @@ export const animalService = {
       current_cage_id: string | null
       mother_id: string | null
       father_id: string | null
+      user_facility_id: string
     }>
   ): Promise<Animal | null> {
     if (!isSupabaseConfigured()) {
@@ -203,12 +230,19 @@ export const animalService = {
     }
 
     try {
-      const { data, error } = await supabase!
+      // Get user's facility IDs to verify access
+      const facilityIds = await getUserFacilityIds(userId)
+
+      let query = supabase!
         .schema('module2')
         .from('animals')
         .update(updates)
         .eq('id', id)
-        .select(`
+
+      // Apply facility filter to ensure user can only update their facility's animals
+      query = applyFacilityFilter(query, facilityIds)
+
+      const { data, error } = await query.select(`
           *,
           tag_animals_colors!tag_animals_colors_id(
             tag_code,
@@ -241,16 +275,26 @@ export const animalService = {
   },
 
   /**
-   * Delete an animal
+   * Delete an animal (respects facility filtering)
+   * @param id - The animal ID
+   * @param userId - The user ID to verify facility access
    */
-  async deleteAnimal(id: string): Promise<boolean> {
+  async deleteAnimal(id: string, userId: string): Promise<boolean> {
     if (!isSupabaseConfigured()) {
       console.warn('Supabase not configured')
       return false
     }
 
     try {
-      const { error } = await supabase!.schema('module2').from('animals').delete().eq('id', id)
+      // Get user's facility IDs to verify access
+      const facilityIds = await getUserFacilityIds(userId)
+
+      let query = supabase!.schema('module2').from('animals').delete().eq('id', id)
+      
+      // Apply facility filter to ensure user can only delete their facility's animals
+      query = applyFacilityFilter(query, facilityIds)
+
+      const { error } = await query
 
       if (error) {
         console.error('Error deleting animal:', error)
@@ -265,15 +309,25 @@ export const animalService = {
   },
 
   /**
-   * Check if an animal ID already exists
+   * Check if an animal ID already exists (within user's facilities)
+   * @param id - The animal ID to check
+   * @param userId - The user ID to filter by facilities
    */
-  async animalIdExists(id: string): Promise<boolean> {
+  async animalIdExists(id: string, userId: string): Promise<boolean> {
     if (!isSupabaseConfigured()) {
       return false
     }
 
     try {
-      const { data, error } = await supabase!.schema('module2').from('animals').select('id').eq('id', id).single()
+      // Get user's facility IDs
+      const facilityIds = await getUserFacilityIds(userId)
+
+      let query = supabase!.schema('module2').from('animals').select('id').eq('id', id)
+      
+      // Apply facility filter
+      query = applyFacilityFilter(query, facilityIds)
+      
+      const { data, error } = await query.single()
 
       if (error && error.code !== 'PGRST116') {
         console.error('Error checking animal ID:', error)
@@ -286,20 +340,29 @@ export const animalService = {
   },
 
   /**
-   * Generate next animal ID based on the latest tag code
+   * Generate next animal ID based on the latest tag code (within user's facilities)
    * Format: TAG-YYYY-NNN (e.g., TAG-2026-001)
+   * @param userId - The user ID to filter by facilities
    */
-  async generateNextAnimalId(): Promise<string> {
+  async generateNextAnimalId(userId: string): Promise<string> {
     if (!isSupabaseConfigured()) {
       console.warn('Supabase not configured')
       return `TAG-${new Date().getFullYear()}-001`
     }
 
     try {
-      const { data, error } = await supabase!
+      // Get user's facility IDs
+      const facilityIds = await getUserFacilityIds(userId)
+
+      let query = supabase!
         .schema('module2')
         .from('animals')
         .select('id')
+
+      // Apply facility filter
+      query = applyFacilityFilter(query, facilityIds)
+
+      const { data, error } = await query
         .order('created_at', { ascending: false })
         .limit(1)
 
@@ -352,7 +415,7 @@ export const animalService = {
         .eq('is_active', true)
         .order('created_at', { ascending: false })
       if (error) { console.error('Error fetching animals with tag:', error); return [] }
-      return (data || []).map((a: any) => ({
+      return (data || []).map((a: Animal & { tag_animals_colors?: { tag_code: number } | null; cages?: { cage_label: string } | null }) => ({
         ...a,
         tag_code: a.tag_animals_colors?.tag_code ?? null,
         cage_label: a.cages?.cage_label ?? null,
@@ -383,21 +446,29 @@ export const animalService = {
 
 export const cageService = {
   /**
-   * Fetch all active cages
+   * Fetch all active cages filtered by user's facilities
+   * @param userId - The user ID to filter cages by their assigned facilities
    */
-  async getCages(): Promise<Cage[]> {
+  async getCages(userId: string): Promise<Cage[]> {
     if (!isSupabaseConfigured()) {
       console.warn('Supabase not configured')
       return []
     }
 
     try {
-      const { data, error } = await supabase!
+      // Get user's facility IDs
+      const facilityIds = await getUserFacilityIds(userId)
+
+      let query = supabase!
         .schema('module2')
         .from('cages')
         .select('*')
         .eq('is_active', true)
-        .order('cage_label', { ascending: true })
+
+      // Apply facility filter
+      query = applyFacilityFilter(query, facilityIds)
+
+      const { data, error } = await query.order('cage_label', { ascending: true })
 
       if (error) {
         console.error('Error fetching cages:', error)

@@ -42,12 +42,31 @@ const UserProfile = () => {
   const [showFaceRegistration, setShowFaceRegistration] = useState(false)
   
   // Facilities state
-  const [userFacilities, setUserFacilities] = useState<any[]>([])
+  interface Facility {
+    id: string
+    facility_name: string
+    is_active: boolean
+  }
+  const [userFacilities, setUserFacilities] = useState<Facility[]>([])
   const [facilitiesLoading, setFacilitiesLoading] = useState(true)
   
-  // Permissions state
-  const [rolePermissions, setRolePermissions] = useState<any[]>([])
-  const [allModules, setAllModules] = useState<any[]>([])
+  // Permissions state (organised by role)
+  interface ModulePermission {
+    module_id: string
+    module_name: string
+    icons: string | null
+    can_select: boolean
+    can_insert: boolean
+    can_update: boolean
+    can_delete: boolean
+  }
+  interface RoleWithPermissions {
+    role_id: string
+    role_name: string
+    role_code: string
+    modules: ModulePermission[]
+  }
+  const [userRolePermissions, setUserRolePermissions] = useState<RoleWithPermissions[]>([])
   const [permissionsLoading, setPermissionsLoading] = useState(true)
 
   const getInitials = (name: string) =>
@@ -65,7 +84,6 @@ const UserProfile = () => {
       label: "Email Address",
       value: user?.email || "user@example.com",
     },
-    { icon: Shield, label: "Role", value: user?.role || "User" },
     {
       icon: CheckCircle,
       label: "Account Status",
@@ -180,11 +198,20 @@ const UserProfile = () => {
       try {
         const { data, error } = await supabase
           .from('user_facilities')
-          .select('facility_id, facility_name, is_active')
+          .select(`
+            facilities:facility_id (
+              id,
+              facility_name,
+              is_active
+            )
+          `)
           .eq('user_id', user.id)
 
         if (error) throw error
-        setUserFacilities(data || [])
+        const facilities = (data || [])
+          .flatMap((entry: { facilities: { id: string; facility_name: string; is_active: boolean }[] }) => entry.facilities ?? [])
+          .filter(Boolean) as Facility[]
+        setUserFacilities(facilities)
       } catch (error) {
         console.error('Error loading facilities:', error)
       } finally {
@@ -195,7 +222,7 @@ const UserProfile = () => {
     loadFacilities()
   }, [user?.id])
 
-  // Load role permissions and modules
+  // Load role permissions and modules (organised by role → module → permissions)
   useEffect(() => {
     const loadPermissions = async () => {
       if (!user?.id || !supabase) {
@@ -204,36 +231,69 @@ const UserProfile = () => {
       }
 
       try {
-        // Load modules
-        const { data: modulesData, error: modulesError } = await supabase
-          .from('module')
-          .select('*')
-          .eq('is_active', true)
+        // 1. Get the user's assigned roles (with role details)
+        const { data: userRolesData, error: userRolesError } = await supabase
+          .from('user_roles')
+          .select('role_id, roles:role_id(id, role_name, role_code)')
+          .eq('user_id', user.id)
 
-        if (modulesError) throw modulesError
-        setAllModules(modulesData || [])
-
-        // Try to find role_id from pending_users table
-        const { data: userData, error: userError } = await supabase
-          .from('pending_users')
-          .select('role_id')
-          .eq('id', user.id)
-          .single()
-
-        if (userError || !userData?.role_id) {
-          console.log('No role_id found for user')
+        if (userRolesError) throw userRolesError
+        if (!userRolesData || userRolesData.length === 0) {
+          setUserRolePermissions([])
           setPermissionsLoading(false)
           return
         }
 
-        // Load role permissions
-        const { data: permsData, error: permsError } = await supabase
-          .from('role_module_access')
-          .select('*')
-          .eq('role_id', userData.role_id)
+        // 2. Load all active modules once
+        const { data: modulesData, error: modulesError } = await supabase
+          .from('modules')
+          .select('id, module_name, icons')
+          .eq('is_active', true)
 
-        if (permsError) throw permsError
-        setRolePermissions(permsData || [])
+        if (modulesError) throw modulesError
+        const moduleMap = new Map((modulesData || []).map((m: { id: string; module_name: string; icons: string | null }) => [m.id, m]))
+
+        // 3. For each role fetch role_permission rows and combine
+        const results: RoleWithPermissions[] = []
+
+        for (const entry of userRolesData) {
+          const roleInfo = (entry.roles as unknown as { id: string; role_name: string; role_code: string } | null)
+          if (!roleInfo) continue
+
+          const { data: permsData, error: permsError } = await supabase
+            .from('role_permissions')
+            .select('module_id, can_select, can_insert, can_update, can_delete')
+            .eq('role_id', roleInfo.id)
+
+          if (permsError) throw permsError
+
+          const modules: ModulePermission[] = (permsData || []).reduce(
+            (acc: ModulePermission[], perm: { module_id: string; can_select: boolean; can_insert: boolean; can_update: boolean; can_delete: boolean }) => {
+              const mod = moduleMap.get(perm.module_id)
+              if (!mod) return acc
+              acc.push({
+                module_id: perm.module_id,
+                module_name: (mod as { id: string; module_name: string; icons: string | null }).module_name,
+                icons: (mod as { id: string; module_name: string; icons: string | null }).icons ?? null,
+                can_select: perm.can_select,
+                can_insert: perm.can_insert,
+                can_update: perm.can_update,
+                can_delete: perm.can_delete,
+              })
+              return acc
+            },
+            [],
+          )
+
+          results.push({
+            role_id: roleInfo.id,
+            role_name: roleInfo.role_name,
+            role_code: roleInfo.role_code,
+            modules,
+          })
+        }
+
+        setUserRolePermissions(results)
       } catch (error) {
         console.error('Error loading permissions:', error)
       } finally {
@@ -321,12 +381,6 @@ const UserProfile = () => {
           <p className="text-sm text-muted mt-1">
             {user?.email || "user@example.com"}
           </p>
-
-          {/* Role Badge */}
-          <div className="inline-flex items-center gap-1.5 mt-3 px-3 py-1.5 bg-success/10 text-success rounded-full text-xs font-semibold">
-            <Shield className="w-3.5 h-3.5" />
-            {user?.role || "User"}
-          </div>
 
           {/* Status */}
           <div className="flex items-center justify-center gap-2 mt-4 text-sm text-muted">
@@ -437,12 +491,12 @@ const UserProfile = () => {
               </div>
             </div>
 
-            {/* Modules & Permissions */}
+            {/* Roles, Modules & Permissions */}
             <div className="mt-6 pt-6 border-t border-border">
               <div className="flex items-center gap-2 mb-4">
                 <Layers className="w-4 h-4 text-primary" />
                 <span className="text-sm font-semibold text-primary">
-                  Modules &amp; Permissions
+                  Roles, Modules &amp; Permissions
                 </span>
               </div>
 
@@ -450,66 +504,93 @@ const UserProfile = () => {
                 <div className="flex items-center justify-center py-6 text-muted text-sm">
                   Loading permissions...
                 </div>
-              ) : rolePermissions.length === 0 ? (
+              ) : userRolePermissions.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-6 gap-2 text-muted">
                   <Layers className="w-7 h-7 opacity-40" />
-                  <span className="text-sm">No module access assigned</span>
+                  <span className="text-sm">No roles or module access assigned</span>
                 </div>
               ) : (
-                <div className="rounded-xl overflow-hidden border border-border">
-                  {/* Table header */}
-                  <div className="grid grid-cols-[1fr_64px_64px_64px_64px] items-center px-4 py-2.5 bg-background border-b border-border">
-                    <span className="text-xs font-semibold text-muted uppercase tracking-wider">
-                      Module
-                    </span>
-                    {["View", "Create", "Edit", "Delete"].map((h) => (
-                      <span
-                        key={h}
-                        className="text-xs font-semibold text-muted uppercase tracking-wider text-center"
-                      >
-                        {h}
-                      </span>
-                    ))}
-                  </div>
-                  <div className="divide-y divide-border max-h-72 overflow-y-auto">
-                    {rolePermissions.map((perm) => {
-                      const mod = allModules.find(
-                        (m) => m.id === perm.module_id,
-                      );
-                      if (!mod) return null;
-                      const ModIcon = getIconByName(mod.icons ?? null);
-                      const cols = [
-                        perm.can_select,
-                        perm.can_insert,
-                        perm.can_update,
-                        perm.can_delete,
-                      ];
-                      return (
-                        <div
-                          key={perm.module_id}
-                          className="grid grid-cols-[1fr_64px_64px_64px_64px] items-center px-4 py-3 bg-surface hover:bg-background transition-colors"
-                        >
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-info/10 text-info flex-shrink-0">
-                              <ModIcon className="w-3.5 h-3.5" />
-                            </div>
-                            <span className="text-sm font-medium text-foreground truncate">
-                              {mod.module_name}
-                            </span>
-                          </div>
-                          {cols.map((val, i) => (
-                            <div key={i} className="flex justify-center">
-                              {val ? (
-                                <CheckCircle2 className="w-5 h-5 text-success" />
-                              ) : (
-                                <XCircle className="w-5 h-5 text-border" />
-                              )}
-                            </div>
-                          ))}
+                <div className="space-y-4">
+                  {userRolePermissions.map((roleEntry) => (
+                    <div key={roleEntry.role_id} className="rounded-xl border border-border overflow-hidden">
+                      {/* Role header */}
+                      <div className="flex items-center gap-2.5 px-4 py-3 bg-primary/5 border-b border-border">
+                        <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-primary/10 text-primary flex-shrink-0">
+                          <Shield className="w-3.5 h-3.5" />
                         </div>
-                      );
-                    })}
-                  </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-semibold text-primary">
+                            {roleEntry.role_name}
+                          </span>
+                          <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-medium">
+                            {roleEntry.role_code}
+                          </span>
+                        </div>
+                        <span className="ml-auto text-xs text-muted">
+                          {roleEntry.modules.length} module{roleEntry.modules.length !== 1 ? 's' : ''}
+                        </span>
+                      </div>
+
+                      {roleEntry.modules.length === 0 ? (
+                        <div className="flex items-center justify-center py-5 text-sm text-muted">
+                          No modules assigned to this role
+                        </div>
+                      ) : (
+                        <>
+                          {/* Table column headers */}
+                          <div className="grid grid-cols-[1fr_64px_64px_64px_64px] items-center px-4 py-2 bg-background border-b border-border">
+                            <span className="text-xs font-semibold text-muted uppercase tracking-wider">
+                              Module
+                            </span>
+                            {['View', 'Create', 'Edit', 'Delete'].map((h) => (
+                              <span
+                                key={h}
+                                className="text-xs font-semibold text-muted uppercase tracking-wider text-center"
+                              >
+                                {h}
+                              </span>
+                            ))}
+                          </div>
+                          {/* Module rows */}
+                          <div className="divide-y divide-border">
+                            {roleEntry.modules.map((mod) => {
+                              const ModIcon = getIconByName(mod.icons ?? null)
+                              const cols = [
+                                mod.can_select,
+                                mod.can_insert,
+                                mod.can_update,
+                                mod.can_delete,
+                              ]
+                              return (
+                                <div
+                                  key={mod.module_id}
+                                  className="grid grid-cols-[1fr_64px_64px_64px_64px] items-center px-4 py-3 bg-surface hover:bg-background transition-colors"
+                                >
+                                  <div className="flex items-center gap-2.5 min-w-0">
+                                    <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-info/10 text-info flex-shrink-0">
+                                      <ModIcon className="w-3.5 h-3.5" />
+                                    </div>
+                                    <span className="text-sm font-medium text-foreground truncate">
+                                      {mod.module_name}
+                                    </span>
+                                  </div>
+                                  {cols.map((val, i) => (
+                                    <div key={i} className="flex justify-center">
+                                      {val ? (
+                                        <CheckCircle2 className="w-5 h-5 text-success" />
+                                      ) : (
+                                        <XCircle className="w-5 h-5 text-border" />
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  ))}
                 </div>
               )}
             </div>

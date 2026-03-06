@@ -1,4 +1,5 @@
 import { supabase, isSupabaseConfigured } from './supabase'
+import { getUserFacilityIds, applyFacilityFilter } from './facilityFilterService'
 
 export interface Cage {
   id: string
@@ -32,36 +33,48 @@ export interface Animal {
 }
 
 /**
- * Fetch all cages from Supabase
+ * Fetch all cages filtered by user's facilities
+ * @param userId - The user ID to filter cages by their assigned facilities
  */
-export async function getCages(): Promise<Cage[]> {
+export async function getCages(userId: string): Promise<Cage[]> {
   if (!isSupabaseConfigured()) {
     throw new Error('Supabase is not configured')
   }
 
-  const { data, error } = await supabase!
+  // Get user's facility IDs
+  const facilityIds = await getUserFacilityIds(userId)
+
+  let query = supabase!
     .schema('module2')
     .from('cages')
     .select('*')
-    .order('cage_label', { ascending: true })
+
+  // Apply facility filter
+  query = applyFacilityFilter(query, facilityIds)
+
+  const { data, error } = await query.order('cage_label', { ascending: true })
 
   if (error) {
     console.error('Error fetching cages:', error)
-    throw error
+    throw new Error('Failed to fetch cages')
   }
 
-  return data || []
+  return (data as Cage[]) || []
 }
 
 /**
- * Fetch all animals from Supabase with joined tag information
+ * Get all animals filtered by user's facilities
+ * @param userId - The user ID to filter animals by their assigned facilities
  */
-export async function getAnimals(): Promise<Animal[]> {
+export async function getAnimals(userId: string): Promise<Animal[]> {
   if (!isSupabaseConfigured()) {
     throw new Error('Supabase is not configured')
   }
 
-  const { data, error } = await supabase!
+  // Get user's facility IDs
+  const facilityIds = await getUserFacilityIds(userId)
+
+  let query = supabase!
     .schema('module2')
     .from('animals')
     .select(`
@@ -73,7 +86,11 @@ export async function getAnimals(): Promise<Animal[]> {
         tag_types!tag_type_id(type)
       )
     `)
-    .order('created_at', { ascending: false })
+
+  // Apply facility filter
+  query = applyFacilityFilter(query, facilityIds)
+
+  const { data, error } = await query.order('created_at', { ascending: false })
 
   if (error) {
     console.error('Error fetching animals:', error)
@@ -93,10 +110,11 @@ export async function getAnimals(): Promise<Animal[]> {
 }
 
 /**
- * Create a new cage
+ * Create a new cage with facility assignment
+ * @param cage - Cage data including user_facility_id
  */
 export async function createCage(
-  cage: Omit<Cage, 'id' | 'created_at'>
+  cage: Omit<Cage, 'id' | 'created_at'> & { user_facility_id: string }
 ): Promise<Cage> {
   if (!isSupabaseConfigured()) {
     throw new Error('Supabase is not configured')
@@ -114,49 +132,69 @@ export async function createCage(
     throw error
   }
 
-  return data
+  return data as Cage
 }
 
 /**
- * Update an existing cage
+ * Update a cage (respects facility filtering)
+ * @param id - The cage ID
+ * @param userId - The user ID to verify facility access
+ * @param updates - The fields to update
  */
 export async function updateCage(
   id: string,
+  userId: string,
   updates: Partial<Omit<Cage, 'id' | 'created_at'>>
 ): Promise<Cage> {
   if (!isSupabaseConfigured()) {
     throw new Error('Supabase is not configured')
   }
 
-  const { data, error } = await supabase!
+  // Get user's facility IDs to verify access
+  const facilityIds = await getUserFacilityIds(userId)
+
+  let query = supabase!
     .schema('module2')
     .from('cages')
     .update(updates)
     .eq('id', id)
-    .select()
-    .single()
+
+  // Apply facility filter to ensure user can only update their facility's cages
+  query = applyFacilityFilter(query, facilityIds)
+
+  const { data, error } = await query.select().single()
 
   if (error) {
     console.error('Error updating cage:', error)
     throw error
   }
 
-  return data
+  return data as Cage
 }
 
 /**
- * Delete a cage
+ * Delete a cage (respects facility filtering)
+ * @param id - The cage ID
+ * @param userId - The user ID to verify facility access
  */
-export async function deleteCage(id: string): Promise<void> {
+export async function deleteCage(id: string, userId: string): Promise<void> {
   if (!isSupabaseConfigured()) {
     throw new Error('Supabase is not configured')
   }
 
-  const { error } = await supabase!
+  // Get user's facility IDs to verify access
+  const facilityIds = await getUserFacilityIds(userId)
+
+  let query = supabase!
     .schema('module2')
     .from('cages')
     .delete()
     .eq('id', id)
+
+  // Apply facility filter to ensure user can only delete their facility's cages
+  query = applyFacilityFilter(query, facilityIds)
+
+  const { error } = await query
 
   if (error) {
     console.error('Error deleting cage:', error)
@@ -165,54 +203,56 @@ export async function deleteCage(id: string): Promise<void> {
 }
 
 /**
- * Update animal's cage assignment
+ * Update animal's cage assignment (respects facility filtering)
+ * @param animalId - The animal ID
+ * @param userId - The user ID to verify facility access
+ * @param cageId - The new cage ID (or null to remove from cage)
  */
 export async function updateAnimalCage(
   animalId: string,
+  userId: string,
   cageId: string | null
 ): Promise<Animal> {
   if (!isSupabaseConfigured()) {
     throw new Error('Supabase is not configured')
   }
 
-  const { data, error } = await supabase!
+  // Get user's facility IDs to verify access
+  const facilityIds = await getUserFacilityIds(userId)
+
+  let query = supabase!
     .schema('module2')
     .from('animals')
     .update({ current_cage_id: cageId })
     .eq('id', animalId)
-    .select(`
-      *,
-      tag_animals_colors!tag_animals_colors_id(
-        tag_code,
-        animal_types!animal_type_id(animal_name),
-        tag_colors!tag_color_id(color, color_name),
-        tag_types!tag_type_id(type)
-      )
-    `)
-    .single()
+
+  // Apply facility filter to ensure user can only update their facility's animals
+  query = applyFacilityFilter(query, facilityIds)
+
+  const { data, error } = await query.select().single()
 
   if (error) {
     console.error('Error updating animal cage:', error)
     throw error
   }
 
-  // Format the data to include type string
-  const tagInfo = (data as Animal & Partial<JoinedTagInfo>).tag_animals_colors
-  const type = tagInfo
-    ? `${tagInfo.tag_types?.type || ''}-${tagInfo.tag_code || ''} | ${tagInfo.animal_types?.animal_name || ''}`
-    : ''
-  return { ...data, type }
+  return data as Animal
 }
 
 /**
- * Get animals by cage ID
+ * Get animals by cage ID filtered by user's facilities
+ * @param cageId - The cage ID
+ * @param userId - The user ID to filter by facilities
  */
-export async function getAnimalsByCage(cageId: string): Promise<Animal[]> {
+export async function getAnimalsByCage(cageId: string, userId: string): Promise<Animal[]> {
   if (!isSupabaseConfigured()) {
     throw new Error('Supabase is not configured')
   }
 
-  const { data, error } = await supabase!
+  // Get user's facility IDs
+  const facilityIds = await getUserFacilityIds(userId)
+
+  let query = supabase!
     .schema('module2')
     .from('animals')
     .select(`
@@ -225,7 +265,11 @@ export async function getAnimalsByCage(cageId: string): Promise<Animal[]> {
       )
     `)
     .eq('current_cage_id', cageId)
-    .order('weight', { ascending: true })
+
+  // Apply facility filter
+  query = applyFacilityFilter(query, facilityIds)
+
+  const { data, error } = await query
 
   if (error) {
     console.error('Error fetching animals by cage:', error)
@@ -247,11 +291,13 @@ export async function getAnimalsByCage(cageId: string): Promise<Animal[]> {
 /**
  * Check if a cage has available capacity
  * @param cageId - The cage ID to check
+ * @param userId - The user ID to verify facility access
  * @param excludeAnimalId - Optional animal ID to exclude from count (useful when updating an existing animal)
  * @returns Object with capacity information
  */
 export async function checkCageCapacity(
   cageId: string,
+  userId: string,
   excludeAnimalId?: string
 ): Promise<{
   isFull: boolean
@@ -263,24 +309,30 @@ export async function checkCageCapacity(
     throw new Error('Supabase is not configured')
   }
 
-  // Get cage details
-  const { data: cage, error: cageError } = await supabase!
+  // Get user's facility IDs to verify access
+  const facilityIds = await getUserFacilityIds(userId)
+
+  // Get cage details with facility filter
+  let cageQuery = supabase!
     .schema('module2')
     .from('cages')
     .select('max_capacity')
     .eq('id', cageId)
-    .single()
+
+  cageQuery = applyFacilityFilter(cageQuery, facilityIds)
+
+  const { data: cage, error: cageError } = await cageQuery.single()
 
   if (cageError || !cage) {
     throw new Error('Cage not found')
   }
 
   // Get current animals in cage
-  const animals = await getAnimalsByCage(cageId)
-  
+  const animals = await getAnimalsByCage(cageId, userId)
+
   // Exclude the specified animal if provided (for update scenarios)
   const currentCount = excludeAnimalId
-    ? animals.filter(animal => animal.id !== excludeAnimalId).length
+    ? animals.filter((animal) => animal.id !== excludeAnimalId).length
     : animals.length
 
   const maxCapacity = cage.max_capacity

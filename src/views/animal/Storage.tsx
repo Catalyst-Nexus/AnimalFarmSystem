@@ -10,7 +10,8 @@ import {
   DataTable,
   IconButton,
 } from '@/components/ui'
-import { UtensilsCrossed, Plus, Pencil, Trash2, Syringe, FlaskConical, CalendarCheck, Loader2, Users, User } from 'lucide-react'
+import { UtensilsCrossed, Plus, Pencil, Trash2, Syringe, FlaskConical, CalendarCheck, Loader2, Users, User, PackagePlus, Undo2, X, Eye } from 'lucide-react'
+import { useAuthStore } from '@/store/authStore'
 import {
   createRation,
   updateRation,
@@ -25,6 +26,13 @@ import {
 } from '@/services/rationService'
 import { animalService, cageService, type Animal, type Cage } from '@/services/animalService'
 import { fetchDeliveryItems, type DeliveryItem } from '@/services/inventoryService'
+import {
+  fetchStockTransactions,
+  createStockTransaction,
+  updateStockTransaction,
+  deleteStockTransaction as deleteStockTransactionApi,
+  type StockTransaction,
+} from '@/services/stockTransactionService'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1560,30 +1568,904 @@ const VitaminsApp = () => {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
+// ─── STOCK TRANSACTION (Request & Return) ─────────────────────────────────
+// ════════════════════════════════════════════════════════════════════════════
+
+// ─── Stock Transaction Form ───────────────────────────────────────────────
+
+interface StockFormValues {
+  delivery_item_id: string
+  unit_id: string
+  quantity: string
+  purpose: string
+  reason: string
+  requested_by: string
+  notes: string
+}
+
+const STOCK_EMPTY_FORM: StockFormValues = {
+  delivery_item_id: '',
+  unit_id: '',
+  quantity: '',
+  purpose: '',
+  reason: '',
+  requested_by: '',
+  notes: '',
+}
+
+const REQ_STATUS_STYLES: Record<string, string> = {
+  pending: 'bg-yellow-100 text-yellow-700',
+  approved: 'bg-blue-100 text-blue-700',
+  rejected: 'bg-red-100 text-red-600',
+  received: 'bg-green-100 text-green-700',
+  cancelled: 'bg-gray-100 text-gray-600',
+}
+
+const StockStatusBadge = ({ status }: { status: string }) => (
+  <span className={cn('inline-block px-2.5 py-0.5 text-xs font-medium rounded-full capitalize', REQ_STATUS_STYLES[status] || 'bg-gray-100 text-gray-600')}>
+    {status}
+  </span>
+)
+
+// ─── Stock Transaction Modal ──────────────────────────────────────────────
+
+const STK_FIELD = 'w-full px-3 py-2 border border-border rounded-lg text-sm bg-background text-foreground placeholder:text-muted focus:outline-none focus:border-success'
+const STK_LABEL = 'block text-xs font-semibold text-muted uppercase tracking-wide mb-1'
+
+const StockTransactionModal = ({
+  type,
+  editing,
+  deliveryItems,
+  onSubmit,
+  onClose,
+}: {
+  type: 'request' | 'return'
+  editing: StockTransaction | null
+  deliveryItems: DeliveryItem[]
+  onSubmit: (values: StockFormValues, id?: string) => Promise<void>
+  onClose: () => void
+}) => {
+  const [form, setForm] = useState<StockFormValues>(
+    editing
+      ? {
+          delivery_item_id: editing.delivery_item_id,
+          unit_id: editing.unit_id,
+          quantity: String(editing.quantity),
+          purpose: editing.purpose ?? '',
+          reason: editing.reason ?? '',
+          requested_by: editing.requested_by,
+          notes: editing.notes ?? '',
+        }
+      : STOCK_EMPTY_FORM
+  )
+
+  const set = (key: keyof StockFormValues, val: string) =>
+    setForm((prev) => ({ ...prev, [key]: val }))
+
+  const selectedItem = useMemo(
+    () => deliveryItems.find((d) => d.id === form.delivery_item_id) ?? null,
+    [deliveryItems, form.delivery_item_id]
+  )
+
+  const qty = parseFloat(form.quantity) || 0
+  const estimatedCost = qty * (selectedItem?.unit_price_delivery ?? 0)
+
+  const isRequest = type === 'request'
+  const insufficientStock = isRequest && selectedItem && qty > 0 && qty > (selectedItem.quantity_delivery ?? 0)
+
+  const handleSubmit = async () => {
+    if (!form.delivery_item_id || !form.quantity || !form.requested_by.trim()) {
+      alert('Please fill in all required fields.')
+      return
+    }
+    if (isRequest && selectedItem && qty > (selectedItem.quantity_delivery ?? 0)) {
+      alert(`Insufficient stock. Available: ${selectedItem.quantity_delivery ?? 0}, Requested: ${qty}`)
+      return
+    }
+    await onSubmit(form, editing?.id)
+    onClose()
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="bg-surface border border-border rounded-2xl shadow-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="text-lg font-bold text-primary flex items-center gap-2">
+            {isRequest ? <PackagePlus className="w-5 h-5 text-blue-500" /> : <Undo2 className="w-5 h-5 text-orange-500" />}
+            {editing ? `Edit ${isRequest ? 'Request' : 'Return'}` : `New Stock ${isRequest ? 'Request' : 'Return'}`}
+          </h2>
+          <button className="p-1.5 rounded hover:bg-background text-muted transition-colors" onClick={onClose}>
+            ✕
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          {/* Delivery Item */}
+          <div className="col-span-2">
+            <label className={STK_LABEL}>Item <span className="text-red-500">*</span></label>
+            <select
+              className={STK_FIELD}
+              value={form.delivery_item_id}
+              onChange={(e) => {
+                const item = deliveryItems.find((d) => d.id === e.target.value)
+                set('delivery_item_id', e.target.value)
+                set('unit_id', item?.unit_delivery_id ?? '')
+              }}
+            >
+              <option value="">Select item…</option>
+              {deliveryItems.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.description ?? d.id.slice(0, 8)} {d.brand?.name ? `(${d.brand.name})` : ''} — {d.category?.name ?? ''} — ₱{d.unit_price_delivery?.toFixed(2) ?? '0.00'}/{d.unit_delivery?.name ?? 'unit'}
+                </option>
+              ))}
+            </select>
+            {selectedItem && (
+              <p className="text-xs text-muted mt-1">
+                Unit: {selectedItem.unit_delivery?.name ?? '—'} · Available: {selectedItem.quantity_delivery} · Expiry: {selectedItem.expiry_date ?? '—'}
+              </p>
+            )}
+          </div>
+
+          {/* Quantity */}
+          <div>
+            <label className={STK_LABEL}>Quantity <span className="text-red-500">*</span></label>
+            <input type="number" min="0" step="0.1" className={STK_FIELD} placeholder="e.g. 10" value={form.quantity} onChange={(e) => set('quantity', e.target.value)} />
+            {insufficientStock && (
+              <p className="text-xs text-red-500 font-medium mt-1">
+                Insufficient stock! Available: {selectedItem!.quantity_delivery}
+              </p>
+            )}
+          </div>
+
+          {/* Requested By */}
+          <div>
+            <label className={STK_LABEL}>{isRequest ? 'Requested By' : 'Returned By'} <span className="text-red-500">*</span></label>
+            <input className={STK_FIELD} placeholder="e.g. Juan dela Cruz" value={form.requested_by} onChange={(e) => set('requested_by', e.target.value)} />
+          </div>
+
+          {/* Purpose (Request) or Reason (Return) */}
+          {isRequest ? (
+            <div className="col-span-2">
+              <label className={STK_LABEL}>Purpose</label>
+              <input className={STK_FIELD} placeholder="e.g. Daily feeding supply" value={form.purpose} onChange={(e) => set('purpose', e.target.value)} />
+            </div>
+          ) : (
+            <div className="col-span-2">
+              <label className={STK_LABEL}>Reason for Return</label>
+              <input className={STK_FIELD} placeholder="e.g. Excess supply" value={form.reason} onChange={(e) => set('reason', e.target.value)} />
+            </div>
+          )}
+
+          {/* Notes */}
+          <div className="col-span-2">
+            <label className={STK_LABEL}>Notes</label>
+            <textarea className={cn(STK_FIELD, 'resize-none')} rows={3} placeholder="Optional remarks..." value={form.notes} onChange={(e) => set('notes', e.target.value)} />
+          </div>
+        </div>
+
+        {/* Cost Estimate */}
+        {selectedItem && qty > 0 && (
+          <div className={cn('mt-4 p-4 rounded-xl border', isRequest ? 'bg-blue-50 border-blue-200' : 'bg-orange-50 border-orange-200')}>
+            <h3 className={cn('text-xs font-bold uppercase tracking-wide mb-2', isRequest ? 'text-blue-800' : 'text-orange-800')}>Estimated Value</h3>
+            <div className={cn('space-y-1 text-sm', isRequest ? 'text-blue-900' : 'text-orange-900')}>
+              <div className="flex justify-between">
+                <span>Price per {selectedItem.unit_delivery?.name ?? 'unit'}</span>
+                <span className="font-semibold">₱{(selectedItem.unit_price_delivery ?? 0).toFixed(2)}</span>
+              </div>
+              <div className={cn('flex justify-between border-t pt-1 mt-1 text-base', isRequest ? 'border-blue-300' : 'border-orange-300')}>
+                <span className="font-bold">Total ({qty}×)</span>
+                <span className={cn('font-bold', isRequest ? 'text-blue-800' : 'text-orange-800')}>₱{estimatedCost.toFixed(2)}</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="flex gap-3 mt-6">
+          <button className="flex-1 py-2.5 border border-border rounded-lg text-sm font-medium text-muted hover:bg-background transition-colors" onClick={onClose}>
+            Cancel
+          </button>
+          <button
+            className={cn('flex-1 py-2.5 text-white rounded-lg text-sm font-medium transition-colors',
+              insufficientStock ? 'bg-gray-400 cursor-not-allowed' : isRequest ? 'bg-blue-500 hover:bg-blue-600' : 'bg-orange-500 hover:bg-orange-600'
+            )}
+            onClick={handleSubmit}
+            disabled={!!insufficientStock}
+          >
+            {editing ? 'Save Changes' : isRequest ? 'Submit Request' : 'Submit Return'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Stock Delete Modal ───────────────────────────────────────────────────
+
+const StockDeleteModal = ({
+  record,
+  onConfirm,
+  onClose,
+}: {
+  record: StockTransaction
+  onConfirm: () => void
+  onClose: () => void
+}) => (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+    <div className="bg-surface border border-border rounded-2xl shadow-2xl w-full max-w-sm p-6">
+      <h2 className="text-lg font-bold text-primary mb-2">Delete {record.type === 'request' ? 'Request' : 'Return'}?</h2>
+      <p className="text-sm text-muted mb-5">
+        Remove this stock {record.type} of <strong>{record.quantity}</strong> units? This cannot be undone.
+      </p>
+      <div className="flex gap-3">
+        <button className="flex-1 py-2.5 border border-border rounded-lg text-sm font-medium text-muted hover:bg-background transition-colors" onClick={onClose}>
+          Cancel
+        </button>
+        <button className="flex-1 py-2.5 bg-red-500 text-white rounded-lg text-sm font-medium hover:bg-red-600 transition-colors" onClick={onConfirm}>
+          Delete
+        </button>
+      </div>
+    </div>
+  </div>
+)
+
+// ─── Stock View Modal ─────────────────────────────────────────────────────
+
+const StockViewModal = ({
+  record,
+  deliveryItems,
+  onClose,
+}: {
+  record: StockTransaction
+  deliveryItems: DeliveryItem[]
+  onClose: () => void
+}) => {
+  const isRequest = record.type === 'request'
+  const item = deliveryItems.find(d => d.id === record.delivery_item_id)
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="bg-surface border border-border rounded-2xl shadow-2xl w-full max-w-lg p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-bold text-primary flex items-center gap-2">
+            <Eye className="w-5 h-5 text-blue-500" />
+            View {isRequest ? 'Request' : 'Return'}
+          </h2>
+          <button className="p-1.5 rounded hover:bg-background text-muted transition-colors" onClick={onClose}>
+            ✕
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className={STK_LABEL}>Item</label>
+              <p className="text-sm font-medium">{item?.description ?? record.delivery_item_id.slice(0, 8)}</p>
+            </div>
+            <div>
+              <label className={STK_LABEL}>Status</label>
+              <StockStatusBadge status={record.status} />
+            </div>
+            <div>
+              <label className={STK_LABEL}>Quantity {isRequest ? 'Requested' : 'Returned'}</label>
+              <p className="text-sm font-semibold">{record.quantity}</p>
+            </div>
+            {isRequest && record.approved_quantity != null && (
+              <div>
+                <label className={STK_LABEL}>Approved Quantity</label>
+                <p className="text-sm font-semibold">{record.approved_quantity}</p>
+              </div>
+            )}
+            <div>
+              <label className={STK_LABEL}>{isRequest ? 'Requested By' : 'Returned By'}</label>
+              <p className="text-sm">{record.requested_by}</p>
+            </div>
+            {record.reviewed_by && (
+              <div>
+                <label className={STK_LABEL}>Reviewed By</label>
+                <p className="text-sm">{record.reviewed_by}</p>
+              </div>
+            )}
+            <div>
+              <label className={STK_LABEL}>Date</label>
+              <p className="text-sm">{new Date(record.created_at).toLocaleDateString()}</p>
+            </div>
+            {record.reviewed_at && (
+              <div>
+                <label className={STK_LABEL}>Reviewed At</label>
+                <p className="text-sm">{new Date(record.reviewed_at).toLocaleDateString()}</p>
+              </div>
+            )}
+          </div>
+
+          {isRequest && record.purpose && (
+            <div>
+              <label className={STK_LABEL}>Purpose</label>
+              <p className="text-sm">{record.purpose}</p>
+            </div>
+          )}
+          {!isRequest && record.reason && (
+            <div>
+              <label className={STK_LABEL}>Reason for Return</label>
+              <p className="text-sm">{record.reason}</p>
+            </div>
+          )}
+          {record.notes && (
+            <div>
+              <label className={STK_LABEL}>Notes</label>
+              <p className="text-sm">{record.notes}</p>
+            </div>
+          )}
+        </div>
+
+        <button
+          className="w-full mt-6 py-2.5 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
+          onClick={onClose}
+        >
+          Close
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ─── Stock Request App ────────────────────────────────────────────────────
+
+const StockRequestApp = () => {
+  const { user } = useAuthStore()
+  const [records, setRecords] = useState<StockTransaction[]>([])
+  const [deliveryItems, setDeliveryItems] = useState<DeliveryItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const [showModal, setShowModal] = useState(false)
+  const [editing, setEditing] = useState<StockTransaction | null>(null)
+  const [deleting, setDeleting] = useState<StockTransaction | null>(null)
+  const [viewing, setViewing] = useState<StockTransaction | null>(null)
+  const [search, setSearch] = useState('')
+
+  const REQ_TAB_FILTERS = ['All', 'pending', 'approved', 'rejected', 'cancelled'] as const
+  type ReqTabFilter = (typeof REQ_TAB_FILTERS)[number]
+  const [activeTab, setActiveTab] = useState<ReqTabFilter>('All')
+
+  const loadData = useCallback(async () => {
+    setLoading(true)
+    try {
+      const [txns, items] = await Promise.all([
+        fetchStockTransactions('request'),
+        fetchDeliveryItems(),
+      ])
+      setRecords(txns)
+      setDeliveryItems(items)
+    } catch (err) {
+      console.error('Error loading stock requests:', err)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { loadData() }, [loadData])
+
+  const handleSubmit = async (values: StockFormValues, id?: string) => {
+    if (id) {
+      await updateStockTransaction(id, {
+        delivery_item_id: values.delivery_item_id,
+        unit_id: values.unit_id,
+        quantity: parseFloat(values.quantity) || 0,
+        purpose: values.purpose || null,
+        requested_by: values.requested_by,
+        notes: values.notes || null,
+      })
+    } else {
+      await createStockTransaction({
+        type: 'request',
+        delivery_item_id: values.delivery_item_id,
+        unit_id: values.unit_id,
+        quantity: parseFloat(values.quantity) || 0,
+        purpose: values.purpose || null,
+        requested_by: values.requested_by,
+        notes: values.notes || null,
+        status: 'pending',
+      })
+    }
+    await loadData()
+  }
+
+  const handleDelete = async (id: string) => {
+    await deleteStockTransactionApi(id)
+    await loadData()
+  }
+
+  const itemMap = useMemo(() => {
+    const map = new Map<string, DeliveryItem>()
+    deliveryItems.forEach((d) => map.set(d.id, d))
+    return map
+  }, [deliveryItems])
+
+  const filtered = useMemo(() => {
+    let list = records
+    if (activeTab !== 'All') list = list.filter((r) => r.status === activeTab)
+    if (search.trim()) {
+      const q = search.toLowerCase()
+      list = list.filter((r) =>
+        r.requested_by.toLowerCase().includes(q) ||
+        (r.purpose ?? '').toLowerCase().includes(q) ||
+        (r.notes ?? '').toLowerCase().includes(q) ||
+        (itemMap.get(r.delivery_item_id)?.description ?? '').toLowerCase().includes(q)
+      )
+    }
+    return list
+  }, [records, activeTab, search, itemMap])
+
+  const counts = useMemo(() => ({
+    total: records.length,
+    pending: records.filter((r) => r.status === 'pending').length,
+    approved: records.filter((r) => r.status === 'approved').length,
+    rejected: records.filter((r) => r.status === 'rejected').length,
+    cancelled: records.filter((r) => r.status === 'cancelled').length,
+  }), [records])
+
+  const columns = [
+    {
+      key: 'delivery_item_id' as const,
+      header: 'Item',
+      render: (r: StockTransaction) => {
+        const item = itemMap.get(r.delivery_item_id)
+        return <span className="text-sm font-medium text-foreground">{item?.description ?? r.delivery_item_id.slice(0, 8)}</span>
+      },
+    },
+    {
+      key: 'quantity' as const,
+      header: 'Qty',
+      render: (r: StockTransaction) => <span className="text-sm font-semibold">{r.quantity}</span>,
+    },
+    {
+      key: 'approved_quantity' as const,
+      header: 'Approved Qty',
+      render: (r: StockTransaction) => (
+        <span className="text-sm">{r.approved_quantity != null ? r.approved_quantity : '—'}</span>
+      ),
+    },
+    {
+      key: 'purpose' as const,
+      header: 'Purpose',
+      render: (r: StockTransaction) => (
+        <span className="text-sm text-muted max-w-[160px] truncate block" title={r.purpose ?? ''}>{r.purpose || '—'}</span>
+      ),
+    },
+    {
+      key: 'requested_by' as const,
+      header: 'Requested By',
+      render: (r: StockTransaction) => <span className="text-sm text-muted">{r.requested_by}</span>,
+    },
+    {
+      key: 'reviewed_by' as const,
+      header: 'Reviewed By',
+      render: (r: StockTransaction) => <span className="text-sm text-muted">{r.reviewed_by || '—'}</span>,
+    },
+    {
+      key: 'created_at' as const,
+      header: 'Date',
+      render: (r: StockTransaction) => <span className="text-sm">{new Date(r.created_at).toLocaleDateString()}</span>,
+    },
+    {
+      key: 'status' as const,
+      header: 'Status / Actions',
+      render: (r: StockTransaction) => {
+        const isRequester = user && (user.username === r.requested_by || user.email === r.requested_by)
+
+        return (
+          <div className="flex items-center gap-2">
+            <StockStatusBadge status={r.status} />
+            <IconButton onClick={() => setViewing(r)} title="View">
+              <Eye className="w-4 h-4" />
+            </IconButton>
+            {r.status === 'pending' && isRequester && (
+              <IconButton
+                onClick={async () => {
+                  if (confirm('Cancel this request?')) {
+                    await updateStockTransaction(r.id, { status: 'cancelled' })
+                    await loadData()
+                  }
+                }}
+                title="Cancel Request"
+                variant="danger"
+              >
+                <X className="w-4 h-4" />
+              </IconButton>
+            )}
+            {r.status === 'pending' && (
+              <IconButton onClick={() => { setEditing(r); setShowModal(true) }} title="Edit">
+                <Pencil className="w-4 h-4" />
+              </IconButton>
+            )}
+            <IconButton onClick={() => setDeleting(r)} title="Delete" variant="danger">
+              <Trash2 className="w-4 h-4" />
+            </IconButton>
+          </div>
+        )
+      },
+    },
+  ]
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="w-6 h-6 animate-spin text-muted" />
+        <span className="ml-2 text-muted text-sm">Loading stock requests…</span>
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      <StatsRow>
+        <StatCard label="Total Requests" value={counts.total} color="default" />
+        <StatCard label="Pending" value={counts.pending} color="warning" />
+        <StatCard label="Approved" value={counts.approved} color="success" />
+        <StatCard label="Rejected" value={counts.rejected} color="danger" />
+        <StatCard label="Cancelled" value={counts.cancelled} color="default" />
+      </StatsRow>
+
+      <div className="flex gap-1 p-1 bg-background rounded-lg mb-4 w-fit">
+        {REQ_TAB_FILTERS.map((tab) => (
+          <button
+            key={tab}
+            className={cn(
+              'px-4 py-2 text-sm font-medium rounded-md transition-colors capitalize',
+              activeTab === tab ? 'bg-surface text-foreground shadow-sm' : 'text-muted hover:text-foreground'
+            )}
+            onClick={() => setActiveTab(tab)}
+          >
+            {tab}
+            <span className={cn('ml-1.5 px-1.5 py-0.5 text-xs rounded-full', activeTab === tab ? 'bg-blue-50 text-blue-600' : 'bg-background text-muted')}>
+              {tab === 'All' ? records.length : records.filter((r) => r.status === tab).length}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      <ActionsBar>
+        <PrimaryButton onClick={() => { setEditing(null); setShowModal(true) }}>
+          <Plus className="w-4 h-4" /> New Request
+        </PrimaryButton>
+      </ActionsBar>
+
+      <DataTable
+        data={filtered}
+        columns={columns}
+        emptyMessage="No stock requests found."
+        searchValue={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search by item, requester, purpose..."
+        title="Stock Requests"
+        titleIcon={<PackagePlus className="w-5 h-5" />}
+        keyField="id"
+      />
+
+      {showModal && (
+        <StockTransactionModal
+          type="request"
+          editing={editing}
+          deliveryItems={deliveryItems}
+          onSubmit={handleSubmit}
+          onClose={() => { setShowModal(false); setEditing(null) }}
+        />
+      )}
+      {deleting && (
+        <StockDeleteModal
+          record={deleting}
+          onConfirm={async () => { await handleDelete(deleting.id); setDeleting(null) }}
+          onClose={() => setDeleting(null)}
+        />
+      )}
+      {viewing && (
+        <StockViewModal
+          record={viewing}
+          deliveryItems={deliveryItems}
+          onClose={() => setViewing(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+// ─── Stock Return App ─────────────────────────────────────────────────────
+
+const StockReturnApp = () => {
+  const { user } = useAuthStore()
+  const [records, setRecords] = useState<StockTransaction[]>([])
+  const [deliveryItems, setDeliveryItems] = useState<DeliveryItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const [showModal, setShowModal] = useState(false)
+  const [editing, setEditing] = useState<StockTransaction | null>(null)
+  const [deleting, setDeleting] = useState<StockTransaction | null>(null)
+  const [viewing, setViewing] = useState<StockTransaction | null>(null)
+  const [search, setSearch] = useState('')
+
+  const RET_TAB_FILTERS = ['All', 'pending', 'received', 'rejected', 'cancelled'] as const
+  type RetTabFilter = (typeof RET_TAB_FILTERS)[number]
+  const [activeTab, setActiveTab] = useState<RetTabFilter>('All')
+
+  const loadData = useCallback(async () => {
+    setLoading(true)
+    try {
+      const [txns, items] = await Promise.all([
+        fetchStockTransactions('return'),
+        fetchDeliveryItems(),
+      ])
+      setRecords(txns)
+      setDeliveryItems(items)
+    } catch (err) {
+      console.error('Error loading stock returns:', err)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { loadData() }, [loadData])
+
+  const handleSubmit = async (values: StockFormValues, id?: string) => {
+    if (id) {
+      await updateStockTransaction(id, {
+        delivery_item_id: values.delivery_item_id,
+        unit_id: values.unit_id,
+        quantity: parseFloat(values.quantity) || 0,
+        reason: values.reason || null,
+        requested_by: values.requested_by,
+        notes: values.notes || null,
+      })
+    } else {
+      await createStockTransaction({
+        type: 'return',
+        delivery_item_id: values.delivery_item_id,
+        unit_id: values.unit_id,
+        quantity: parseFloat(values.quantity) || 0,
+        reason: values.reason || null,
+        requested_by: values.requested_by,
+        notes: values.notes || null,
+        status: 'pending',
+      })
+    }
+    await loadData()
+  }
+
+  const handleDelete = async (id: string) => {
+    await deleteStockTransactionApi(id)
+    await loadData()
+  }
+
+  const itemMap = useMemo(() => {
+    const map = new Map<string, DeliveryItem>()
+    deliveryItems.forEach((d) => map.set(d.id, d))
+    return map
+  }, [deliveryItems])
+
+  const filtered = useMemo(() => {
+    let list = records
+    if (activeTab !== 'All') list = list.filter((r) => r.status === activeTab)
+    if (search.trim()) {
+      const q = search.toLowerCase()
+      list = list.filter((r) =>
+        r.requested_by.toLowerCase().includes(q) ||
+        (r.reason ?? '').toLowerCase().includes(q) ||
+        (r.notes ?? '').toLowerCase().includes(q) ||
+        (itemMap.get(r.delivery_item_id)?.description ?? '').toLowerCase().includes(q)
+      )
+    }
+    return list
+  }, [records, activeTab, search, itemMap])
+
+  const counts = useMemo(() => ({
+    total: records.length,
+    pending: records.filter((r) => r.status === 'pending').length,
+    received: records.filter((r) => r.status === 'received').length,
+    rejected: records.filter((r) => r.status === 'rejected').length,
+    cancelled: records.filter((r) => r.status === 'cancelled').length,
+  }), [records])
+
+  const columns = [
+    {
+      key: 'delivery_item_id' as const,
+      header: 'Item',
+      render: (r: StockTransaction) => {
+        const item = itemMap.get(r.delivery_item_id)
+        return <span className="text-sm font-medium text-foreground">{item?.description ?? r.delivery_item_id.slice(0, 8)}</span>
+      },
+    },
+    {
+      key: 'quantity' as const,
+      header: 'Qty',
+      render: (r: StockTransaction) => <span className="text-sm font-semibold">{r.quantity}</span>,
+    },
+    {
+      key: 'reason' as const,
+      header: 'Reason',
+      render: (r: StockTransaction) => (
+        <span className="text-sm text-muted max-w-[160px] truncate block" title={r.reason ?? ''}>{r.reason || '—'}</span>
+      ),
+    },
+    {
+      key: 'requested_by' as const,
+      header: 'Returned By',
+      render: (r: StockTransaction) => <span className="text-sm text-muted">{r.requested_by}</span>,
+    },
+    {
+      key: 'reviewed_by' as const,
+      header: 'Received By',
+      render: (r: StockTransaction) => <span className="text-sm text-muted">{r.reviewed_by || '—'}</span>,
+    },
+    {
+      key: 'created_at' as const,
+      header: 'Date',
+      render: (r: StockTransaction) => <span className="text-sm">{new Date(r.created_at).toLocaleDateString()}</span>,
+    },
+    {
+      key: 'status' as const,
+      header: 'Status / Actions',
+      render: (r: StockTransaction) => {
+        const isRequester = user && (user.username === r.requested_by || user.email === r.requested_by)
+
+        return (
+          <div className="flex items-center gap-2">
+            <StockStatusBadge status={r.status} />
+            <IconButton onClick={() => setViewing(r)} title="View">
+              <Eye className="w-4 h-4" />
+            </IconButton>
+            {r.status === 'pending' && isRequester && (
+              <IconButton
+                onClick={async () => {
+                  if (confirm('Cancel this return?')) {
+                    await updateStockTransaction(r.id, { status: 'cancelled' })
+                    await loadData()
+                  }
+                }}
+                title="Cancel Return"
+                variant="danger"
+              >
+                <X className="w-4 h-4" />
+              </IconButton>
+            )}
+            {r.status === 'pending' && (
+              <IconButton onClick={() => { setEditing(r); setShowModal(true) }} title="Edit">
+                <Pencil className="w-4 h-4" />
+              </IconButton>
+            )}
+            <IconButton onClick={() => setDeleting(r)} title="Delete" variant="danger">
+              <Trash2 className="w-4 h-4" />
+            </IconButton>
+          </div>
+        )
+      },
+    },
+  ]
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="w-6 h-6 animate-spin text-muted" />
+        <span className="ml-2 text-muted text-sm">Loading stock returns…</span>
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      <StatsRow>
+        <StatCard label="Total Returns" value={counts.total} color="default" />
+        <StatCard label="Pending" value={counts.pending} color="warning" />
+        <StatCard label="Received" value={counts.received} color="success" />
+        <StatCard label="Rejected" value={counts.rejected} color="danger" />
+        <StatCard label="Cancelled" value={counts.cancelled} color="default" />
+      </StatsRow>
+
+      <div className="flex gap-1 p-1 bg-background rounded-lg mb-4 w-fit">
+        {RET_TAB_FILTERS.map((tab) => (
+          <button
+            key={tab}
+            className={cn(
+              'px-4 py-2 text-sm font-medium rounded-md transition-colors capitalize',
+              activeTab === tab ? 'bg-surface text-foreground shadow-sm' : 'text-muted hover:text-foreground'
+            )}
+            onClick={() => setActiveTab(tab)}
+          >
+            {tab}
+            <span className={cn('ml-1.5 px-1.5 py-0.5 text-xs rounded-full', activeTab === tab ? 'bg-orange-50 text-orange-600' : 'bg-background text-muted')}>
+              {tab === 'All' ? records.length : records.filter((r) => r.status === tab).length}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      <ActionsBar>
+        <PrimaryButton onClick={() => { setEditing(null); setShowModal(true) }}>
+          <Plus className="w-4 h-4" /> New Return
+        </PrimaryButton>
+      </ActionsBar>
+
+      <DataTable
+        data={filtered}
+        columns={columns}
+        emptyMessage="No stock returns found."
+        searchValue={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search by item, returner, reason..."
+        title="Stock Returns"
+        titleIcon={<Undo2 className="w-5 h-5" />}
+        keyField="id"
+      />
+
+      {showModal && (
+        <StockTransactionModal
+          type="return"
+          editing={editing}
+          deliveryItems={deliveryItems}
+          onSubmit={handleSubmit}
+          onClose={() => { setShowModal(false); setEditing(null) }}
+        />
+      )}
+      {deleting && (
+        <StockDeleteModal
+          record={deleting}
+          onConfirm={async () => { await handleDelete(deleting.id); setDeleting(null) }}
+          onClose={() => setDeleting(null)}
+        />
+      )}
+      {viewing && (
+        <StockViewModal
+          record={viewing}
+          deliveryItems={deliveryItems}
+          onClose={() => setViewing(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+// ════════════════════════════════════════════════════════════════════════════
 // ─── PAGE EXPORT (Tabbed) ─────────────────────────────────────────────────
 // ════════════════════════════════════════════════════════════════════════════
 
-type PageTab = 'feeding' | 'vitamins'
+type PageTab = 'feeding' | 'vitamins' | 'request' | 'return'
 
 const PAGE_TABS: { key: PageTab; label: string; icon: ReactNode }[] = [
   { key: 'feeding', label: 'Feeding', icon: <UtensilsCrossed className="w-4 h-4" /> },
   { key: 'vitamins', label: 'Vitamins & Injections', icon: <Syringe className="w-4 h-4" /> },
+  { key: 'request', label: 'Stock Request', icon: <PackagePlus className="w-4 h-4" /> },
+  { key: 'return', label: 'Stock Return', icon: <Undo2 className="w-4 h-4" /> },
 ]
+
+const PAGE_HEADER_MAP: Record<PageTab, { title: string; subtitle: string; icon: ReactNode }> = {
+  feeding: {
+    title: 'Feeding Management',
+    subtitle: 'Track daily feed logs for all animals — what, how much, and who fed them.',
+    icon: <UtensilsCrossed className="w-6 h-6" />,
+  },
+  vitamins: {
+    title: 'Vitamins & Injections',
+    subtitle: 'Track all vitamins, injections, and supplements given to animals.',
+    icon: <Syringe className="w-6 h-6" />,
+  },
+  request: {
+    title: 'Stock Request',
+    subtitle: 'Request items from the inventory for feeding or vitamins use.',
+    icon: <PackagePlus className="w-6 h-6" />,
+  },
+  return: {
+    title: 'Stock Return',
+    subtitle: 'Return unused items back to the inventory.',
+    icon: <Undo2 className="w-6 h-6" />,
+  },
+}
 
 export default function Storage() {
   const [activeTab, setActiveTab] = useState<PageTab>('feeding')
+  const header = PAGE_HEADER_MAP[activeTab]
 
   return (
     <FeedingProvider>
       <VitaminsProvider>
         <PageHeader
-          title={activeTab === 'feeding' ? 'Feeding Management' : 'Vitamins & Injections'}
-          subtitle={
-            activeTab === 'feeding'
-              ? 'Track daily feed logs for all animals — what, how much, and who fed them.'
-              : 'Track all vitamins, injections, and supplements given to animals.'
-          }
-          icon={activeTab === 'feeding' ? <UtensilsCrossed className="w-6 h-6" /> : <Syringe className="w-6 h-6" />}
+          title={header.title}
+          subtitle={header.subtitle}
+          icon={header.icon}
         />
 
         {/* Page-level tabs */}
@@ -1609,7 +2491,10 @@ export default function Storage() {
           </div>
         </div>
 
-        {activeTab === 'feeding' ? <FeedingApp /> : <VitaminsApp />}
+        {activeTab === 'feeding' && <FeedingApp />}
+        {activeTab === 'vitamins' && <VitaminsApp />}
+        {activeTab === 'request' && <StockRequestApp />}
+        {activeTab === 'return' && <StockReturnApp />}
       </VitaminsProvider>
     </FeedingProvider>
   )

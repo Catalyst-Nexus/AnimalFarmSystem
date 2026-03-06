@@ -1,5 +1,6 @@
 import { supabase, isSupabaseConfigured } from "./supabase";
 
+
 // Helper to query tables in the module3 schema using the shared auth session
 const module3 = () => supabase!.schema("module3");
 // Helper to query tables in the module4 schema (feeding/ration)
