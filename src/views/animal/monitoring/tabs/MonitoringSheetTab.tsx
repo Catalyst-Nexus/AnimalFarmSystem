@@ -218,11 +218,6 @@ export const MonitoringSheetTab = () => {
         }
       }
 
-      if (!macAddress) {
-        setBleError('Could not extract MAC address from device name. Please ensure ESP32 firmware includes MAC in device name.')
-        setBleStatus('disconnected')
-        return
-      }
 
       // Register the device
       const { success, error: regError } = await registerDevice(
