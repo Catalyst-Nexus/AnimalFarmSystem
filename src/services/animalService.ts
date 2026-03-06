@@ -401,6 +401,45 @@ export const animalService = {
       return `TAG-${new Date().getFullYear()}-001`
     }
   },
+
+  /**
+   * Fetch animals with their tag info (tag_code from tag_animals_colors)
+   */
+  async getAnimalsWithTag(): Promise<(Animal & { tag_code: number | null; cage_label: string | null })[]> {
+    if (!isSupabaseConfigured()) return []
+    try {
+      const { data, error } = await supabase!
+        .schema('module2')
+        .from('animals')
+        .select('*, tag_animals_colors(tag_code), cages(cage_label)')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+      if (error) { console.error('Error fetching animals with tag:', error); return [] }
+      return (data || []).map((a: any) => ({
+        ...a,
+        tag_code: a.tag_animals_colors?.tag_code ?? null,
+        cage_label: a.cages?.cage_label ?? null,
+      }))
+    } catch (err) { console.error('Error fetching animals with tag:', err); return [] }
+  },
+
+  /**
+   * Fetch animals by cage ID
+   */
+  async getAnimalsByCage(cageId: string): Promise<Animal[]> {
+    if (!isSupabaseConfigured()) return []
+    try {
+      const { data, error } = await supabase!
+        .schema('module2')
+        .from('animals')
+        .select('*')
+        .eq('current_cage_id', cageId)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+      if (error) { console.error('Error fetching animals by cage:', error); return [] }
+      return data || []
+    } catch (err) { console.error('Error fetching animals by cage:', err); return [] }
+  },
 }
 
 // ─── Cage Operations ──────────────────────────────────────────────────────────

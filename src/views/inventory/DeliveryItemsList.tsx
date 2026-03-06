@@ -1,23 +1,23 @@
 import { useState, useMemo } from "react";
 import { Pencil, Trash2, Search } from "lucide-react";
 import { IconButton } from "@/components/ui";
-import type { Item } from "@/services/inventoryService";
+import type { DeliveryItem } from "@/services/inventoryService";
 
-interface ItemsListProps {
-  items: Item[];
+interface DeliveryItemsListProps {
+  items: DeliveryItem[];
   search: string;
   onSearchChange: (val: string) => void;
-  onEdit: (item: Item) => void;
+  onEdit: (item: DeliveryItem) => void;
   onDelete: (id: string) => void;
 }
 
-export default function ItemsList({
+export default function DeliveryItemsList({
   items,
   search,
   onSearchChange,
   onEdit,
   onDelete,
-}: ItemsListProps) {
+}: DeliveryItemsListProps) {
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
   const filtered = useMemo(() => {
@@ -26,17 +26,25 @@ export default function ItemsList({
       const q = search.toLowerCase();
       result = result.filter(
         (i) =>
-          i.item_name.toLowerCase().includes(q) ||
-          i.category?.toLowerCase().includes(q) ||
-          i.supplier?.toLowerCase().includes(q),
+          i.description?.toLowerCase().includes(q) ||
+          i.category?.name?.toLowerCase().includes(q) ||
+          i.brand?.name?.toLowerCase().includes(q) ||
+          i.delivery_receipt?.toLowerCase().includes(q),
       );
     }
     result.sort((a, b) => {
-      const cmp = a.item_name.localeCompare(b.item_name);
-      return sortDir === "asc" ? cmp : -cmp;
+      const dateA = new Date(a.created_at).getTime();
+      const dateB = new Date(b.created_at).getTime();
+      return sortDir === "asc" ? dateA - dateB : dateB - dateA;
     });
     return result;
   }, [items, search, sortDir]);
+
+  const fmt = (n: number) =>
+    n.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
 
   return (
     <div className="bg-surface border border-border rounded-2xl p-6">
@@ -46,7 +54,7 @@ export default function ItemsList({
         <input
           type="text"
           className="w-full pl-10 pr-4 py-2 border border-border rounded-lg text-sm bg-background text-foreground placeholder:text-muted focus:outline-none focus:border-success"
-          placeholder="Search items..."
+          placeholder="Search delivery items..."
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
         />
@@ -57,28 +65,40 @@ export default function ItemsList({
         <table className="w-full text-sm">
           <thead>
             <tr>
+              <th className="bg-background text-muted font-semibold text-left px-4 py-3 border-b border-border">
+                Category
+              </th>
+              <th className="bg-background text-muted font-semibold text-left px-4 py-3 border-b border-border">
+                Description
+              </th>
+              <th className="bg-background text-muted font-semibold text-left px-4 py-3 border-b border-border">
+                Brand
+              </th>
+              <th className="bg-background text-muted font-semibold text-left px-4 py-3 border-b border-border">
+                Receipt
+              </th>
+              <th className="bg-background text-muted font-semibold text-right px-4 py-3 border-b border-border">
+                Qty (Delivery)
+              </th>
+              <th className="bg-background text-muted font-semibold text-right px-4 py-3 border-b border-border">
+                Unit Price
+              </th>
+              <th className="bg-background text-muted font-semibold text-right px-4 py-3 border-b border-border">
+                Total Price
+              </th>
+              <th className="bg-background text-muted font-semibold text-right px-4 py-3 border-b border-border">
+                Qty (Issuance)
+              </th>
+              <th className="bg-background text-muted font-semibold text-left px-4 py-3 border-b border-border">
+                Status
+              </th>
               <th
                 className="bg-background text-muted font-semibold text-left px-4 py-3 border-b border-border cursor-pointer select-none"
                 onClick={() =>
                   setSortDir((d) => (d === "asc" ? "desc" : "asc"))
                 }
               >
-                Item Name {sortDir === "asc" ? "↑" : "↓"}
-              </th>
-              <th className="bg-background text-muted font-semibold text-left px-4 py-3 border-b border-border">
-                Category
-              </th>
-              <th className="bg-background text-muted font-semibold text-left px-4 py-3 border-b border-border">
-                Supplier
-              </th>
-              <th className="bg-background text-muted font-semibold text-left px-4 py-3 border-b border-border">
-                Full KG / Sack
-              </th>
-              <th className="bg-background text-muted font-semibold text-left px-4 py-3 border-b border-border">
-                Unit
-              </th>
-              <th className="bg-background text-muted font-semibold text-left px-4 py-3 border-b border-border">
-                Created
+                Date {sortDir === "asc" ? "↑" : "↓"}
               </th>
               <th className="bg-background text-muted font-semibold text-right px-4 py-3 border-b border-border">
                 Actions
@@ -88,8 +108,8 @@ export default function ItemsList({
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={7} className="text-center text-muted py-8">
-                  No items found.
+                <td colSpan={11} className="text-center text-muted py-8">
+                  No delivery items found.
                 </td>
               </tr>
             ) : (
@@ -98,27 +118,50 @@ export default function ItemsList({
                   key={item.id}
                   className="hover:bg-background transition-colors"
                 >
-                  <td className="px-4 py-3 border-b border-border/50 font-medium text-foreground">
-                    {item.item_name}
-                    {item.description && (
-                      <p className="text-xs text-muted mt-0.5 truncate max-w-[200px]">
-                        {item.description}
-                      </p>
-                    )}
-                  </td>
                   <td className="px-4 py-3 border-b border-border/50 text-foreground">
                     <span className="inline-block px-2 py-0.5 text-xs rounded-full bg-primary/10 text-primary">
-                      {item.category || "—"}
+                      {item.category?.name || "—"}
                     </span>
                   </td>
-                  <td className="px-4 py-3 border-b border-border/50 text-foreground">
-                    {item.supplier || "—"}
+                  <td className="px-4 py-3 border-b border-border/50 font-medium text-foreground max-w-[200px] truncate">
+                    {item.description || "—"}
                   </td>
                   <td className="px-4 py-3 border-b border-border/50 text-foreground">
-                    {item.full_kg} {item.unit || "kg"}
+                    {item.brand?.name || "—"}
                   </td>
                   <td className="px-4 py-3 border-b border-border/50 text-muted">
-                    {item.unit || "kg"}
+                    {item.delivery_receipt || "—"}
+                  </td>
+                  <td className="px-4 py-3 border-b border-border/50 text-foreground text-right">
+                    {fmt(item.quantity_delivery)}{" "}
+                    <span className="text-muted text-xs">
+                      {item.unit_delivery?.name || ""}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 border-b border-border/50 text-foreground text-right">
+                    ₱{fmt(item.unit_price_delivery)}
+                  </td>
+                  <td className="px-4 py-3 border-b border-border/50 text-foreground text-right font-semibold">
+                    ₱{fmt(item.total_price)}
+                  </td>
+                  <td className="px-4 py-3 border-b border-border/50 text-foreground text-right">
+                    {fmt(item.quantity_issuance)}{" "}
+                    <span className="text-muted text-xs">
+                      {item.unit_issuance?.name || ""}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 border-b border-border/50">
+                    <span
+                      className={`inline-block px-2 py-0.5 text-xs rounded-full font-medium ${
+                        item.status === "active"
+                          ? "bg-success/10 text-success"
+                          : item.status === "expired"
+                            ? "bg-danger/10 text-danger"
+                            : "bg-warning/10 text-warning"
+                      }`}
+                    >
+                      {item.status}
+                    </span>
                   </td>
                   <td className="px-4 py-3 border-b border-border/50 text-muted">
                     {new Date(item.created_at).toLocaleDateString("en-US", {

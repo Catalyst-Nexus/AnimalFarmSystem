@@ -3,219 +3,201 @@ import { getUserFacilityIds, applyFacilityFilter } from './facilityFilterService
 
 // Helper to query tables in the module3 schema using the shared auth session
 const module3 = () => supabase!.schema("module3");
+// Helper to query tables in the module4 schema (feeding/ration)
+const module4 = () => supabase!.schema("module4");
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-export const ITEM_CATEGORIES = [
-  "Feeds",
-  "Vitamins",
-  "Supplements",
-  "Medicine",
-  "Equipment",
-  "Other",
-] as const;
+export interface Category {
+  id: string;
+  name: string;
+}
 
-export interface Item {
+export interface Brand {
+  id: string;
+  name: string;
+}
+
+export interface Unit {
+  id: string;
+  name: string;
+}
+
+export interface DeliveryItem {
   id: string;
   created_at: string;
-  item_name: string;
-  full_kg: number;
-  category: string | null;
-  supplier: string | null;
+  category_id: string;
   description: string | null;
-  unit: string | null;
-}
-
-export interface Warehouse {
-  id: string;
-  created_at: string;
-  item_id: string;
-  sacks: number;
-  cost: number;
-  batch_no: string | null;
+  brand_id: string | null;
   expiry_date: string | null;
-  notes: string | null;
-  items?: Item;
+  delivery_receipt: string | null;
+  unit_delivery_id: string;
+  unit_issuance_id: string;
+  unit_price_delivery: number;
+  quantity_delivery: number;
+  total_price: number; // generated column
+  quantity_issuance: number; // generated column
+  unit_price_issuance: number; // generated column
+  unit_issuance_rate: number;
+  status: string;
+  // joined lookups
+  category?: Category;
+  brand?: Brand;
+  unit_delivery?: Unit;
+  unit_issuance?: Unit;
 }
 
-export interface Storage {
-  id: string;
-  created_at: string;
-  item_id: string;
-  rem_kg: number;
-  is_open: boolean;
-  location: string | null;
-  items?: Item;
-}
+// ─── Lookup: Category ────────────────────────────────────────────────────────
 
-export interface Log {
-  id: string;
-  created_at: string;
-  storage_id: string;
-  used_kg: number;
-  spend: number;
-  purpose: string | null;
-  logged_by: string | null;
-  storage?: Storage & { items?: Item };
-}
-
-// ─── Items CRUD ──────────────────────────────────────────────────────────────
-
-/**
- * Fetch items filtered by user's facilities
- * NOTE: Items might be shared globally across facilities, or facility-specific
- * depending on your schema. If items table has user_facility_id, filtering is applied.
- * @param userId - The user ID to filter by their assigned facilities
- */
-export const fetchItems = async (userId: string): Promise<Item[]> => {
-  if (!isSupabaseConfigured() ||!supabase) return [];
-  
-  // Get user's facility IDs
-  const facilityIds = await getUserFacilityIds(userId)
-  
-  let query = module3()
-    .from("items")
-    .select("*")
-
-  // Apply facility filter if items table has user_facility_id column
-  query = applyFacilityFilter(query, facilityIds)
-
-  const { data, error } = await query.order("created_at", { ascending: false });
-  
-  if (error) {
-    console.error("fetchItems error:", error);
-    return [];
-  }
-  return data || [];
-};
-
-export const createItem = async (fields: {
-  item_name: string;
-  full_kg: number;
-  user_facility_id: string; // REQUIRED: Facility assignment
-  category?: string;
-  supplier?: string;
-  description?: string;
-  unit?: string;
-}) => {
-  if (!isSupabaseConfigured() || !supabase)
-    return { success: false, error: "Supabase not configured" };
-  const { error } = await module3().from("items").insert(fields);
-  if (error) return { success: false, error: error.message };
-  return { success: true };
-};
-
-export const updateItem = async (
-  id: string,
-  userId: string,
-  fields: {
-    item_name: string;
-    full_kg: number;
-    category?: string;
-    supplier?: string;
-    description?: string;
-    unit?: string;
-    user_facility_id?: string;
-  },
-) => {
-  if (!isSupabaseConfigured() || !supabase)
-    return { success: false, error: "Supabase not configured" };
-  
-  // Get user's facility IDs to verify access
-  const facilityIds = await getUserFacilityIds(userId)
-
-  let query = module3().from("items").update(fields).eq("id", id);
-  
-  // Apply facility filter to ensure user can only update their facility's items
-  query = applyFacilityFilter(query, facilityIds)
-
-  const { error } = await query;
-  if (error) return { success: false, error: error.message };
-  return { success: true };
-};
-
-export const deleteItem = async (id: string, userId: string) => {
-  if (!isSupabaseConfigured() || !supabase)
-    return { success: false, error: "Supabase not configured" };
-  
-  // Get user's facility IDs to verify access
-  const facilityIds = await getUserFacilityIds(userId)
-
-  let query = module3().from("items").delete().eq("id", id);
-  
-  // Apply facility filter to ensure user can only delete their facility's items
-  query = applyFacilityFilter(query, facilityIds)
-
-  const { error } = await query;
-  if (error) return { success: false, error: error.message };
-  return { success: true };
-};
-
-// ─── Warehouse CRUD ──────────────────────────────────────────────────────────
-
-/**
- * Fetch warehouse entries filtered by user's facilities
- * @param userId - The user ID to filter by their assigned facilities
- */
-export const fetchWarehouse = async (userId: string): Promise<Warehouse[]> => {
+export const fetchCategories = async (): Promise<Category[]> => {
   if (!isSupabaseConfigured() || !supabase) return [];
-  
-  // Get user's facility IDs
-  const facilityIds = await getUserFacilityIds(userId)
-
-  let query = module3()
-    .from("warehouse")
-    .select("*, items(*)")
-
-  // Apply facility filter
-  query = applyFacilityFilter(query, facilityIds)
-
-  const { data, error } = await query.order("created_at", { ascending: false });
-  
+  const { data, error } = await module3()
+    .from("category")
+    .select("*")
+    .order("name");
   if (error) {
-    console.error("fetchWarehouse error:", error);
+    console.error("fetchCategories error:", error);
     return [];
   }
   return data || [];
 };
 
-export const createWarehouseEntry = async (fields: {
-  item_id: string;
-  sacks: number;
-  cost: number;
-  user_facility_id: string; // REQUIRED: Facility assignment
-  batch_no?: string;
-  expiry_date?: string;
-  notes?: string;
-}) => {
+export const createCategory = async (name: string) => {
   if (!isSupabaseConfigured() || !supabase)
     return { success: false, error: "Supabase not configured" };
-  const { error } = await module3().from("warehouse").insert(fields);
+  const { error } = await module3().from("category").insert({ name });
   if (error) return { success: false, error: error.message };
   return { success: true };
 };
 
-export const updateWarehouseEntry = async (
+export const deleteCategory = async (id: string) => {
+  if (!isSupabaseConfigured() || !supabase)
+    return { success: false, error: "Supabase not configured" };
+  const { error } = await module3().from("category").delete().eq("id", id);
+  if (error) return { success: false, error: error.message };
+  return { success: true };
+};
+
+// ─── Lookup: Brand ───────────────────────────────────────────────────────────
+
+export const fetchBrands = async (): Promise<Brand[]> => {
+  if (!isSupabaseConfigured() || !supabase) return [];
+  const { data, error } = await module3()
+    .from("brand")
+    .select("*")
+    .order("name");
+  if (error) {
+    console.error("fetchBrands error:", error);
+    return [];
+  }
+  return data || [];
+};
+
+export const createBrand = async (name: string) => {
+  if (!isSupabaseConfigured() || !supabase)
+    return { success: false, error: "Supabase not configured" };
+  const { error } = await module3().from("brand").insert({ name });
+  if (error) return { success: false, error: error.message };
+  return { success: true };
+};
+
+export const deleteBrand = async (id: string) => {
+  if (!isSupabaseConfigured() || !supabase)
+    return { success: false, error: "Supabase not configured" };
+  const { error } = await module3().from("brand").delete().eq("id", id);
+  if (error) return { success: false, error: error.message };
+  return { success: true };
+};
+
+// ─── Lookup: Unit ────────────────────────────────────────────────────────────
+
+export const fetchUnits = async (): Promise<Unit[]> => {
+  if (!isSupabaseConfigured() || !supabase) return [];
+  const { data, error } = await module3()
+    .from("unit")
+    .select("*")
+    .order("name");
+  if (error) {
+    console.error("fetchUnits error:", error);
+    return [];
+  }
+  return data || [];
+};
+
+export const createUnit = async (name: string) => {
+  if (!isSupabaseConfigured() || !supabase)
+    return { success: false, error: "Supabase not configured" };
+  const { error } = await module3().from("unit").insert({ name });
+  if (error) return { success: false, error: error.message };
+  return { success: true };
+};
+
+export const deleteUnit = async (id: string) => {
+  if (!isSupabaseConfigured() || !supabase)
+    return { success: false, error: "Supabase not configured" };
+  const { error } = await module3().from("unit").delete().eq("id", id);
+  if (error) return { success: false, error: error.message };
+  return { success: true };
+};
+
+// ─── Delivery Items CRUD ─────────────────────────────────────────────────────
+
+export const fetchDeliveryItems = async (): Promise<DeliveryItem[]> => {
+  if (!isSupabaseConfigured() || !supabase) return [];
+  const { data, error } = await module3()
+    .from("delivery_items")
+    .select(
+      "*, category(*), brand(*), unit_delivery:unit!unit_delivery_id(*), unit_issuance:unit!unit_issuance_id(*)",
+    )
+    .order("created_at", { ascending: false });
+  if (error) {
+    console.error("fetchDeliveryItems error:", error);
+    return [];
+  }
+  return data || [];
+};
+
+export const createDeliveryItem = async (fields: {
+  category_id: string;
+  description?: string;
+  brand_id?: string;
+  expiry_date?: string;
+  delivery_receipt?: string;
+  unit_delivery_id: string;
+  unit_issuance_id: string;
+  unit_price_delivery: number;
+  quantity_delivery: number;
+  unit_issuance_rate: number;
+  status?: string;
+}) => {
+  if (!isSupabaseConfigured() || !supabase)
+    return { success: false, error: "Supabase not configured" };
+  const { error } = await module3().from("delivery_items").insert(fields);
+  if (error) return { success: false, error: error.message };
+  return { success: true };
+};
+
+export const updateDeliveryItem = async (
   id: string,
   userId: string,
   fields: {
-    item_id: string;
-    sacks: number;
-    cost: number;
-    batch_no?: string;
-    expiry_date?: string;
-    notes?: string;
-    user_facility_id?: string;
+    category_id?: string;
+    description?: string;
+    brand_id?: string | null;
+    expiry_date?: string | null;
+    delivery_receipt?: string | null;
+    unit_delivery_id?: string;
+    unit_issuance_id?: string;
+    unit_price_delivery?: number;
+    quantity_delivery?: number;
+    unit_issuance_rate?: number;
+    status?: string;
   },
 ) => {
   if (!isSupabaseConfigured() || !supabase)
     return { success: false, error: "Supabase not configured" };
-  
-  // Get user's facility IDs to verify access
-  const facilityIds = await getUserFacilityIds(userId)
-
-  let query = module3()
-    .from("warehouse")
+  const { error } = await module3()
+    .from("delivery_items")
     .update(fields)
     .eq("id", id);
 
@@ -227,214 +209,210 @@ export const updateWarehouseEntry = async (
   return { success: true };
 };
 
-export const deleteWarehouseEntry = async (id: string, userId: string) => {
+export const deleteDeliveryItem = async (id: string) => {
   if (!isSupabaseConfigured() || !supabase)
     return { success: false, error: "Supabase not configured" };
-  
-  // Get user's facility IDs to verify access
-  const facilityIds = await getUserFacilityIds(userId)
-
-  let query = module3().from("warehouse").delete().eq("id", id);
-
-  // Apply facility filter to ensure user can only delete their facility's warehouse entries
-  query = applyFacilityFilter(query, facilityIds)
-
-  const { error } = await query;
+  const { error } = await module3()
+    .from("delivery_items")
+    .delete()
+    .eq("id", id);
   if (error) return { success: false, error: error.message };
   return { success: true };
 };
 
-// ─── Storage CRUD ────────────────────────────────────────────────────────────
+// ─── Stock Requests ──────────────────────────────────────────────────────────
 
-/**
- * Fetch storage entries filtered by user's facilities
- * @param userId - The user ID to filter by their assigned facilities
- */
-export const fetchStorage = async (userId: string): Promise<Storage[]> => {
+export interface StockRequest {
+  id: string;
+  created_at: string;
+  delivery_item_id: string;
+  requested_quantity: number;
+  requested_by: string;
+  purpose: string | null;
+  status: string;
+  reviewed_at: string | null;
+  notes: string | null;
+  // joined
+  delivery_item?: DeliveryItem;
+}
+
+export const fetchStockRequests = async (): Promise<StockRequest[]> => {
   if (!isSupabaseConfigured() || !supabase) return [];
-  
-  // Get user's facility IDs
-  const facilityIds = await getUserFacilityIds(userId)
-
-  let query = module3()
-    .from("storage")
-    .select("*, items(*)")
-
-  // Apply facility filter
-  query = applyFacilityFilter(query, facilityIds)
-
-  const { data, error } = await query.order("created_at", { ascending: false });
-  
+  const { data, error } = await module3()
+    .from("stock_request")
+    .select(
+      "*, delivery_item:delivery_items!delivery_item_id(*, category(*), brand(*), unit_delivery:unit!unit_delivery_id(*), unit_issuance:unit!unit_issuance_id(*))",
+    )
+    .order("created_at", { ascending: false });
   if (error) {
-    console.error("fetchStorage error:", error);
+    console.error("fetchStockRequests error:", error);
     return [];
   }
   return data || [];
 };
 
-export const createStorageEntry = async (fields: {
-  item_id: string;
-  rem_kg: number;
-  is_open: boolean;
-  user_facility_id: string; // REQUIRED: Facility assignment
-  location?: string;
+export const createStockRequest = async (fields: {
+  delivery_item_id: string;
+  requested_quantity: number;
+  requested_by: string;
+  purpose?: string;
+  notes?: string;
 }) => {
   if (!isSupabaseConfigured() || !supabase)
     return { success: false, error: "Supabase not configured" };
-  const { error } = await module3().from("storage").insert(fields);
+  const { error } = await module3().from("stock_request").insert(fields);
   if (error) return { success: false, error: error.message };
   return { success: true };
 };
 
-export const updateStorageEntry = async (
-  id: string,
-  userId: string,
-  fields: {
-    item_id: string;
-    rem_kg: number;
-    is_open: boolean;
-    location?: string;
-    user_facility_id?: string;
-  },
+export const approveStockRequest = async (
+  requestId: string,
+  deliveryItemId: string,
+  quantityToDeduct: number,
 ) => {
   if (!isSupabaseConfigured() || !supabase)
     return { success: false, error: "Supabase not configured" };
-  
-  // Get user's facility IDs to verify access
-  const facilityIds = await getUserFacilityIds(userId)
-
-  let query = module3().from("storage").update(fields).eq("id", id);
-
-  // Apply facility filter to ensure user can only update their facility's storage entries
-  query = applyFacilityFilter(query, facilityIds)
-
-  const { error } = await query;
-  if (error) return { success: false, error: error.message };
-  return { success: true };
-};
-
-export const deleteStorageEntry = async (id: string, userId: string) => {
-  if (!isSupabaseConfigured() || !supabase)
-    return { success: false, error: "Supabase not configured" };
-  
-  // Get user's facility IDs to verify access
-  const facilityIds = await getUserFacilityIds(userId)
-
-  let query = module3().from("storage").delete().eq("id", id);
-
-  // Apply facility filter to ensure user can only delete their facility's storage entries
-  query = applyFacilityFilter(query, facilityIds)
-
-  const { error } = await query;
-  if (error) return { success: false, error: error.message };
-  return { success: true };
-};
-
-// ─── Logs CRUD ───────────────────────────────────────────────────────────────
-
-/**
- * Fetch logs filtered by user's facilities
- * @param userId - The user ID to filter by their assigned facilities
- */
-export const fetchLogs = async (userId: string): Promise<Log[]> => {
-  if (!isSupabaseConfigured() || !supabase) return [];
-  
-  // Get user's facility IDs
-  const facilityIds = await getUserFacilityIds(userId)
-
-  let query = module3()
-    .from("logs")
-    .select("*, storage(*, items(*))")
-
-  // Apply facility filter
-  query = applyFacilityFilter(query, facilityIds)
-
-  const { data, error } = await query.order("created_at", { ascending: false });
-  
-  if (error) {
-    console.error("fetchLogs error:", error);
-    return [];
-  }
-  return data || [];
-};
-
-/**
- * Create a log entry and auto-deduct used_kg from the storage entry's rem_kg.
- * If rem_kg reaches 0, the storage sack is automatically marked as closed.
- * Respects facility filtering.
- */
-export const createLog = async (
-  userId: string,
-  fields: {
-    storage_id: string;
-    used_kg: number;
-    spend: number;
-    user_facility_id: string; // REQUIRED: Facility assignment
-    purpose?: string;
-    logged_by?: string;
-  }
-) => {
-  if (!isSupabaseConfigured() || !supabase)
-    return { success: false, error: "Supabase not configured" };
-
-  // Get user's facility IDs to verify access
-  const facilityIds = await getUserFacilityIds(userId)
-
-  // 1. Get current storage entry to validate remaining kg (with facility filter)
-  let storageQuery = module3()
-    .from("storage")
-    .select("rem_kg, is_open")
-    .eq("id", fields.storage_id)
-
-  storageQuery = applyFacilityFilter(storageQuery, facilityIds)
-
-  const { data: storage, error: fetchErr } = await storageQuery.single();
-  
-  if (fetchErr || !storage)
-    return { success: false, error: "Storage entry not found" };
-
-  const currentRemKg = Number(storage.rem_kg);
-  if (fields.used_kg > currentRemKg) {
+  const { data: item, error: fetchError } = await module3()
+    .from("delivery_items")
+    .select("quantity_delivery")
+    .eq("id", deliveryItemId)
+    .single();
+  if (fetchError || !item)
+    return { success: false, error: "Failed to fetch delivery item" };
+  const newQty = item.quantity_delivery - quantityToDeduct;
+  if (newQty < 0)
     return {
       success: false,
-      error: `Cannot use ${fields.used_kg} kg — only ${currentRemKg} kg remaining`,
+      error: `Insufficient stock. Available: ${item.quantity_delivery}`,
     };
-  }
-
-  // 2. Insert the log
-  const { error: logErr } = await module3().from("logs").insert(fields);
-  if (logErr) return { success: false, error: logErr.message };
-
-  // 3. Deduct used_kg from storage rem_kg
-  const newRemKg = Math.max(0, currentRemKg - fields.used_kg);
-  const updateFields: { rem_kg: number; is_open?: boolean } = {
-    rem_kg: newRemKg,
-  };
-  // Auto-close sack if fully consumed
-  if (newRemKg === 0) updateFields.is_open = false;
-
-  const { error: updateErr } = await module3()
-    .from("storage")
-    .update(updateFields)
-    .eq("id", fields.storage_id);
-  if (updateErr) console.error("Failed to update storage rem_kg:", updateErr);
-
+  const { error: reqError } = await module3()
+    .from("stock_request")
+    .update({ status: "approved", reviewed_at: new Date().toISOString() })
+    .eq("id", requestId);
+  if (reqError) return { success: false, error: reqError.message };
+  const { error: deductError } = await module3()
+    .from("delivery_items")
+    .update({ quantity_delivery: newQty })
+    .eq("id", deliveryItemId);
+  if (deductError) return { success: false, error: deductError.message };
   return { success: true };
 };
 
-export const deleteLog = async (id: string, userId: string) => {
+export const rejectStockRequest = async (requestId: string) => {
   if (!isSupabaseConfigured() || !supabase)
     return { success: false, error: "Supabase not configured" };
-  
-  // Get user's facility IDs to verify access
-  const facilityIds = await getUserFacilityIds(userId)
+  const { error } = await module3()
+    .from("stock_request")
+    .update({ status: "rejected", reviewed_at: new Date().toISOString() })
+    .eq("id", requestId);
+  if (error) return { success: false, error: error.message };
+  return { success: true };
+};
 
-  let query = module3().from("logs").delete().eq("id", id);
+export const deleteStockRequest = async (id: string) => {
+  if (!isSupabaseConfigured() || !supabase)
+    return { success: false, error: "Supabase not configured" };
+  const { error } = await module3().from("stock_request").delete().eq("id", id);
+  if (error) return { success: false, error: error.message };
+  return { success: true };
+};
 
-  // Apply facility filter to ensure user can only delete their facility's logs
-  query = applyFacilityFilter(query, facilityIds)
+// ─── Module4 Ration Requests (read-only from inventory side) ─────────────────
 
-  const { error } = await query;
+export interface RationRequest {
+  id: string;
+  created_at: string;
+  ration_type_id: string;
+  delivery_item_id: string;
+  unit_id: string;
+  meal_number: number | null;
+  administered_by: string;
+  notes: string | null;
+  quantity_used: number;
+  date_given: string;
+  status: string;
+  // JS-merged lookups
+  delivery_item?: DeliveryItem;
+  ration_type?: { id: string; name: string };
+  unit?: Unit;
+}
+
+export const fetchRationRequests = async (): Promise<RationRequest[]> => {
+  if (!isSupabaseConfigured() || !supabase) return [];
+  // Fetch from module4 and resolve lookups from module3 in JS
+  // (cross-schema PostgREST joins are not supported)
+  const [
+    { data: rations, error },
+    { data: rationTypes },
+    { data: deliveryItems },
+    { data: units },
+  ] = await Promise.all([
+    module4()
+      .from("ration")
+      .select("*")
+      .order("created_at", { ascending: false }),
+    module4().from("ration_type").select("*"),
+    module3()
+      .from("delivery_items")
+      .select(
+        "*, category(*), brand(*), unit_delivery:unit!unit_delivery_id(*), unit_issuance:unit!unit_issuance_id(*)",
+      ),
+    module3().from("unit").select("*"),
+  ]);
+  if (error) {
+    console.error("fetchRationRequests error:", error);
+    return [];
+  }
+  return (rations || []).map((r) => ({
+    ...r,
+    delivery_item: (deliveryItems || []).find(
+      (d) => d.id === r.delivery_item_id,
+    ),
+    ration_type: (rationTypes || []).find((t) => t.id === r.ration_type_id),
+    unit: (units || []).find((u) => u.id === r.unit_id),
+  }));
+};
+
+export const approveRationRequest = async (
+  rationId: string,
+  deliveryItemId: string,
+  quantityToDeduct: number,
+) => {
+  if (!isSupabaseConfigured() || !supabase)
+    return { success: false, error: "Supabase not configured" };
+  const { data: item, error: fetchError } = await module3()
+    .from("delivery_items")
+    .select("quantity_delivery")
+    .eq("id", deliveryItemId)
+    .single();
+  if (fetchError || !item)
+    return { success: false, error: "Failed to fetch delivery item" };
+  const newQty = item.quantity_delivery - quantityToDeduct;
+  if (newQty < 0)
+    return {
+      success: false,
+      error: `Insufficient stock. Available: ${item.quantity_delivery}`,
+    };
+  const { error: rationError } = await module4()
+    .from("ration")
+    .update({ status: "approved" })
+    .eq("id", rationId);
+  if (rationError) return { success: false, error: rationError.message };
+  const { error: deductError } = await module3()
+    .from("delivery_items")
+    .update({ quantity_delivery: newQty })
+    .eq("id", deliveryItemId);
+  if (deductError) return { success: false, error: deductError.message };
+  return { success: true };
+};
+
+export const rejectRationRequest = async (rationId: string) => {
+  if (!isSupabaseConfigured() || !supabase)
+    return { success: false, error: "Supabase not configured" };
+  const { error } = await module4()
+    .from("ration")
+    .update({ status: "rejected" })
+    .eq("id", rationId);
   if (error) return { success: false, error: error.message };
   return { success: true };
 };
