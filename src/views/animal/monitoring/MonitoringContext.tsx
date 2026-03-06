@@ -79,6 +79,8 @@ export const MonitoringProvider = ({ children }: { children: ReactNode }) => {
   /** Manually move a pig to a different cage */
   const movePig = async (pigId: string, cageId: string) => {
     try {
+      if (!user?.id) throw new Error('User not authenticated')
+      
       const targetCage = cages.find(c => c.id === cageId)
       if (targetCage) {
         const currentOccupancy = pigs.filter(p => p.cageId === cageId).length
@@ -88,7 +90,7 @@ export const MonitoringProvider = ({ children }: { children: ReactNode }) => {
         }
       }
       
-      await updateAnimalCage(pigId, cageId)
+      await updateAnimalCage(pigId, user.id, cageId)
       setPigs((prev) =>
         prev.map((p) => (p.id === pigId ? { ...p, cageId } : p))
       )
@@ -148,7 +150,9 @@ export const MonitoringProvider = ({ children }: { children: ReactNode }) => {
 
   const updatePigWeight = async (pigId: string, newWeight: number) => {
     try {
-      await animalService.updateAnimal(pigId, { weight: newWeight })
+      if (!user?.id) throw new Error('User not authenticated')
+      
+      await animalService.updateAnimal(pigId, user.id, { weight: newWeight })
       setPigs((prev) =>
         prev.map((p) => (p.id === pigId ? { ...p, weight: newWeight } : p))
       )
@@ -162,6 +166,8 @@ export const MonitoringProvider = ({ children }: { children: ReactNode }) => {
 
   const bulkMovePigs = async (pigIds: string[], cageId: string) => {
     try {
+      if (!user?.id) throw new Error('User not authenticated')
+      
       const targetCage = cages.find(c => c.id === cageId)
       if (targetCage) {
         const currentOccupancy = pigs.filter(p => p.cageId === cageId).length
@@ -173,7 +179,7 @@ export const MonitoringProvider = ({ children }: { children: ReactNode }) => {
         }
       }
       
-      await Promise.all(pigIds.map(id => updateAnimalCage(id, cageId)))
+      await Promise.all(pigIds.map(id => updateAnimalCage(id, user.id, cageId)))
       setPigs((prev) =>
         prev.map((p) => (pigIds.includes(p.id) ? { ...p, cageId } : p))
       )
