@@ -1,5 +1,5 @@
 import { supabase, isSupabaseConfigured } from './supabase'
-import { getUserFacilityIds, applyFacilityFilter } from './facilityFilterService'
+import { getUserFacilityIds, getUserFacilityInsertId, applyFacilityFilter } from './facilityFilterService'
 
 // Helper to query tables in the module2 schema
 const module2 = () => supabase!.schema('module2')
@@ -9,6 +9,7 @@ const module2 = () => supabase!.schema('module2')
 export interface AnimalType {
   id: string
   animal_name: string
+  user_facility_id?: string
   created_at: string
 }
 
@@ -16,12 +17,14 @@ export interface TagColor {
   id: string
   color: string
   color_name: string
+  user_facility_id?: string
   created_at: string
 }
 
 export interface TagType {
   id: string
   type: string
+  user_facility_id?: string
   created_at: string
 }
 
@@ -40,18 +43,21 @@ export interface TagAnimalColor {
 
 // ─── Animal Types Operations ──────────────────────────────────────────────────
 
-export const fetchAnimalTypes = async (): Promise<AnimalType[]> => {
+export const fetchAnimalTypes = async (userId: string): Promise<AnimalType[]> => {
   if (!isSupabaseConfigured()) {
     console.warn('Supabase not configured')
     return []
   }
 
   try {
-    const { data, error } = await module2()
+    const facilityIds = await getUserFacilityIds(userId)
+    let query = module2()
       .from('animal_types')
       .select('*')
-      .order('animal_name', { ascending: true })
 
+    query = applyFacilityFilter(query, facilityIds)
+
+    const { data, error } = await query.order('animal_name', { ascending: true })
     if (error) throw error
     return data || []
   } catch (err) {
@@ -61,20 +67,23 @@ export const fetchAnimalTypes = async (): Promise<AnimalType[]> => {
 }
 
 export const createAnimalType = async (
-  animalName: string
+  animalName: string,
+  userId: string
 ): Promise<AnimalType> => {
   if (!isSupabaseConfigured()) {
     throw new Error('Supabase not configured')
   }
 
   try {
+    const insertId = await getUserFacilityInsertId(userId)
+    if (!insertId) throw new Error('User is not assigned to any facility')
     const { data, error } = await module2()
       .from('animal_types')
-      .insert([{ animal_name: animalName }])
+      .insert([{ animal_name: animalName, user_facility_id: insertId }])
       .select()
       .single()
 
-    if (error) throw error
+    if (error) throw new Error(error.message)
     return data
   } catch (err) {
     console.error('Error creating animal type:', err)
@@ -84,18 +93,22 @@ export const createAnimalType = async (
 
 export const updateAnimalType = async (
   id: string,
-  animalName: string
+  animalName: string,
+  userId: string
 ): Promise<void> => {
   if (!isSupabaseConfigured()) {
     throw new Error('Supabase not configured')
   }
 
   try {
-    const { error } = await module2()
+    const facilityIds = await getUserFacilityIds(userId)
+    let query = module2()
       .from('animal_types')
       .update({ animal_name: animalName })
       .eq('id', id)
 
+    query = applyFacilityFilter(query, facilityIds)
+    const { error } = await query
     if (error) throw error
   } catch (err) {
     console.error('Error updating animal type:', err)
@@ -103,17 +116,20 @@ export const updateAnimalType = async (
   }
 }
 
-export const deleteAnimalType = async (id: string): Promise<void> => {
+export const deleteAnimalType = async (id: string, userId: string): Promise<void> => {
   if (!isSupabaseConfigured()) {
     throw new Error('Supabase not configured')
   }
 
   try {
-    const { error } = await module2()
+    const facilityIds = await getUserFacilityIds(userId)
+    let query = module2()
       .from('animal_types')
       .delete()
       .eq('id', id)
 
+    query = applyFacilityFilter(query, facilityIds)
+    const { error } = await query
     if (error) throw error
   } catch (err) {
     console.error('Error deleting animal type:', err)
@@ -123,18 +139,21 @@ export const deleteAnimalType = async (id: string): Promise<void> => {
 
 // ─── Tag Colors Operations ────────────────────────────────────────────────────
 
-export const fetchTagColors = async (): Promise<TagColor[]> => {
+export const fetchTagColors = async (userId: string): Promise<TagColor[]> => {
   if (!isSupabaseConfigured()) {
     console.warn('Supabase not configured')
     return []
   }
 
   try {
-    const { data, error } = await module2()
+    const facilityIds = await getUserFacilityIds(userId)
+    let query = module2()
       .from('tag_colors')
       .select('*')
-      .order('color', { ascending: true })
 
+    query = applyFacilityFilter(query, facilityIds)
+
+    const { data, error } = await query.order('color', { ascending: true })
     if (error) throw error
     return data || []
   } catch (err) {
@@ -145,20 +164,23 @@ export const fetchTagColors = async (): Promise<TagColor[]> => {
 
 export const createTagColor = async (
   colorName: string,
-  colorHex: string
+  colorHex: string,
+  userId: string
 ): Promise<TagColor> => {
   if (!isSupabaseConfigured()) {
     throw new Error('Supabase not configured')
   }
 
   try {
+    const insertId = await getUserFacilityInsertId(userId)
+    if (!insertId) throw new Error('User is not assigned to any facility')
     const { data, error } = await module2()
       .from('tag_colors')
-      .insert([{ color: colorHex, color_name: colorName }])
+      .insert([{ color: colorHex, color_name: colorName, user_facility_id: insertId }])
       .select()
       .single()
 
-    if (error) throw error
+    if (error) throw new Error(error.message)
     return data
   } catch (err) {
     console.error('Error creating tag color:', err)
@@ -169,18 +191,22 @@ export const createTagColor = async (
 export const updateTagColor = async (
   id: string,
   colorName: string,
-  colorHex: string
+  colorHex: string,
+  userId: string
 ): Promise<void> => {
   if (!isSupabaseConfigured()) {
     throw new Error('Supabase not configured')
   }
 
   try {
-    const { error } = await module2()
+    const facilityIds = await getUserFacilityIds(userId)
+    let query = module2()
       .from('tag_colors')
       .update({ color: colorHex, color_name: colorName })
       .eq('id', id)
 
+    query = applyFacilityFilter(query, facilityIds)
+    const { error } = await query
     if (error) throw error
   } catch (err) {
     console.error('Error updating tag color:', err)
@@ -188,17 +214,20 @@ export const updateTagColor = async (
   }
 }
 
-export const deleteTagColor = async (id: string): Promise<void> => {
+export const deleteTagColor = async (id: string, userId: string): Promise<void> => {
   if (!isSupabaseConfigured()) {
     throw new Error('Supabase not configured')
   }
 
   try {
-    const { error } = await module2()
+    const facilityIds = await getUserFacilityIds(userId)
+    let query = module2()
       .from('tag_colors')
       .delete()
       .eq('id', id)
 
+    query = applyFacilityFilter(query, facilityIds)
+    const { error } = await query
     if (error) throw error
   } catch (err) {
     console.error('Error deleting tag color:', err)
@@ -208,18 +237,21 @@ export const deleteTagColor = async (id: string): Promise<void> => {
 
 // ─── Tag Types Operations ─────────────────────────────────────────────────────
 
-export const fetchTagTypes = async (): Promise<TagType[]> => {
+export const fetchTagTypes = async (userId: string): Promise<TagType[]> => {
   if (!isSupabaseConfigured()) {
     console.warn('Supabase not configured')
     return []
   }
 
   try {
-    const { data, error } = await module2()
+    const facilityIds = await getUserFacilityIds(userId)
+    let query = module2()
       .from('tag_types')
       .select('*')
-      .order('type', { ascending: true })
 
+    query = applyFacilityFilter(query, facilityIds)
+
+    const { data, error } = await query.order('type', { ascending: true })
     if (error) throw error
     return data || []
   } catch (err) {
@@ -228,19 +260,21 @@ export const fetchTagTypes = async (): Promise<TagType[]> => {
   }
 }
 
-export const createTagType = async (type: string): Promise<TagType> => {
+export const createTagType = async (type: string, userId: string): Promise<TagType> => {
   if (!isSupabaseConfigured()) {
     throw new Error('Supabase not configured')
   }
 
   try {
+    const insertId = await getUserFacilityInsertId(userId)
+    if (!insertId) throw new Error('User is not assigned to any facility')
     const { data, error } = await module2()
       .from('tag_types')
-      .insert([{ type }])
+      .insert([{ type, user_facility_id: insertId }])
       .select()
       .single()
 
-    if (error) throw error
+    if (error) throw new Error(error.message)
     return data
   } catch (err) {
     console.error('Error creating tag type:', err)
@@ -248,17 +282,20 @@ export const createTagType = async (type: string): Promise<TagType> => {
   }
 }
 
-export const updateTagType = async (id: string, type: string): Promise<void> => {
+export const updateTagType = async (id: string, type: string, userId: string): Promise<void> => {
   if (!isSupabaseConfigured()) {
     throw new Error('Supabase not configured')
   }
 
   try {
-    const { error } = await module2()
+    const facilityIds = await getUserFacilityIds(userId)
+    let query = module2()
       .from('tag_types')
       .update({ type })
       .eq('id', id)
 
+    query = applyFacilityFilter(query, facilityIds)
+    const { error } = await query
     if (error) throw error
   } catch (err) {
     console.error('Error updating tag type:', err)
@@ -266,17 +303,20 @@ export const updateTagType = async (id: string, type: string): Promise<void> => 
   }
 }
 
-export const deleteTagType = async (id: string): Promise<void> => {
+export const deleteTagType = async (id: string, userId: string): Promise<void> => {
   if (!isSupabaseConfigured()) {
     throw new Error('Supabase not configured')
   }
 
   try {
-    const { error } = await module2()
+    const facilityIds = await getUserFacilityIds(userId)
+    let query = module2()
       .from('tag_types')
       .delete()
       .eq('id', id)
 
+    query = applyFacilityFilter(query, facilityIds)
+    const { error } = await query
     if (error) throw error
   } catch (err) {
     console.error('Error deleting tag type:', err)

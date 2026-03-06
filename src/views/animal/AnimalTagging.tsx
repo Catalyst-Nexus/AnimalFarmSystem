@@ -211,9 +211,9 @@ const AnimalModal = ({
       setIsLoadingData(true)
       try {
         const [types, colors, tagTypesData, codes] = await Promise.all([
-          fetchAnimalTypes(),
-          fetchTagColors(),
-          fetchTagTypes(),
+          fetchAnimalTypes(user.id),
+          fetchTagColors(user.id),
+          fetchTagTypes(user.id),
           fetchTagAnimalColors(user.id),
         ])
         setAnimalTypes(types)
@@ -1090,12 +1090,12 @@ export default function AnimalTagging() {
         throw new Error('This tag code is already assigned to another animal')
       }
 
-      // Get user's facility ID
-      const { facilityIds } = await getUserFacilityInfo(user.id)
-      if (facilityIds.length === 0) {
+      // Get user's facility ID for insert
+      const { insertId } = await getUserFacilityInfo(user.id)
+      if (!insertId) {
         throw new Error('User is not assigned to any facility')
       }
-      const userFacilityId = facilityIds[0]
+      const userFacilityId = insertId
 
       // Check cage capacity if a cage is selected
       if (values.current_cage_id) {

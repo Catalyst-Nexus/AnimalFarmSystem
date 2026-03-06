@@ -9,6 +9,7 @@ import {
   fetchTagColors,
   createTagColor,
   updateTagColor,
+  deleteTagColor,
   fetchTagTypes,
   createTagType,
   updateTagType,
@@ -104,9 +105,9 @@ export default function AnimalAdmin() {
     setError('')
     try {
       const [types, colors, tagTypesData, codes] = await Promise.all([
-        fetchAnimalTypes(),
-        fetchTagColors(),
-        fetchTagTypes(),
+        fetchAnimalTypes(user.id),
+        fetchTagColors(user.id),
+        fetchTagTypes(user.id),
         fetchTagAnimalColors(user.id),
       ])
       setAnimalTypes(types)
@@ -145,6 +146,7 @@ export default function AnimalAdmin() {
   }
 
   const handleSaveAnimalType = async () => {
+    if (!user?.id) { alert('User not authenticated'); return }
     if (!formAnimalName.trim()) {
       alert('Please enter an animal name')
       return
@@ -153,11 +155,11 @@ export default function AnimalAdmin() {
     setAnimalTypeLoading(true)
     try {
       if (editingAnimalTypeId) {
-        await updateAnimalType(editingAnimalTypeId, formAnimalName.trim())
+        await updateAnimalType(editingAnimalTypeId, formAnimalName.trim(), user.id)
       } else {
-        await createAnimalType(formAnimalName.trim())
+        await createAnimalType(formAnimalName.trim(), user.id)
       }
-      await fetchAnimalTypes().then(setAnimalTypes)
+      await fetchAnimalTypes(user.id).then(setAnimalTypes)
       handleCloseAnimalTypeDialog()
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to save animal type'
@@ -168,10 +170,10 @@ export default function AnimalAdmin() {
   }
 
   const handleDeleteAnimalType = async (id: string) => {
-    if (!confirm('Delete this animal type?')) return
+    if (!confirm('Delete this animal type?') || !user?.id) return
     try {
-      await deleteAnimalType(id)
-      await fetchAnimalTypes().then(setAnimalTypes)
+      await deleteAnimalType(id, user.id)
+      await fetchAnimalTypes(user.id).then(setAnimalTypes)
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to delete animal type'
       alert(message)
@@ -201,6 +203,7 @@ export default function AnimalAdmin() {
   }
 
   const handleSaveTagColor = async () => {
+    if (!user?.id) { alert('User not authenticated'); return }
     if (!formColorName.trim()) {
       alert('Please enter a color name')
       return
@@ -213,11 +216,11 @@ export default function AnimalAdmin() {
     setTagColorLoading(true)
     try {
       if (editingTagColorId) {
-        await updateTagColor(editingTagColorId, formColorName.trim(), formColorHex.trim())
+        await updateTagColor(editingTagColorId, formColorName.trim(), formColorHex.trim(), user.id)
       } else {
-        await createTagColor(formColorName.trim(), formColorHex.trim())
+        await createTagColor(formColorName.trim(), formColorHex.trim(), user.id)
       }
-      await fetchTagColors().then(setTagColors)
+      await fetchTagColors(user.id).then(setTagColors)
       handleCloseTagColorDialog()
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to save tag color'
@@ -228,10 +231,10 @@ export default function AnimalAdmin() {
   }
 
   const handleDeleteTagColor = async (id: string) => {
-    if (!confirm('Delete this tag code?') || !user?.id) return
+    if (!confirm('Delete this tag color?') || !user?.id) return
     try {
-      await deleteTagAnimalColor(id, user.id)
-      await fetchTagAnimalColors(user.id).then(setTagCodes)
+      await deleteTagColor(id, user.id)
+      await fetchTagColors(user.id).then(setTagColors)
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to delete tag color'
       alert(message)
@@ -258,6 +261,7 @@ export default function AnimalAdmin() {
   }
 
   const handleSaveTagType = async () => {
+    if (!user?.id) { alert('User not authenticated'); return }
     if (!formType.trim()) {
       alert('Please enter a tag type')
       return
@@ -266,11 +270,11 @@ export default function AnimalAdmin() {
     setTagTypeLoading(true)
     try {
       if (editingTagTypeId) {
-        await updateTagType(editingTagTypeId, formType.trim())
+        await updateTagType(editingTagTypeId, formType.trim(), user.id)
       } else {
-        await createTagType(formType.trim())
+        await createTagType(formType.trim(), user.id)
       }
-      await fetchTagTypes().then(setTagTypes)
+      await fetchTagTypes(user.id).then(setTagTypes)
       handleCloseTagTypeDialog()
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to save tag type'
@@ -281,10 +285,10 @@ export default function AnimalAdmin() {
   }
 
   const handleDeleteTagType = async (id: string) => {
-    if (!confirm('Delete this tag type?')) return
+    if (!confirm('Delete this tag type?') || !user?.id) return
     try {
-      await deleteTagType(id)
-      await fetchTagTypes().then(setTagTypes)
+      await deleteTagType(id, user.id)
+      await fetchTagTypes(user.id).then(setTagTypes)
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to delete tag type'
       alert(message)
@@ -344,12 +348,12 @@ export default function AnimalAdmin() {
         return
       }
 
-      // Get user's facility ID
-      const { facilityIds } = await getUserFacilityInfo(user.id)
-      if (facilityIds.length === 0) {
+      // Get user's facility ID for insert
+      const { insertId } = await getUserFacilityInfo(user.id)
+      if (!insertId) {
         throw new Error('User is not assigned to any facility')
       }
-      const userFacilityId = facilityIds[0]
+      const userFacilityId = insertId
 
       const payload = {
         animal_type_id: formAnimalTypeId,
@@ -421,12 +425,12 @@ export default function AnimalAdmin() {
 
     setBulkLoading(true)
     try {
-      // Get user's facility ID
-      const { facilityIds } = await getUserFacilityInfo(user.id)
-      if (facilityIds.length === 0) {
+      // Get user's facility ID for insert
+      const { insertId } = await getUserFacilityInfo(user.id)
+      if (!insertId) {
         throw new Error('User is not assigned to any facility')
       }
-      const userFacilityId = facilityIds[0]
+      const userFacilityId = insertId
 
       await bulkCreateTagCodes({
         animal_type_id: formBulkAnimalTypeId,

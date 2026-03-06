@@ -9,13 +9,55 @@ import { supabase } from './supabase'
 
 export interface UserFacilityInfo {
   facilityIds: string[]
+  insertId: string | null
   hasFacilities: boolean
 }
 
 /**
- * Get facility IDs assigned to a specific user
+ * Get the raw facilities_id values assigned to a user (facilities.id values).
+ * Used internally for access checks.
+ */
+const getRawFacilityIds = async (userId: string): Promise<string[]> => {
+  if (!supabase || !userId) return []
+  try {
+    const { data, error } = await supabase
+      .from('user_facilities')
+      .select('facilities_id')
+      .eq('user_id', userId)
+    if (error) return []
+    return (data || []).map(item => item.facilities_id).filter(Boolean)
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Get the user_facilities.id to use when INSERTING records in module2/module3 tables.
+ * The user_facility_id column in those tables is a FK to public.user_facilities.id.
+ * @param userId - The authenticated user's ID
+ * @returns The user_facilities.id for the first facility assignment, or null
+ */
+export const getUserFacilityInsertId = async (userId: string): Promise<string | null> => {
+  if (!supabase || !userId) return null
+  try {
+    const { data, error } = await supabase
+      .from('user_facilities')
+      .select('id')
+      .eq('user_id', userId)
+      .limit(1)
+      .single()
+    if (error || !data) return null
+    return data.id
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Get all user_facilities.id values for all users sharing the same facility as the given user.
+ * Used for filtering (SELECT) so that all users at the same facility see the same data.
  * @param userId - The user ID to fetch facilities for
- * @returns Array of facility IDs the user is assigned to
+ * @returns Array of user_facilities.id values across all users at the same facility
  */
 export const getUserFacilityIds = async (userId: string): Promise<string[]> => {
   if (!supabase || !userId) {
@@ -24,17 +66,23 @@ export const getUserFacilityIds = async (userId: string): Promise<string[]> => {
   }
 
   try {
+    // Step 1: get this user's facility references (facilities.id values)
+    const rawIds = await getRawFacilityIds(userId)
+    if (rawIds.length === 0) return []
+
+    // Step 2: get ALL user_facilities.id rows that share those same facilities
+    // so data is shared across all users assigned to the same facility
     const { data, error } = await supabase
       .from('user_facilities')
-      .select('facilities_id')
-      .eq('user_id', userId)
+      .select('id')
+      .in('facilities_id', rawIds)
 
     if (error) {
-      console.error('Error fetching user facility IDs:', error)
+      console.error('Error fetching shared facility junction IDs:', error)
       return []
     }
 
-    return (data || []).map(item => item.facilities_id).filter(Boolean)
+    return (data || []).map(item => item.id).filter(Boolean)
   } catch (err) {
     console.error('Exception in getUserFacilityIds:', err)
     return []
@@ -44,12 +92,16 @@ export const getUserFacilityIds = async (userId: string): Promise<string[]> => {
 /**
  * Get comprehensive facility information for a user
  * @param userId - The user ID to fetch facilities for
- * @returns Object containing facility IDs and a flag indicating if the user has facilities
+ * @returns Object containing facility IDs (for filtering), insertId (for creating), and hasFacilities flag
  */
 export const getUserFacilityInfo = async (userId: string): Promise<UserFacilityInfo> => {
-  const facilityIds = await getUserFacilityIds(userId)
+  const [facilityIds, insertId] = await Promise.all([
+    getUserFacilityIds(userId),
+    getUserFacilityInsertId(userId),
+  ])
   return {
     facilityIds,
+    insertId,
     hasFacilities: facilityIds.length > 0,
   }
 }
