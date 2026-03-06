@@ -1096,14 +1096,14 @@ export default function AnimalTagging() {
           onClick={() => setBarcodeAnimal(a)}
           title="Click to view barcode"
         >
-          <Tag className="w-5 h-5" /> {a.id}
+          <Tag className="w-5 h-5" /> {a.formattedTagCode || a.id}
         </button>
       ),
     },
     {
       key: 'type' as const,
       header: 'Type',
-      render: (a: DBAnimal) => <span className="text-base font-semibold text-foreground">{a.type}</span>,
+      render: (a: DBAnimal) => <span className="text-base font-semibold text-foreground">{a.animalType || a.type?.split('|')[1]?.trim() || ''}</span>,
     },
     {
       key: 'sex' as const,
