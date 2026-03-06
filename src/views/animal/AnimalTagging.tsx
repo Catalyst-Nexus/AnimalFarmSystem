@@ -292,7 +292,7 @@ const AnimalModal = ({
     return allAnimals.filter((a) =>
       a.sex === 'Female' &&
       (a.id.toLowerCase().includes(motherSearch.toLowerCase()) ||
-        a.type.toLowerCase().includes(motherSearch.toLowerCase()))
+        (a.type && a.type.toLowerCase().includes(motherSearch.toLowerCase())))
     )
   }, [allAnimals, motherSearch])
 
@@ -301,7 +301,7 @@ const AnimalModal = ({
     return allAnimals.filter((a) =>
       a.sex === 'Male' &&
       (a.id.toLowerCase().includes(fatherSearch.toLowerCase()) ||
-        a.type.toLowerCase().includes(fatherSearch.toLowerCase()))
+        (a.type && a.type.toLowerCase().includes(fatherSearch.toLowerCase())))
     )
   }, [allAnimals, fatherSearch])
 
@@ -330,6 +330,11 @@ const AnimalModal = ({
 
     if (!form.tag_animals_colors_id) {
       setError('Please select animal type, color, type, and tag code.')
+      return
+    }
+
+    if (!form.formattedTagCode) {
+      setError('Tag code is not properly set. Please reselect the tag code.')
       return
     }
 
@@ -963,20 +968,18 @@ export default function AnimalTagging() {
       }
 
       const newAnimal = await animalService.createAnimal({
-        id: values.formattedTagCode,
+        id: values.tag_animals_colors_id,
         tag_animals_colors_id: values.tag_animals_colors_id,
         sex: values.sex,
         weight: parseFloat(values.weight),
         status: values.status,
-        current_cage_id: values.current_cage_id || undefined,
-        mother_id: values.mother_id || undefined,
-        father_id: values.father_id || undefined,
+        current_cage_id: values.current_cage_id || null,
+        mother_id: values.mother_id || null,
+        father_id: values.father_id || null,
       })
 
-      if (newAnimal) {
-        setAnimals((prev) => [newAnimal, ...prev])
-        setShowModal(false)
-      }
+      setAnimals((prev) => [newAnimal, ...prev])
+      setShowModal(false)
     } catch (err) {
       console.error('Error adding animal:', err)
       throw err
@@ -1004,16 +1007,18 @@ export default function AnimalTagging() {
         sex: values.sex,
         weight: parseFloat(values.weight),
         status: values.status,
-        current_cage_id: values.current_cage_id || undefined,
-        mother_id: values.mother_id || undefined,
-        father_id: values.father_id || undefined,
+        current_cage_id: values.current_cage_id || null,
+        mother_id: values.mother_id || null,
+        father_id: values.father_id || null,
       })
 
-      if (updated) {
-        setAnimals((prev) => prev.map((a) => (a.id === editingAnimal.id ? updated : a)))
-        setShowModal(false)
-        setEditingAnimal(null)
+      if (!updated) {
+        throw new Error('Failed to update animal. Please check the console for details.')
       }
+
+      setAnimals((prev) => prev.map((a) => (a.id === editingAnimal.id ? updated : a)))
+      setShowModal(false)
+      setEditingAnimal(null)
     } catch (err) {
       console.error('Error updating animal:', err)
       throw err
@@ -1063,8 +1068,9 @@ export default function AnimalTagging() {
       list = list.filter(
         (a) =>
           a.id.toLowerCase().includes(q) ||
-          a.type.toLowerCase().includes(q) ||
-          a.sex.toLowerCase().includes(q)
+          (a.type && a.type.toLowerCase().includes(q)) ||
+          a.sex.toLowerCase().includes(q) ||
+          a.status.toLowerCase().includes(q)
       )
     }
     return list
