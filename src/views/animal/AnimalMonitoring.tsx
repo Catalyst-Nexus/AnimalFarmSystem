@@ -161,6 +161,7 @@ interface MonitoringContextType {
   editCage: (id: string, updates: Partial<Omit<DBCage, 'id' | 'created_at'>>) => Promise<void>
   removeCage: (id: string) => Promise<void>
   updatePigWeight: (pigId: string, newWeight: number) => Promise<void>
+  bulkMovePigs: (pigIds: string[], cageId: string) => Promise<void>
 }
 
 const MonitoringContext = createContext<MonitoringContextType | undefined>(undefined)
@@ -283,6 +284,31 @@ const MonitoringProvider = ({ children }: { children: ReactNode }) => {
     }
   }
 
+  const bulkMovePigs = async (pigIds: string[], cageId: string) => {
+    try {
+      const targetCage = cages.find(c => c.id === cageId)
+      if (targetCage) {
+        const currentOccupancy = pigs.filter(p => p.cageId === cageId).length
+        const availableSpace = targetCage.maxCapacity - currentOccupancy
+        
+        if (pigIds.length > availableSpace) {
+          showToast(`Only ${availableSpace} space(s) available in ${targetCage.label}`, 'warning')
+          return
+        }
+      }
+      
+      await Promise.all(pigIds.map(id => updateAnimalCage(id, cageId)))
+      setPigs((prev) =>
+        prev.map((p) => (pigIds.includes(p.id) ? { ...p, cageId } : p))
+      )
+      showToast(`${pigIds.length} animal(s) moved to ${targetCage?.label}`, 'success')
+    } catch (error) {
+      console.error('Error moving pigs:', error)
+      showToast('Failed to move animals', 'error')
+      throw error
+    }
+  }
+
   return (
     <MonitoringContext.Provider
       value={{
@@ -299,6 +325,7 @@ const MonitoringProvider = ({ children }: { children: ReactNode }) => {
         editCage,
         removeCage,
         updatePigWeight,
+        bulkMovePigs,
       }}
     >
       {children}
@@ -574,15 +601,60 @@ const MovePigButton = ({ pig }: { pig: Pig }) => {
 
 // ─── Pig Row (inside cage card) ───────────────────────────────────────────────
 
-const PigRow = ({ pig, rank }: { pig: Pig; rank: number }) => (
-  <div className="flex items-center gap-3 py-2.5 px-3 rounded-xl hover:bg-background/80 transition-all group bg-surface/30 border border-transparent hover:border-border/60 hover:shadow-sm">
-    {/* rank */}
-    <span className={cn(
-      'w-6 h-6 text-center text-[10px] font-black rounded-full flex items-center justify-center shrink-0',
-      rank <= 3 ? 'bg-success/15 text-success' : 'bg-muted/10 text-muted'
-    )}>
-      {rank}
-    </span>
+const PigRow = ({ pig, rank, bulkMode, selected, onToggleSelect }: { 
+  pig: Pig; 
+  rank: number;
+  bulkMode?: boolean;
+  selected?: boolean;
+  onToggleSelect?: () => void;
+}) => {
+  const [isDragging, setIsDragging] = useState(false)
+
+  const handleDragStart = (e: React.DragEvent) => {
+    setIsDragging(true)
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('pigId', pig.id)
+    e.dataTransfer.setData('pigTag', pig.tagId)
+  }
+
+  const handleDragEnd = () => {
+    setIsDragging(false)
+  }
+
+  return (
+  <div 
+    draggable={!bulkMode}
+    onDragStart={handleDragStart}
+    onDragEnd={handleDragEnd}
+    className={cn(
+      'flex items-center gap-3 py-2.5 px-3 rounded-xl transition-all group bg-surface/30 border hover:shadow-sm',
+      bulkMode ? 'cursor-pointer' : 'cursor-move hover:bg-background/80',
+      isDragging && 'opacity-50',
+      selected && 'bg-success/10 border-success/50 border-2',
+      !selected && 'border-transparent hover:border-border/60'
+    )}
+    onClick={() => bulkMode && onToggleSelect?.()}
+  >
+    {/* rank or checkbox */}
+    {bulkMode ? (
+      <div className="w-6 h-6 flex items-center justify-center shrink-0">
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={onToggleSelect}
+          className="w-4 h-4 rounded border-2 border-border text-success focus:ring-2 focus:ring-success/20 cursor-pointer"
+          onClick={(e) => e.stopPropagation()}
+          aria-label="Select animal for bulk transfer"
+        />
+      </div>
+    ) : (
+      <span className={cn(
+        'w-6 h-6 text-center text-[10px] font-black rounded-full flex items-center justify-center shrink-0',
+        rank <= 3 ? 'bg-success/15 text-success' : 'bg-muted/10 text-muted'
+      )}>
+        {rank}
+      </span>
+    )}
 
     {/* tag */}
     <span className="font-mono text-[11px] font-bold text-foreground shrink-0 w-28 truncate bg-background px-2.5 py-1 rounded-lg border border-border/60">
@@ -609,18 +681,54 @@ const PigRow = ({ pig, rank }: { pig: Pig; rank: number }) => (
       </span>
     </div>
 
-    {/* move button */}
-    <div className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-      <MovePigButton pig={pig} />
-    </div>
+    {/* move button - always visible now */}
+    {!bulkMode && (
+      <div className="shrink-0">
+        <MovePigButton pig={pig} />
+      </div>
+    )}
   </div>
-)
+  )
+}
 
 // ─── Cage Card ────────────────────────────────────────────────────────────────
 
-const CageCard = ({ cage, onEdit, onDelete }: { cage: Cage; onEdit: () => void; onDelete: () => void }) => {
-  const { pigsInCage, sortDir } = useMonitoring()
+const CageCard = ({ cage, onEdit, onDelete, bulkMode, selectedPigs, onToggleSelect }: { 
+  cage: Cage; 
+  onEdit: () => void; 
+  onDelete: () => void;
+  bulkMode?: boolean;
+  selectedPigs?: Set<string>;
+  onToggleSelect?: (pigId: string) => void;
+}) => {
+  const { pigsInCage, sortDir, movePig } = useMonitoring()
   const [isExpanded, setIsExpanded] = useState(true)
+  const [isDragOver, setIsDragOver] = useState(false)
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    setIsDragOver(true)
+  }
+
+  const handleDragLeave = () => {
+    setIsDragOver(false)
+  }
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragOver(false)
+    
+    const pigId = e.dataTransfer.getData('pigId')
+    
+    if (pigId) {
+      try {
+        await movePig(pigId, cage.id)
+      } catch (error) {
+        // Error handled by movePig
+      }
+    }
+  }
   const pigs = pigsInCage(cage.id)
   const totalWeight = pigs.reduce((s, p) => s + p.weight, 0)
   const avgWeight = pigs.length ? (totalWeight / pigs.length).toFixed(1) : '—'
@@ -629,11 +737,17 @@ const CageCard = ({ cage, onEdit, onDelete }: { cage: Cage; onEdit: () => void; 
   const femaleCount = pigs.filter(p => p.sex === 'Female').length
 
   return (
-    <div className={cn(
-      "relative overflow-hidden rounded-2xl border bg-surface shadow-sm hover:shadow-lg transition-all duration-300 group/card",
-      !cage.isActive && "opacity-60",
-      occupancyPercent >= 100 ? 'border-red-200' : occupancyPercent >= 80 ? 'border-orange-200' : 'border-border'
-    )}>
+    <div 
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      className={cn(
+        "relative overflow-hidden rounded-2xl border bg-surface shadow-sm hover:shadow-lg transition-all duration-300 group/card",
+        !cage.isActive && "opacity-60",
+        isDragOver && "ring-4 ring-success/30 border-success scale-[1.02]",
+        occupancyPercent >= 100 ? 'border-red-200' : occupancyPercent >= 80 ? 'border-orange-200' : 'border-border'
+      )}
+    >
       {/* Top accent bar */}
       <div className={cn(
         'absolute inset-x-0 top-0 h-1',
@@ -780,11 +894,20 @@ const CageCard = ({ cage, onEdit, onDelete }: { cage: Cage; onEdit: () => void; 
                 <div className="w-14 h-14 rounded-2xl bg-muted/5 flex items-center justify-center mx-auto mb-3 border border-dashed border-muted/20">
                   <PiggyBank className="w-7 h-7 text-muted/20" />
                 </div>
-                <p className="text-sm text-muted/60 font-medium">Empty cage</p>
-                <p className="text-xs text-muted/40 mt-0.5">Assign animals to see them here</p>
+                <p className="text-sm text-muted/60 font-medium">{isDragOver ? 'Drop animal here' : 'Empty cage'}</p>
+                <p className="text-xs text-muted/40 mt-0.5">{isDragOver ? 'Release to assign to this cage' : 'Assign animals to see them here'}</p>
               </div>
             ) : (
-              pigs.map((p, i) => <PigRow key={p.id} pig={p} rank={i + 1} />)
+              pigs.map((p, i) => (
+                <PigRow 
+                  key={p.id} 
+                  pig={p} 
+                  rank={i + 1}
+                  bulkMode={bulkMode}
+                  selected={selectedPigs?.has(p.id)}
+                  onToggleSelect={() => onToggleSelect?.(p.id)}
+                />
+              ))
             )}
           </div>
         </div>
@@ -1490,12 +1613,17 @@ const SortingTab = () => {
 // ─── Main App ─────────────────────────────────────────────────────────────────
 
 const MonitoringApp = () => {
-  const { pigs, cages, addCage, editCage, removeCage, isLoading, refreshData } = useMonitoring()
+  const { pigs, cages, addCage, editCage, removeCage, isLoading, refreshData, bulkMovePigs } = useMonitoring()
   const { showToast } = useToast()
   
   const [activeTab, setActiveTab] = useState<'monitoring' | 'sheet' | 'sorting'>('monitoring')
   const [searchQuery, setSearchQuery] = useState('')
   const [isRefreshing, setIsRefreshing] = useState(false)
+  
+  // Bulk transfer mode
+  const [bulkMode, setBulkMode] = useState(false)
+  const [selectedPigs, setSelectedPigs] = useState<Set<string>>(new Set())
+  const [bulkMoveDropdownOpen, setBulkMoveDropdownOpen] = useState(false)
   
   // Dialog states
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -1595,6 +1723,44 @@ const MonitoringApp = () => {
     }
   }
 
+  const toggleBulkMode = () => {
+    setBulkMode(!bulkMode)
+    setSelectedPigs(new Set())
+    setBulkMoveDropdownOpen(false)
+  }
+
+  const togglePigSelection = (pigId: string) => {
+    setSelectedPigs(prev => {
+      const next = new Set(prev)
+      if (next.has(pigId)) {
+        next.delete(pigId)
+      } else {
+        next.add(pigId)
+      }
+      return next
+    })
+  }
+
+  const deselectAll = () => {
+    setSelectedPigs(new Set())
+  }
+
+  const handleBulkMove = async (targetCageId: string) => {
+    if (selectedPigs.size === 0) {
+      showToast('No animals selected', 'warning')
+      return
+    }
+
+    try {
+      await bulkMovePigs(Array.from(selectedPigs), targetCageId)
+      setSelectedPigs(new Set())
+      setBulkMode(false)
+      setBulkMoveDropdownOpen(false)
+    } catch {
+      // Error handled in context
+    }
+  }
+
   const tabs = [
     { key: 'monitoring' as const, label: 'Monitoring', icon: LayoutDashboard, count: cages.length },
     { key: 'sheet' as const, label: 'Weight Sheet', icon: ClipboardList },
@@ -1691,6 +1857,19 @@ const MonitoringApp = () => {
             </div>
             <div className="flex items-center gap-2">
               <button
+                onClick={toggleBulkMode}
+                className={cn(
+                  'px-3 py-2 border rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5',
+                  bulkMode
+                    ? 'bg-purple-600 text-white border-purple-600 shadow-md'
+                    : 'border-border text-muted hover:text-foreground hover:bg-background'
+                )}
+                title="Bulk transfer mode"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                {bulkMode ? 'Bulk Mode' : 'Bulk Transfer'}
+              </button>
+              <button
                 onClick={handleRefresh}
                 disabled={isRefreshing}
                 className="p-2 border border-border rounded-lg text-muted hover:text-foreground hover:bg-background transition-all disabled:opacity-50"
@@ -1704,6 +1883,83 @@ const MonitoringApp = () => {
               </PrimaryButton>
             </div>
           </div>
+
+          {/* Bulk transfer action bar */}
+          {bulkMode && (
+            <div className="mb-5 p-4 bg-purple-50 border-2 border-purple-200 rounded-xl animate-in slide-in-from-top-2 fade-in duration-300">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-purple-600 text-white rounded-lg">
+                    <CheckCircle2 className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-purple-900">
+                      {selectedPigs.size} animal{selectedPigs.size !== 1 ? 's' : ''} selected
+                    </p>
+                    <p className="text-xs text-purple-600">Click animals to select, then choose target cage</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {selectedPigs.size > 0 && (
+                    <>
+                      <button
+                        onClick={deselectAll}
+                        className="px-3 py-1.5 text-xs font-semibold text-purple-600 border border-purple-300 rounded-lg hover:bg-white transition-all"
+                      >
+                        Clear
+                      </button>
+                      <div className="relative">
+                        <button 
+                          onClick={() => setBulkMoveDropdownOpen(!bulkMoveDropdownOpen)}
+                          className="px-3 py-1.5 text-xs font-semibold bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-all flex items-center gap-1.5"
+                        >
+                          <MoveRight className="w-3.5 h-3.5" />
+                          Move To...
+                        </button>
+                        {bulkMoveDropdownOpen && (
+                          <>
+                            <div className="fixed inset-0 z-20" onClick={() => setBulkMoveDropdownOpen(false)} />
+                            <div className="absolute right-0 top-full mt-1.5 z-30 bg-white border-2 border-purple-200 rounded-xl shadow-xl p-1.5 min-w-[180px] animate-in fade-in zoom-in-95 duration-150">
+                              <p className="text-[10px] font-bold text-muted uppercase tracking-wider px-2.5 py-1.5 mb-1">Select Cage</p>
+                              {cages.filter(c => c.isActive).map(cage => {
+                                const occupancy = pigs.filter(p => p.cageId === cage.id).length
+                                const available = cage.maxCapacity - occupancy
+                                const canFit = available >= selectedPigs.size
+                                return (
+                                  <button
+                                    key={cage.id}
+                                    onClick={() => canFit && handleBulkMove(cage.id)}
+                                    disabled={!canFit}
+                                    className={cn(
+                                      'flex items-center justify-between w-full px-3 py-2.5 rounded-lg text-xs font-medium transition-all',
+                                      canFit
+                                        ? 'hover:bg-purple-500 hover:text-white text-foreground'
+                                        : 'opacity-50 cursor-not-allowed text-muted'
+                                    )}
+                                  >
+                                    <span className="flex items-center gap-2">
+                                      <MoveRight className="w-3 h-3" />
+                                      {cage.label}
+                                    </span>
+                                    <span className={cn(
+                                      'text-[10px] font-bold px-1.5 py-0.5 rounded-full',
+                                      canFit ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'
+                                    )}>
+                                      {available} left
+                                    </span>
+                                  </button>
+                                )
+                              })}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Cage grid */}
           {filteredCages.length === 0 && !searchQuery ? (
@@ -1732,6 +1988,9 @@ const MonitoringApp = () => {
                   cage={cage}
                   onEdit={() => handleEditCage(cage)}
                   onDelete={() => handleDeleteCage(cage.id)}
+                  bulkMode={bulkMode}
+                  selectedPigs={selectedPigs}
+                  onToggleSelect={togglePigSelection}
                 />
               ))}
             </div>
