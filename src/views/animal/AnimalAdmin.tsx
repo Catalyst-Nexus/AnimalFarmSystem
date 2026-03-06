@@ -1,13 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Settings, Plus, RefreshCw, Palette, Tag, Tags, Hash, PawPrint } from 'lucide-react'
-import {
-  PageHeader,
-  StatsRow,
-  StatCard,
-  ActionsBar,
-  PrimaryButton,
-  Tabs,
-} from '@/components/ui'
+import { PageHeader } from '@/components/ui'
 import {
   fetchAnimalTypes,
   createAnimalType,
@@ -16,7 +9,6 @@ import {
   fetchTagColors,
   createTagColor,
   updateTagColor,
-  deleteTagColor,
   fetchTagTypes,
   createTagType,
   updateTagType,
@@ -31,6 +23,8 @@ import {
   type TagType,
   type TagAnimalColor,
 } from '@/services/animalAdminService'
+import { useAuthStore } from '@/store/authStore'
+import { getUserFacilityInfo } from '@/services/facilityFilterService'
 
 import AnimalTypesList from './AnimalTypesList'
 import AnimalTypeDialog from './AnimalTypeDialog'
@@ -44,14 +38,8 @@ import BulkTagCodeDialog from './BulkTagCodeDialog'
 
 type TabKey = 'animal-types' | 'tag-colors' | 'tag-types' | 'tag-codes'
 
-const tabs = [
-  { key: 'animal-types', label: 'Animal Types' },
-  { key: 'tag-colors', label: 'Tag Colors' },
-  { key: 'tag-types', label: 'Tag Types' },
-  { key: 'tag-codes', label: 'Tag Codes' },
-]
-
 export default function AnimalAdmin() {
+  const { user } = useAuthStore()
   const [activeTab, setActiveTab] = useState<TabKey>('animal-types')
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
@@ -110,7 +98,8 @@ export default function AnimalAdmin() {
 
   // ─── Load all data ─────────────────────────────────────────────────────────
 
-  const loadAllData = async () => {
+  const loadAllData = useCallback(async () => {
+    if (!user?.id) return
     setIsLoading(true)
     setError('')
     try {
@@ -118,7 +107,7 @@ export default function AnimalAdmin() {
         fetchAnimalTypes(),
         fetchTagColors(),
         fetchTagTypes(),
-        fetchTagAnimalColors(),
+        fetchTagAnimalColors(user.id),
       ])
       setAnimalTypes(types)
       setTagColors(colors)
@@ -130,11 +119,11 @@ export default function AnimalAdmin() {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [user?.id])
 
   useEffect(() => {
     loadAllData()
-  }, [])
+  }, [loadAllData])
 
   // ─── Animal Type handlers ──────────────────────────────────────────────────
 
@@ -239,10 +228,10 @@ export default function AnimalAdmin() {
   }
 
   const handleDeleteTagColor = async (id: string) => {
-    if (!confirm('Delete this tag color?')) return
+    if (!confirm('Delete this tag code?') || !user?.id) return
     try {
-      await deleteTagColor(id)
-      await fetchTagColors().then(setTagColors)
+      await deleteTagAnimalColor(id, user.id)
+      await fetchTagAnimalColors(user.id).then(setTagCodes)
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to delete tag color'
       alert(message)
@@ -331,6 +320,11 @@ export default function AnimalAdmin() {
   }
 
   const handleSaveTagCode = async () => {
+    if (!user?.id) {
+      alert('User not authenticated')
+      return
+    }
+
     if (
       !formAnimalTypeId ||
       !formTagColorId ||
@@ -350,19 +344,27 @@ export default function AnimalAdmin() {
         return
       }
 
+      // Get user's facility ID
+      const { facilityIds } = await getUserFacilityInfo(user.id)
+      if (facilityIds.length === 0) {
+        throw new Error('User is not assigned to any facility')
+      }
+      const userFacilityId = facilityIds[0]
+
       const payload = {
         animal_type_id: formAnimalTypeId,
         tag_color_id: formTagColorId,
         tag_type_id: formTagTypeId,
         tag_code: tagCodeNum,
+        user_facility_id: userFacilityId,
       }
 
       if (editingTagCodeId) {
-        await updateTagAnimalColor(editingTagCodeId, payload)
+        await updateTagAnimalColor(editingTagCodeId, user.id, payload)
       } else {
         await createTagAnimalColor(payload)
       }
-      await fetchTagAnimalColors().then(setTagCodes)
+      await fetchTagAnimalColors(user.id).then(setTagCodes)
       handleCloseTagCodeDialog()
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to save tag code'
@@ -373,10 +375,10 @@ export default function AnimalAdmin() {
   }
 
   const handleDeleteTagCode = async (id: string) => {
-    if (!confirm('Delete this tag code?')) return
+    if (!confirm('Delete this tag code?') || !user?.id) return
     try {
-      await deleteTagAnimalColor(id)
-      await fetchTagAnimalColors().then(setTagCodes)
+      await deleteTagAnimalColor(id, user.id)
+      await fetchTagAnimalColors(user.id).then(setTagCodes)
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to delete tag code'
       alert(message)
@@ -399,6 +401,11 @@ export default function AnimalAdmin() {
   }
 
   const handleBulkCreateTagCodes = async () => {
+    if (!user?.id) {
+      alert('User not authenticated')
+      return
+    }
+
     if (!formBulkAnimalTypeId || !formBulkTagColorId || !formBulkTagTypeId) {
       alert('Please select all fields')
       return
@@ -414,14 +421,22 @@ export default function AnimalAdmin() {
 
     setBulkLoading(true)
     try {
+      // Get user's facility ID
+      const { facilityIds } = await getUserFacilityInfo(user.id)
+      if (facilityIds.length === 0) {
+        throw new Error('User is not assigned to any facility')
+      }
+      const userFacilityId = facilityIds[0]
+
       await bulkCreateTagCodes({
         animal_type_id: formBulkAnimalTypeId,
         tag_color_id: formBulkTagColorId,
         tag_type_id: formBulkTagTypeId,
         start_number: startNum,
         count: count,
+        user_facility_id: userFacilityId,
       })
-      await fetchTagAnimalColors().then(setTagCodes)
+      await fetchTagAnimalColors(user.id).then(setTagCodes)
       handleCloseBulkTagCodeDialog()
       alert(`Successfully created ${count} tag codes`)
     } catch (err: unknown) {
