@@ -731,7 +731,6 @@ const CageCard = ({ cage, onEdit, onDelete, bulkMode, selectedPigs, onToggleSele
   }
   const pigs = pigsInCage(cage.id)
   const totalWeight = pigs.reduce((s, p) => s + p.weight, 0)
-  const avgWeight = pigs.length ? (totalWeight / pigs.length).toFixed(1) : '—'
   const occupancyPercent = cage.maxCapacity > 0 ? (pigs.length / cage.maxCapacity) * 100 : 0
   const maleCount = pigs.filter(p => p.sex === 'Male').length
   const femaleCount = pigs.filter(p => p.sex === 'Female').length
@@ -759,25 +758,23 @@ const CageCard = ({ cage, onEdit, onDelete, bulkMode, selectedPigs, onToggleSele
       {/* Header */}
       <div className="p-5 pb-0">
         <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <OccupancyRing percent={occupancyPercent} />
-            <div>
-              <h3 className="text-base font-bold text-foreground flex items-center gap-2">
-                {cage.label}
-                {!cage.isActive && (
-                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-gray-100 border border-gray-300 text-gray-500 uppercase tracking-wider">
-                    Inactive
-                  </span>
-                )}
-              </h3>
-              <div className="flex items-center gap-3 mt-1">
-                <span className="text-xs text-muted">
-                  <strong className={cn(
-                    'font-black',
-                    occupancyPercent >= 100 ? 'text-red-600' : occupancyPercent >= 80 ? 'text-orange-600' : 'text-success'
-                  )}>
-                    {pigs.length}
-                  </strong>/{cage.maxCapacity} animals
+          <div>
+            <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+              {cage.label}
+              {!cage.isActive && (
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-gray-100 border border-gray-300 text-gray-500 uppercase tracking-wider">
+                  Inactive
+                </span>
+              )}
+            </h3>
+            <div className="flex items-center gap-3 mt-1">
+              <span className="text-xs text-muted">
+                <strong className={cn(
+                  'font-black',
+                  occupancyPercent >= 100 ? 'text-red-600' : occupancyPercent >= 80 ? 'text-orange-600' : 'text-success'
+                )}>
+                  {pigs.length}
+                </strong>/{cage.maxCapacity} animals
                 </span>
                 {pigs.length > 0 && (
                   <span className="text-[11px] text-muted flex items-center gap-1.5">
@@ -787,7 +784,6 @@ const CageCard = ({ cage, onEdit, onDelete, bulkMode, selectedPigs, onToggleSele
                   </span>
                 )}
               </div>
-            </div>
           </div>
 
           <div className="flex items-center gap-1">
@@ -818,16 +814,6 @@ const CageCard = ({ cage, onEdit, onDelete, bulkMode, selectedPigs, onToggleSele
 
         {/* Stats strip */}
         <div className="flex items-center gap-4 mt-4 pb-4 border-b border-border/60">
-          <div className="flex items-center gap-1.5">
-            <div className="p-1 bg-emerald-50 rounded">
-              <Weight className="w-3 h-3 text-emerald-600" />
-            </div>
-            <div>
-              <p className="text-[10px] text-muted leading-tight">Avg</p>
-              <p className="text-sm font-black text-foreground leading-tight">{avgWeight}<span className="text-[10px] text-muted ml-0.5">kg</span></p>
-            </div>
-          </div>
-          <div className="w-px h-8 bg-border/60" />
           <div className="flex items-center gap-1.5">
             <div className="p-1 bg-purple-50 rounded">
               <TrendingUp className="w-3 h-3 text-purple-600" />
