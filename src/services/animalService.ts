@@ -4,6 +4,7 @@ import { supabase, isSupabaseConfigured } from './supabase'
 
 interface JoinedTagInfo {
   tag_animals_colors: {
+    tag_code: number
     animal_types: { animal_name: string }
     tag_colors: { color: string; color_name: string }
     tag_types: { type: string }
@@ -11,7 +12,7 @@ interface JoinedTagInfo {
 }
 
 export interface Animal {
-  id: string // Tag code ID (e.g., "EAR-1")
+  id: string // Tag code ID (UUID)
   tag_animals_colors_id: string | null
   current_cage_id: string | null
   mother_id: string | null
@@ -22,7 +23,9 @@ export interface Animal {
   is_active: boolean
   created_at: string
   // Joined data for display
-  type?: string // Computed from tag_animals_colors join
+  type?: string // Computed: "TAG_TYPE | ANIMAL_NAME"
+  formattedTagCode?: string // Computed: "TAG_TYPE-TAG_CODE" (e.g., "EAR-1")
+  animalType?: string // Computed: Animal name only
 }
 
 export interface Cage {
@@ -52,6 +55,7 @@ export const animalService = {
         .select(`
           *,
           tag_animals_colors!tag_animals_colors_id(
+            tag_code,
             animal_types!animal_type_id(animal_name),
             tag_colors!tag_color_id(color, color_name),
             tag_types!tag_type_id(type)
@@ -70,7 +74,11 @@ export const animalService = {
         const type = tagInfo
           ? `${tagInfo.tag_types?.type || ''} | ${tagInfo.animal_types?.animal_name || ''}`
           : ''
-        return { ...animal, type }
+        const formattedTagCode = tagInfo
+          ? `${tagInfo.tag_types?.type || ''}-${tagInfo.tag_code || ''}`
+          : ''
+        const animalType = tagInfo?.animal_types?.animal_name || ''
+        return { ...animal, type, formattedTagCode, animalType }
       })
 
       return formattedData
@@ -140,6 +148,7 @@ export const animalService = {
         .select(`
           *,
           tag_animals_colors!tag_animals_colors_id(
+            tag_code,
             animal_types!animal_type_id(animal_name),
             tag_colors!tag_color_id(color, color_name),
             tag_types!tag_type_id(type)
@@ -163,7 +172,11 @@ export const animalService = {
       const type = tagInfo
         ? `${tagInfo.tag_types?.type || ''} | ${tagInfo.animal_types?.animal_name || ''}`
         : ''
-      return { ...data, type }
+      const formattedTagCode = tagInfo
+        ? `${tagInfo.tag_types?.type || ''}-${tagInfo.tag_code || ''}`
+        : ''
+      const animalType = tagInfo?.animal_types?.animal_name || ''
+      return { ...data, type, formattedTagCode, animalType }
     } catch (err) {
       console.error('Error creating animal:', err)
       throw err
@@ -198,6 +211,7 @@ export const animalService = {
         .select(`
           *,
           tag_animals_colors!tag_animals_colors_id(
+            tag_code,
             animal_types!animal_type_id(animal_name),
             tag_colors!tag_color_id(color, color_name),
             tag_types!tag_type_id(type)
@@ -215,7 +229,11 @@ export const animalService = {
       const type = tagInfo
         ? `${tagInfo.tag_types?.type || ''} | ${tagInfo.animal_types?.animal_name || ''}`
         : ''
-      return { ...data, type }
+      const formattedTagCode = tagInfo
+        ? `${tagInfo.tag_types?.type || ''}-${tagInfo.tag_code || ''}`
+        : ''
+      const animalType = tagInfo?.animal_types?.animal_name || ''
+      return { ...data, type, formattedTagCode, animalType }
     } catch (err) {
       console.error('Error updating animal:', err)
       return null

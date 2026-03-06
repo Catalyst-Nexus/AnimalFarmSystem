@@ -1,4 +1,4 @@
-import { BaseDialog } from '@/components/ui/dialog'
+import { BaseDialog, FormInput } from '@/components/ui/dialog'
 
 interface AnimalTypeDialogProps {
   open: boolean
@@ -29,19 +29,15 @@ export default function AnimalTypeDialog({
       isLoading={isLoading}
     >
       <div className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Animal Name *
-          </label>
-          <input
-            type="text"
-            value={animalName}
-            onChange={(e) => onAnimalNameChange(e.target.value)}
-            placeholder="e.g., Pig, Chicken, Cow"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={isLoading}
-          />
-        </div>
+        <FormInput
+          id="animal-name"
+          label="Animal Name"
+          value={animalName}
+          onChange={onAnimalNameChange}
+          placeholder="e.g., Pig, Chicken, Cow"
+          required
+          disabled={isLoading}
+        />
       </div>
     </BaseDialog>
   )
