@@ -279,15 +279,28 @@ const AnimalModal = ({
   const set = (key: keyof AnimalFormValues, val: string) =>
     setForm((prev) => ({ ...prev, [key]: val }))
 
-  // Filter tag codes based on selections
+  // Filter tag codes based on selections and availability
   const availableTagCodes = useMemo(() => {
     return allTagCodes.filter((tc) => {
+      // Filter by selected criteria
       if (form.animal_type_id && tc.animal_type_id !== form.animal_type_id) return false
       if (form.tag_color_id && tc.tag_color_id !== form.tag_color_id) return false
       if (form.tag_type_id && tc.tag_type_id !== form.tag_type_id) return false
+      
+      // Check if tag code is already used by an existing animal WITH THE SAME ANIMAL TYPE
+      const isUsedByExisting = allAnimals.some((animal) => 
+        animal.tag_animals_colors_id === tc.id && 
+        animal.tag_animals_colors_id !== editingAnimal?.tag_animals_colors_id // Allow current animal when editing
+      )
+      if (isUsedByExisting) return false
+      
+      // Check if tag code is already in the current batch
+      const isInBatch = batch.some((item) => item.tag_animals_colors_id === tc.id)
+      if (isInBatch) return false
+      
       return true
     })
-  }, [allTagCodes, form.animal_type_id, form.tag_color_id, form.tag_type_id])
+  }, [allTagCodes, form.animal_type_id, form.tag_color_id, form.tag_type_id, allAnimals, batch, editingAnimal])
 
   // Filter mothers (Female animals only)
   const filteredMothers = useMemo(() => {
@@ -348,6 +361,21 @@ const AnimalModal = ({
     if (!form.current_cage_id) {
       setError('Please select a cage.')
       return
+    }
+
+    // Check if tag code is already used (unless editing the same animal)
+    if (!editingAnimal) {
+      const isAlreadyUsed = allAnimals.some((a) => a.tag_animals_colors_id === form.tag_animals_colors_id)
+      if (isAlreadyUsed) {
+        setError('This tag code is already assigned to another animal. Please select a different tag code.')
+        return
+      }
+      
+      const isInBatch = batch.some((item) => item.tag_animals_colors_id === form.tag_animals_colors_id)
+      if (isInBatch) {
+        setError('This tag code is already in the batch. Please select a different tag code.')
+        return
+      }
     }
 
     // If editing, submit directly. Otherwise add to batch
@@ -586,8 +614,8 @@ const AnimalModal = ({
                   Select animal type, color, and type first
                 </p>
               ) : availableTagCodes.length === 0 ? (
-                <p className="mt-1 text-xs text-orange-500">
-                  No tag codes available for this combination
+                <p className="mt-1 text-xs text-orange-500 py-2 px-3 bg-orange-50 border border-orange-200 rounded-lg">
+                  ⚠️ No available tag codes for this combination. All tags may already be assigned or create new tags in Animal Admin.
                 </p>
               ) : (
                 <select
