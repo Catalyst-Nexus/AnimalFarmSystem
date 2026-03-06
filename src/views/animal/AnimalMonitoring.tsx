@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useMemo, useRef, useEffect, useCallback } from 'react'
+import { createContext, useContext, useState, useMemo, useEffect, useCallback } from 'react'
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 import {
@@ -7,7 +7,6 @@ import {
 } from '@/components/ui'
 import {
   Activity,
-  ScanBarcode,
   ArrowUp,
   ArrowDown,
   Weight,
@@ -30,7 +29,6 @@ import {
   TrendingUp,
   TrendingDown,
   Hash,
-  Zap,
   Eye,
   Percent,
   AlertTriangle,
@@ -755,14 +753,11 @@ const CageCard = ({ cage, onEdit, onDelete, bulkMode, selectedPigs, onToggleSele
 // ─── Monitoring Sheet Tab ─────────────────────────────────────────────────────
 
 const MonitoringSheetTab = () => {
-  const { pigs, cages, scanTag, updatePigWeight } = useMonitoring()
+  const { pigs, cages, updatePigWeight } = useMonitoring()
   const [selectedCages, setSelectedCages] = useState<string[]>([])
-  const [scanInput, setScanInput] = useState('')
-  const [scannedPig, setScannedPig] = useState<Pig | 'not-found' | null>(null)
   const [editingWeights, setEditingWeights] = useState<Record<string, string>>({})
   const [updatingPigs, setUpdatingPigs] = useState<Set<string>>(new Set())
   const [searchFilter, setSearchFilter] = useState('')
-  const scanInputRef = useRef<HTMLInputElement>(null)
 
   const activeCages = useMemo(() => cages.filter(c => c.isActive), [cages])
   
@@ -798,30 +793,6 @@ const MonitoringSheetTab = () => {
     })
   }, [pigs, selectedCages, cages, searchFilter])
 
-  const handleScan = () => {
-    const trimmed = scanInput.trim()
-    if (!trimmed) return
-    const pig = scanTag(trimmed)
-    setScannedPig(pig ?? 'not-found')
-    if (pig) {
-      setEditingWeights(prev => ({ ...prev, [pig.tagId]: pig.weight.toString() }))
-      if (selectedCages.includes(pig.cageId || '')) {
-        const element = document.getElementById(`pig-row-${pig.tagId}`)
-        element?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      }
-    }
-  }
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') handleScan()
-  }
-
-  const handleClearScan = () => {
-    setScanInput('')
-    setScannedPig(null)
-    scanInputRef.current?.focus()
-  }
-
   const handleWeightChange = (tagId: string, value: string) => {
     setEditingWeights(prev => ({ ...prev, [tagId]: value }))
   }
@@ -838,10 +809,6 @@ const MonitoringSheetTab = () => {
     setUpdatingPigs(prev => new Set(prev).add(pig.tagId))
     try {
       await updatePigWeight(pig.id, newWeight)
-      if (scannedPig && scannedPig !== 'not-found' && scannedPig.id === pig.id) {
-        setScannedPig(null)
-        setScanInput('')
-      }
     } finally {
       setUpdatingPigs(prev => {
         const next = new Set(prev)
@@ -851,92 +818,8 @@ const MonitoringSheetTab = () => {
     }
   }
 
-  const cage = scannedPig && scannedPig !== 'not-found'
-    ? cages.find((c) => c.id === scannedPig.cageId)
-    : null
-
   return (
     <div className="space-y-5">
-      {/* Scanner Panel */}
-      <div className="relative overflow-hidden bg-surface border border-border rounded-2xl shadow-sm">
-        <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-success via-emerald-400 to-teal-500" />
-        <div className="p-6">
-          <div className="flex items-center gap-3 mb-5">
-            <div className="p-2.5 bg-gradient-to-br from-success/20 to-emerald-500/10 rounded-xl">
-              <ScanBarcode className="w-5 h-5 text-success" />
-            </div>
-            <div>
-              <h3 className="text-base font-bold text-foreground">Tag Scanner</h3>
-              <p className="text-xs text-muted">Scan a tag to highlight the animal and update its weight</p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3 mb-4">
-            <div className="flex-1 relative group">
-              <input
-                ref={scanInputRef}
-                className="w-full px-4 py-3 pl-11 border-2 border-border rounded-xl text-sm bg-background text-foreground placeholder:text-muted/60 focus:outline-none focus:border-success focus:ring-4 focus:ring-success/10 font-mono transition-all"
-                placeholder="Enter tag ID..."
-                value={scanInput}
-                onChange={(e) => { setScanInput(e.target.value); setScannedPig(null) }}
-                onKeyDown={handleKeyDown}
-              />
-              <ScanBarcode className="w-4 h-4 text-muted/50 group-focus-within:text-success absolute left-3.5 top-1/2 -translate-y-1/2 transition-colors" />
-            </div>
-            <button
-              className="px-5 py-3 bg-success text-white rounded-xl text-sm font-semibold hover:bg-success/90 hover:shadow-md active:scale-95 transition-all flex items-center gap-2 shadow-sm"
-              onClick={handleScan}
-              disabled={!scanInput.trim()}
-            >
-              <Zap className="w-4 h-4" /> Scan
-            </button>
-            {scannedPig !== null && (
-              <button
-                className="px-4 py-3 border border-border rounded-xl text-sm font-medium text-muted hover:bg-surface hover:text-foreground transition-all"
-                onClick={handleClearScan}
-              >
-                Clear
-              </button>
-            )}
-          </div>
-
-          {scannedPig === 'not-found' && (
-            <div className="flex items-start gap-3 p-4 bg-red-50/80 border border-red-200 rounded-xl animate-in fade-in slide-in-from-top-2 duration-300">
-              <div className="p-1.5 bg-red-100 rounded-lg shrink-0">
-                <XCircle className="w-4 h-4 text-red-500" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-red-700">No match</p>
-                <p className="text-xs text-red-600/80 mt-0.5">Tag <span className="font-mono bg-red-100 px-1.5 py-0.5 rounded">{scanInput}</span> is not registered.</p>
-              </div>
-            </div>
-          )}
-
-          {scannedPig && scannedPig !== 'not-found' && (
-            <div className="animate-in fade-in slide-in-from-top-2 duration-300 bg-gradient-to-r from-emerald-50/80 to-green-50/50 border border-emerald-200 rounded-xl p-4">
-              <div className="flex items-center gap-4">
-                <div className="w-14 h-14 rounded-2xl bg-white border-2 border-emerald-200 flex flex-col items-center justify-center shrink-0 shadow-sm">
-                  <span className="text-lg font-black text-emerald-700 leading-tight">{scannedPig.weight}</span>
-                  <span className="text-[10px] font-medium text-emerald-500 -mt-0.5">kg</span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                    <span className="text-sm font-bold text-emerald-800">Found</span>
-                    <span className="font-mono text-xs bg-white border border-emerald-200 px-2 py-0.5 rounded-md text-emerald-700">{scannedPig.tagId}</span>
-                  </div>
-                  <div className="flex flex-wrap gap-2 text-xs">
-                    <span className="font-medium text-foreground">{scannedPig.breed}</span>
-                    <span className={cn('px-2 py-0.5 rounded-lg font-bold border', SEX_STYLES[scannedPig.sex])}>{scannedPig.sex}</span>
-                    {cage && <span className="text-muted">in {cage.label}</span>}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
       {/* Cage Selection */}
       <div className="bg-surface border border-border rounded-2xl p-6 shadow-sm">
         <div className="flex items-center justify-between mb-4">
@@ -1053,7 +936,6 @@ const MonitoringSheetTab = () => {
             {animalsToMonitor.map((pig) => {
               const currentCage = cages.find(c => c.id === pig.cageId)
               const isUpdating = updatingPigs.has(pig.tagId)
-              const isHighlighted = scannedPig && scannedPig !== 'not-found' && scannedPig.tagId === pig.tagId
               const editWeight = editingWeights[pig.tagId] ?? pig.weight.toString()
               const weightChanged = editWeight !== pig.weight.toString()
               
@@ -1061,12 +943,7 @@ const MonitoringSheetTab = () => {
                 <div
                   key={pig.id}
                   id={`pig-row-${pig.tagId}`}
-                  className={cn(
-                    'grid grid-cols-12 gap-3 px-5 py-3.5 transition-all',
-                    isHighlighted 
-                      ? 'bg-emerald-50/80 shadow-inner ring-2 ring-inset ring-emerald-300 animate-in fade-in duration-300' 
-                      : 'hover:bg-background/50'
-                  )}
+                  className="grid grid-cols-12 gap-3 px-5 py-3.5 hover:bg-background/50 transition-all"
                 >
                   <div className="col-span-3 flex items-center">
                     <span className="font-mono text-[11px] font-bold bg-background px-2.5 py-1 rounded-lg border border-border/60 truncate">
