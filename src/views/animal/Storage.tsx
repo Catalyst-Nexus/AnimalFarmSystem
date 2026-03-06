@@ -87,6 +87,7 @@ interface FeedingContextType {
 const FeedingContext = createContext<FeedingContextType | undefined>(undefined)
 
 const FeedingProvider = ({ children }: { children: ReactNode }) => {
+  const { user } = useAuthStore()
   const [records, setRecords] = useState<FeedingRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [rationTypes, setRationTypes] = useState<RationType[]>([])
@@ -112,13 +113,14 @@ const FeedingProvider = ({ children }: { children: ReactNode }) => {
   })
 
   const loadData = useCallback(async () => {
+    if (!user?.id) return
     setLoading(true)
     try {
       const [types, allRationAnimals, allAnimals, allCages, allDeliveryItems] = await Promise.all([
         fetchRationTypes(),
         fetchRationAnimals(),
         animalService.getAnimalsWithTag(),
-        cageService.getCages(),
+        cageService.getCages(user.id),
         fetchDeliveryItems(),
       ])
       setRationTypes(types)
@@ -138,7 +140,7 @@ const FeedingProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [user?.id])
 
   useEffect(() => { loadData() }, [loadData])
 
@@ -360,13 +362,16 @@ const RecordModal = ({
     [deliveryItems, form.delivery_item_id]
   )
 
-  const costPerUnit = useMemo(() => {
+  // Cost per kg calculation: price per sack ÷ kg per sack
+  const costPerKg = useMemo(() => {
     if (!selectedItem) return 0
-    return selectedItem.unit_price_delivery ?? 0
+    const pricePerSack = selectedItem.unit_price_delivery ?? 0
+    const kgPerSack = selectedItem.unit_issuance_rate ?? 1
+    return kgPerSack > 0 ? pricePerSack / kgPerSack : 0
   }, [selectedItem])
 
   const qtyGiven = parseFloat(form.quantity_given) || 0
-  const unitCost = qtyGiven * costPerUnit
+  const unitCost = qtyGiven * costPerKg
   const animalCount = selectionMode === 'cage' ? cageAnimals.length : 1
   const totalCost = unitCost * animalCount
 
@@ -450,9 +455,14 @@ const RecordModal = ({
               <label className={LABEL}>Cage <span className="text-red-500">*</span></label>
               <select className={FIELD} value={selectedCageId} onChange={(e) => handleCageChange(e.target.value)}>
                 <option value="">Select cage…</option>
-                {cages.map((c) => (
-                  <option key={c.id} value={c.id}>{c.cage_label} (capacity: {c.max_capacity})</option>
-                ))}
+                {cages.map((c) => {
+                  const animalCount = animals.filter(a => a.current_cage_id === c.id).length
+                  return (
+                    <option key={c.id} value={c.id}>
+                      {c.cage_label} ({animalCount}/{c.max_capacity} animals)
+                    </option>
+                  )
+                })}
               </select>
               {loadingCage && <p className="text-xs text-muted mt-1">Loading animals…</p>}
               {!loadingCage && selectedCageId && (
@@ -491,7 +501,7 @@ const RecordModal = ({
 
           {/* Quantity Given */}
           <div>
-            <label className={LABEL}>Qty Given <span className="text-red-500">*</span></label>
+            <label className={LABEL}>Qty Given (kg) <span className="text-red-500">*</span></label>
             <input type="number" min="0" step="0.1" className={FIELD} placeholder="e.g. 3.5" value={form.quantity_given} onChange={(e) => set('quantity_given', e.target.value)} />
           </div>
 
@@ -540,11 +550,11 @@ const RecordModal = ({
             <h3 className="text-xs font-bold text-green-800 uppercase tracking-wide mb-2">Cost Estimate</h3>
             <div className="space-y-1 text-sm text-green-900">
               <div className="flex justify-between">
-                <span>Cost per {selectedItem.unit_delivery?.name ?? 'unit'}</span>
-                <span className="font-semibold">₱{costPerUnit.toFixed(2)}</span>
+                <span>Cost per {selectedItem.unit_issuance?.name ?? 'kg'}</span>
+                <span className="font-semibold">₱{costPerKg.toFixed(2)}</span>
               </div>
               <div className="flex justify-between">
-                <span>Qty × {qtyGiven.toFixed(1)} kg</span>
+                <span>Qty × {qtyGiven.toFixed(1)} {selectedItem.unit_issuance?.name ?? 'kg'}</span>
                 <span className="font-semibold">₱{unitCost.toFixed(2)}</span>
               </div>
               {selectionMode === 'cage' && animalCount > 1 && (
@@ -690,7 +700,7 @@ const FeedingApp = () => {
     },
     {
       key: 'quantity_given' as const,
-      header: 'Qty Given',
+      header: 'Qty Given (kg)',
       render: (r: FeedingRecord) => (
         <span className="text-sm font-semibold text-foreground">{r.quantity_given}</span>
       ),
@@ -873,6 +883,7 @@ interface VitaminsContextType {
 const VitaminsContext = createContext<VitaminsContextType | undefined>(undefined)
 
 const VitaminsProvider = ({ children }: { children: ReactNode }) => {
+  const { user } = useAuthStore()
   const [records, setRecords] = useState<VitaminRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [rationTypes, setRationTypes] = useState<RationType[]>([])
@@ -899,13 +910,14 @@ const VitaminsProvider = ({ children }: { children: ReactNode }) => {
   })
 
   const loadData = useCallback(async () => {
+    if (!user?.id) return
     setLoading(true)
     try {
       const [types, allRationAnimals, allAnimals, allCages, allDeliveryItems] = await Promise.all([
         fetchRationTypes(),
         fetchRationAnimals(),
         animalService.getAnimalsWithTag(),
-        cageService.getCages(),
+        cageService.getCages(user.id),
         fetchDeliveryItems(),
       ])
       setRationTypes(types)
@@ -921,7 +933,7 @@ const VitaminsProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [user?.id])
 
   useEffect(() => { loadData() }, [loadData])
 
@@ -1154,13 +1166,16 @@ const VitaminRecordModal = ({
     [deliveryItems, form.delivery_item_id]
   )
 
-  const costPerUnit = useMemo(() => {
+  // Cost per kg calculation: price per sack ÷ kg per sack
+  const vitCostPerKg = useMemo(() => {
     if (!selectedItem) return 0
-    return selectedItem.unit_price_delivery ?? 0
+    const pricePerSack = selectedItem.unit_price_delivery ?? 0
+    const kgPerSack = selectedItem.unit_issuance_rate ?? 1
+    return kgPerSack > 0 ? pricePerSack / kgPerSack : 0
   }, [selectedItem])
 
   const vitQtyGiven = parseFloat(form.quantity_given) || 0
-  const vitUnitCost = vitQtyGiven * costPerUnit
+  const vitUnitCost = vitQtyGiven * vitCostPerKg
   const vitAnimalCount = selectionMode === 'cage' ? cageAnimals.length : 1
   const vitTotalCost = vitUnitCost * vitAnimalCount
 
@@ -1247,9 +1262,14 @@ const VitaminRecordModal = ({
               <label className={VIT_LABEL}>Cage <span className="text-red-500">*</span></label>
               <select className={VIT_FIELD} value={selectedCageId} onChange={(e) => handleCageChange(e.target.value)}>
                 <option value="">Select cage…</option>
-                {cages.map((c) => (
-                  <option key={c.id} value={c.id}>{c.cage_label} (capacity: {c.max_capacity})</option>
-                ))}
+                {cages.map((c) => {
+                  const animalCount = animals.filter(a => a.current_cage_id === c.id).length
+                  return (
+                    <option key={c.id} value={c.id}>
+                      {c.cage_label} ({animalCount}/{c.max_capacity} animals)
+                    </option>
+                  )
+                })}
               </select>
               {loadingCage && <p className="text-xs text-muted mt-1">Loading animals…</p>}
               {!loadingCage && selectedCageId && (
@@ -1286,7 +1306,7 @@ const VitaminRecordModal = ({
           </div>
 
           <div>
-            <label className={VIT_LABEL}>Qty Given <span className="text-red-500">*</span></label>
+            <label className={VIT_LABEL}>Qty Given (kg) <span className="text-red-500">*</span></label>
             <input type="number" min="0" step="0.1" className={VIT_FIELD} placeholder="e.g. 2" value={form.quantity_given} onChange={(e) => set('quantity_given', e.target.value)} />
           </div>
 
@@ -1329,11 +1349,11 @@ const VitaminRecordModal = ({
             <h3 className="text-xs font-bold text-purple-800 uppercase tracking-wide mb-2">Cost Estimate</h3>
             <div className="space-y-1 text-sm text-purple-900">
               <div className="flex justify-between">
-                <span>Cost per {selectedItem.unit_delivery?.name ?? 'unit'}</span>
-                <span className="font-semibold">₱{costPerUnit.toFixed(2)}</span>
+                <span>Cost per {selectedItem.unit_issuance?.name ?? 'kg'}</span>
+                <span className="font-semibold">₱{vitCostPerKg.toFixed(2)}</span>
               </div>
               <div className="flex justify-between">
-                <span>Qty × {vitQtyGiven.toFixed(1)}</span>
+                <span>Qty × {vitQtyGiven.toFixed(1)} {selectedItem.unit_issuance?.name ?? 'kg'}</span>
                 <span className="font-semibold">₱{vitUnitCost.toFixed(2)}</span>
               </div>
               {selectionMode === 'cage' && vitAnimalCount > 1 && (
@@ -1444,7 +1464,7 @@ const VitaminsApp = () => {
     },
     {
       key: 'quantity_given' as const,
-      header: 'Qty Given',
+      header: 'Qty Given (kg)',
       render: (r: VitaminRecord) => <span className="text-sm font-medium text-foreground">{r.quantity_given}</span>,
     },
     {
