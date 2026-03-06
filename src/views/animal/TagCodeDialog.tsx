@@ -64,7 +64,7 @@ export default function TagCodeDialog({
           label="Tag Color"
           value={tagColorId}
           onChange={onTagColorIdChange}
-          options={tagColors.map((tc) => ({ value: tc.id, label: tc.color }))}
+          options={tagColors.map((tc) => ({ value: tc.id, label: tc.color_name }))}
           placeholder="Select Tag Color"
           required
           disabled={isLoading}
