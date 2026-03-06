@@ -7,6 +7,7 @@ import {
 import {
   Activity,
   ArrowUp,
+  ArrowDown,
   Weight,
   PiggyBank,
   MoveRight,
@@ -28,7 +29,7 @@ import CageDialog from '../CageDialog'
 import type { Cage } from './types'
 
 export const MonitoringApp = () => {
-  const { pigs, cages, addCage, editCage, removeCage, isLoading, refreshData, bulkMovePigs } = useMonitoring()
+  const { pigs, cages, addCage, editCage, removeCage, isLoading, refreshData, bulkMovePigs, sortDir, setSortDir } = useMonitoring()
   const { showToast } = useToast()
   
   const [activeTab, setActiveTab] = useState<'monitoring' | 'sheet' | 'sorting'>('monitoring')
@@ -269,6 +270,17 @@ export const MonitoringApp = () => {
               <Search className="w-3.5 h-3.5 text-muted/50 absolute left-3 top-1/2 -translate-y-1/2" />
             </div>
             <div className="flex items-center gap-2">
+              <button
+                onClick={() => setSortDir(sortDir === 'asc' ? 'desc' : 'asc')}
+                className="px-3 py-2 border border-border rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 text-muted hover:text-foreground hover:bg-background"
+                title={sortDir === 'asc' ? 'Sorted: Lightest First' : 'Sorted: Heaviest First'}
+              >
+                {sortDir === 'asc' ? (
+                  <><ArrowUp className="w-3.5 h-3.5" /> Lightest</>
+                ) : (
+                  <><ArrowDown className="w-3.5 h-3.5" /> Heaviest</>
+                )}
+              </button>
               <button
                 onClick={toggleBulkMode}
                 className={cn(

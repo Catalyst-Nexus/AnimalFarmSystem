@@ -36,7 +36,7 @@ export const MonitoringContext = createContext<MonitoringContextType | undefined
 export const MonitoringProvider = ({ children }: { children: ReactNode }) => {
   const [pigs, setPigs] = useState<Pig[]>([])
   const [cages, setCages] = useState<Cage[]>([])
-  const [sortDir, setSortDir] = useState<SortDir>('asc')
+  const [sortDir, setSortDir] = useState<SortDir>('desc')
   const [isLoading, setIsLoading] = useState(true)
   const { showToast } = useToast()
 
