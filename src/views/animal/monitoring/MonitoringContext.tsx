@@ -9,7 +9,9 @@ import {
   updateAnimalCage,
   type Cage as DBCage,
 } from '@/services/cageService'
+import { getUserFacilityInsertId } from '@/services/facilityFilterService'
 import { animalService } from '@/services/animalService'
+import { useAuthStore } from '@/store/authStore'
 import { useToast } from './ToastContext'
 import type { Pig, Cage, SortDir } from './types'
 import { convertAnimalToPig, convertDBCage } from './types'
@@ -39,6 +41,7 @@ export const MonitoringProvider = ({ children }: { children: ReactNode }) => {
   const [sortDir, setSortDir] = useState<SortDir>('desc')
   const [isLoading, setIsLoading] = useState(true)
   const { showToast } = useToast()
+  const user = useAuthStore((s) => s.user)
 
   // Fetch data from Supabase
   const refreshData = async () => {
@@ -101,7 +104,10 @@ export const MonitoringProvider = ({ children }: { children: ReactNode }) => {
 
   const addCage = async (cage: Omit<DBCage, 'id' | 'created_at'>) => {
     try {
-      const newCage = await createCage(cage)
+      if (!user?.id) throw new Error('User not authenticated')
+      const userFacilityId = await getUserFacilityInsertId(user.id)
+      if (!userFacilityId) throw new Error('No facility assigned to user')
+      const newCage = await createCage({ ...cage, user_facility_id: userFacilityId })
       setCages((prev) => [...prev, convertDBCage(newCage)])
       showToast('Cage added successfully', 'success')
     } catch (error) {
