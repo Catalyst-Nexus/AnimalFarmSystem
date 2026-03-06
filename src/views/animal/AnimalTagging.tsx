@@ -914,33 +914,37 @@ const AnimalModal = ({
           >
             Cancel
           </button>
-          {batch.length > 0 && (
-            <button
-              className="flex-1 py-2.5 bg-warning text-white rounded-lg text-sm font-medium hover:bg-warning/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-              onClick={() => setBatch([])}
-              disabled={isRegisteringBatch}
-            >
-              Clear Batch
-            </button>
-          )}
-          {batch.length > 0 ? (
-            <button
-              className="flex-1 py-2.5 bg-success text-white rounded-lg text-sm font-medium hover:bg-success/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-              onClick={handleRegisterBatch}
-              disabled={isRegisteringBatch}
-            >
-              {isRegisteringBatch && <Loader2 className="w-4 h-4 animate-spin" />}
-              Register All ({batch.length})
-            </button>
-          ) : (
+          {editingAnimal ? (
             <button
               className="flex-1 py-2.5 bg-success text-white rounded-lg text-sm font-medium hover:bg-success/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
               onClick={handleSubmit}
-              disabled={isSubmitting || !form.tag_animals_colors_id}
+              disabled={isSubmitting}
             >
               {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
-              {editingAnimal ? 'Save Changes' : 'Add to Batch'}
+              Save Changes
             </button>
+          ) : (
+            <>
+              <button
+                className="flex-1 py-2.5 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                onClick={handleSubmit}
+                disabled={isSubmitting || !form.tag_animals_colors_id}
+              >
+                {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
+                <Plus className="w-4 h-4" />
+                Add
+              </button>
+              {batch.length > 0 && (
+                <button
+                  className="flex-1 py-2.5 bg-success text-white rounded-lg text-sm font-medium hover:bg-success/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                  onClick={handleRegisterBatch}
+                  disabled={isRegisteringBatch}
+                >
+                  {isRegisteringBatch && <Loader2 className="w-4 h-4 animate-spin" />}
+                  Register All ({batch.length})
+                </button>
+              )}
+            </>
           )}
         </div>
       </div>
