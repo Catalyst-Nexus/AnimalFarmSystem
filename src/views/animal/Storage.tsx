@@ -10,7 +10,7 @@ import {
   DataTable,
   IconButton,
 } from '@/components/ui'
-import { UtensilsCrossed, Plus, Pencil, Trash2, Syringe, FlaskConical, CalendarCheck, Loader2, Users, User, PackagePlus, Undo2, X, Eye } from 'lucide-react'
+import { UtensilsCrossed, Plus, Pencil, Trash2, Syringe, FlaskConical, CalendarCheck, Loader2, Users, User, PackagePlus, Undo2, X, Eye, Package, AlertTriangle } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import {
   createRation,
@@ -31,7 +31,9 @@ import {
   createStockTransaction,
   updateStockTransaction,
   deleteStockTransaction as deleteStockTransactionApi,
+  fetchApprovedStockItems,
   type StockTransaction,
+  type ApprovedStockItem,
 } from '@/services/stockTransactionService'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -75,7 +77,7 @@ interface FeedingContextType {
   feedingTypeId: string | null
   animals: (Animal & { tag_code: number | null; cage_label: string | null })[]
   cages: Cage[]
-  deliveryItems: DeliveryItem[]
+  approvedItems: ApprovedStockItem[]
   addRecord: (values: FeedingFormValues) => Promise<void>
   addBulkRecords: (animalIds: string[], values: FeedingFormValues) => Promise<void>
   updateRecord: (id: string, rationId: string, values: FeedingFormValues) => Promise<void>
@@ -94,7 +96,7 @@ const FeedingProvider = ({ children }: { children: ReactNode }) => {
   const [feedingTypeId, setFeedingTypeId] = useState<string | null>(null)
   const [animals, setAnimals] = useState<(Animal & { tag_code: number | null; cage_label: string | null })[]>([])
   const [cages, setCages] = useState<Cage[]>([])
-  const [deliveryItems, setDeliveryItems] = useState<DeliveryItem[]>([])
+  const [approvedItems, setApprovedItems] = useState<ApprovedStockItem[]>([])
 
   const mapRationAnimalToRecord = (ra: RationAnimal): FeedingRecord => ({
     id: ra.id,
@@ -116,17 +118,24 @@ const FeedingProvider = ({ children }: { children: ReactNode }) => {
     if (!user?.id) return
     setLoading(true)
     try {
-      const [types, allRationAnimals, allAnimals, allCages, allDeliveryItems] = await Promise.all([
+      const [types, allRationAnimals, allAnimals, allCages, stockItems] = await Promise.all([
         fetchRationTypes(),
         fetchRationAnimals(),
         animalService.getAnimalsWithTag(),
         cageService.getCages(user.id),
-        fetchDeliveryItems(),
+        fetchApprovedStockItems(),
       ])
+      
+      console.log('=== FEEDING DATA LOADED ===')
+      console.log('Ration types:', types)
+      console.log('Animals:', allAnimals.length)
+      console.log('Cages:', allCages.length)
+      console.log('Approved stock items:', stockItems)
+      
       setRationTypes(types)
       setAnimals(allAnimals)
       setCages(allCages)
-      setDeliveryItems(allDeliveryItems)
+      setApprovedItems(stockItems)
       const feedType = types.find((t) => t.name === 'Feeding')
       setFeedingTypeId(feedType?.id ?? null)
 
@@ -145,8 +154,17 @@ const FeedingProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => { loadData() }, [loadData])
 
   const addRecord = async (values: FeedingFormValues) => {
-    if (!feedingTypeId) return
+    console.log('=== ADD RECORD CALLED ===')
+    console.log('Feeding type ID:', feedingTypeId)
+    console.log('Form values:', values)
+    
+    if (!feedingTypeId) {
+      console.error('No feeding type ID found!')
+      return
+    }
+    
     // 1. Create the ration (parent)
+    console.log('Creating ration...')
     const rationResult = await createRation({
       ration_type_id: feedingTypeId,
       delivery_item_id: values.delivery_item_id,
@@ -158,11 +176,17 @@ const FeedingProvider = ({ children }: { children: ReactNode }) => {
       status: values.status,
       notes: values.notes || null,
     })
+    
+    console.log('Ration result:', rationResult)
+    
     if (!rationResult.success || !rationResult.data) {
+      console.error('Ration creation failed:', rationResult.error)
       alert('Error creating ration: ' + rationResult.error)
       return
     }
+    
     // 2. Create the ration_animal (child)
+    console.log('Creating ration_animal...')
     const raResult = await createRationAnimal({
       ration_id: rationResult.data.id,
       animal_id: values.animal_id,
@@ -170,10 +194,16 @@ const FeedingProvider = ({ children }: { children: ReactNode }) => {
       status: values.status,
       notes: values.notes || null,
     })
+    
+    console.log('Ration animal result:', raResult)
+    
     if (!raResult.success) {
+      console.error('Ration animal creation failed:', raResult.error)
       alert('Error creating ration animal: ' + raResult.error)
       return
     }
+    
+    console.log('Record created successfully, reloading data...')
     await loadData()
   }
 
@@ -251,7 +281,7 @@ const FeedingProvider = ({ children }: { children: ReactNode }) => {
         feedingTypeId,
         animals,
         cages,
-        deliveryItems,
+        approvedItems,
         addRecord,
         addBulkRecords,
         updateRecord: updateRecordFn,
@@ -322,7 +352,7 @@ const RecordModal = ({
   editing: FeedingRecord | null
   onClose: () => void
 }) => {
-  const { addRecord, addBulkRecords, updateRecord, animals, cages, deliveryItems } = useFeeding()
+  const { addRecord, addBulkRecords, updateRecord, animals, cages, approvedItems } = useFeeding()
   const [selectionMode, setSelectionMode] = useState<'individual' | 'cage'>(editing ? 'individual' : 'individual')
   const [selectedCageId, setSelectedCageId] = useState('')
   const [cageAnimals, setCageAnimals] = useState<Animal[]>([])
@@ -356,18 +386,16 @@ const RecordModal = ({
   const set = (key: keyof FeedingFormValues, val: string) =>
     setForm((prev) => ({ ...prev, [key]: val }))
 
-  // Find selected delivery item and compute cost
+  // Find selected approved stock item and compute cost
   const selectedItem = useMemo(
-    () => deliveryItems.find((d) => d.id === form.delivery_item_id) ?? null,
-    [deliveryItems, form.delivery_item_id]
+    () => approvedItems.find((item) => item.id === form.delivery_item_id) ?? null,
+    [approvedItems, form.delivery_item_id]
   )
 
-  // Cost per kg calculation: price per sack ÷ kg per sack
+  // Cost per kg - already calculated in approved stock items
   const costPerKg = useMemo(() => {
     if (!selectedItem) return 0
-    const pricePerSack = selectedItem.unit_price_delivery ?? 0
-    const kgPerSack = selectedItem.unit_issuance_rate ?? 1
-    return kgPerSack > 0 ? pricePerSack / kgPerSack : 0
+    return selectedItem.unit_price_per_issuance
   }, [selectedItem])
 
   const qtyGiven = parseFloat(form.quantity_given) || 0
@@ -376,6 +404,11 @@ const RecordModal = ({
   const totalCost = unitCost * animalCount
 
   const handleSubmit = async () => {
+    console.log('=== FEEDING FORM SUBMISSION ===')
+    console.log('Form values:', form)
+    console.log('Selection mode:', selectionMode)
+    console.log('Approved items available:', approvedItems.length)
+    
     if (
       !form.delivery_item_id.trim() ||
       !form.unit_id.trim() ||
@@ -383,19 +416,27 @@ const RecordModal = ({
       !form.date_given ||
       !form.administered_by.trim()
     ) {
+      console.error('Validation failed: missing required fields')
       alert('Please fill in all required fields.')
       return
     }
 
+    console.log('Validation passed, submitting...')
+    
     if (editing) {
+      console.log('Updating existing record:', editing.id)
       await updateRecord(editing.id, editing.ration_id, form)
     } else if (selectionMode === 'cage') {
+      console.log('Bulk adding for cage animals:', cageAnimals.length)
       if (cageAnimals.length === 0) { alert('No animals in the selected cage.'); return }
       await addBulkRecords(cageAnimals.map((a) => a.id), form)
     } else {
+      console.log('Adding individual record for animal:', form.animal_id)
       if (!form.animal_id.trim()) { alert('Please select an animal.'); return }
       await addRecord(form)
     }
+    
+    console.log('Submission complete')
     onClose()
   }
 
@@ -473,28 +514,28 @@ const RecordModal = ({
             </div>
           ) : null}
 
-          {/* Delivery Item */}
+          {/* Feed Item */}
           <div className="col-span-2">
             <label className={LABEL}>Feed Item <span className="text-red-500">*</span></label>
             <select
               className={FIELD}
               value={form.delivery_item_id}
               onChange={(e) => {
-                const item = deliveryItems.find((d) => d.id === e.target.value)
+                const item = approvedItems.find((item) => item.id === e.target.value)
                 set('delivery_item_id', e.target.value)
-                set('unit_id', item?.unit_delivery_id ?? '')
+                set('unit_id', item?.unit_issuance_id ?? '')
               }}
             >
               <option value="">Select feed item…</option>
-              {deliveryItems.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.description ?? d.id.slice(0, 8)} {d.brand?.name ? `(${d.brand.name})` : ''} — {d.category?.name ?? ''} — ₱{d.unit_price_delivery?.toFixed(2) ?? '0.00'}/{d.unit_delivery?.name ?? 'unit'}
+              {approvedItems.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.description ?? item.id.slice(0, 8)} {item.brand_name ? `(${item.brand_name})` : ''} — {item.category_name ?? ''} — ₱{item.unit_price_per_issuance.toFixed(2)}/{item.unit_issuance_name}
                 </option>
               ))}
             </select>
             {selectedItem && (
               <p className="text-xs text-muted mt-1">
-                Unit: {selectedItem.unit_delivery?.name ?? '—'} · Qty: {selectedItem.quantity_delivery} · Expiry: {selectedItem.expiry_date ?? '—'}
+                Unit: {selectedItem.unit_issuance_name} · Available: {selectedItem.available_quantity} {selectedItem.unit_issuance_name} · Expiry: {selectedItem.expiry_date ?? '—'}
               </p>
             )}
           </div>
@@ -550,11 +591,11 @@ const RecordModal = ({
             <h3 className="text-xs font-bold text-green-800 uppercase tracking-wide mb-2">Cost Estimate</h3>
             <div className="space-y-1 text-sm text-green-900">
               <div className="flex justify-between">
-                <span>Cost per {selectedItem.unit_issuance?.name ?? 'kg'}</span>
+                <span>Cost per {selectedItem.unit_issuance_name}</span>
                 <span className="font-semibold">₱{costPerKg.toFixed(2)}</span>
               </div>
               <div className="flex justify-between">
-                <span>Qty × {qtyGiven.toFixed(1)} {selectedItem.unit_issuance?.name ?? 'kg'}</span>
+                <span>Qty × {qtyGiven.toFixed(1)} {selectedItem.unit_issuance_name}</span>
                 <span className="font-semibold">₱{unitCost.toFixed(2)}</span>
               </div>
               {selectionMode === 'cage' && animalCount > 1 && (
@@ -871,7 +912,7 @@ interface VitaminsContextType {
   rationTypes: RationType[]
   animals: (Animal & { tag_code: number | null; cage_label: string | null })[]
   cages: Cage[]
-  deliveryItems: DeliveryItem[]
+  approvedItems: ApprovedStockItem[]
   addRecord: (values: VitaminFormValues) => Promise<void>
   addBulkRecords: (animalIds: string[], values: VitaminFormValues) => Promise<void>
   updateRecord: (id: string, rationId: string, values: VitaminFormValues) => Promise<void>
@@ -889,7 +930,7 @@ const VitaminsProvider = ({ children }: { children: ReactNode }) => {
   const [rationTypes, setRationTypes] = useState<RationType[]>([])
   const [animals, setAnimals] = useState<(Animal & { tag_code: number | null; cage_label: string | null })[]>([])
   const [cages, setCages] = useState<Cage[]>([])
-  const [deliveryItems, setDeliveryItems] = useState<DeliveryItem[]>([])
+  const [approvedItems, setApprovedItems] = useState<ApprovedStockItem[]>([])
 
   const VITAMIN_TYPE_NAMES = ['Vitamin', 'Injection', 'Supplement']
 
@@ -913,17 +954,17 @@ const VitaminsProvider = ({ children }: { children: ReactNode }) => {
     if (!user?.id) return
     setLoading(true)
     try {
-      const [types, allRationAnimals, allAnimals, allCages, allDeliveryItems] = await Promise.all([
+      const [types, allRationAnimals, allAnimals, allCages, stockItems] = await Promise.all([
         fetchRationTypes(),
         fetchRationAnimals(),
         animalService.getAnimalsWithTag(),
         cageService.getCages(user.id),
-        fetchDeliveryItems(),
+        fetchApprovedStockItems(),
       ])
       setRationTypes(types)
       setAnimals(allAnimals)
       setCages(allCages)
-      setDeliveryItems(allDeliveryItems)
+      setApprovedItems(stockItems)
       const vitaminRecords = allRationAnimals
         .filter((ra) => VITAMIN_TYPE_NAMES.includes(ra.ration?.ration_type?.name ?? ''))
         .map(mapToVitaminRecord)
@@ -1038,7 +1079,7 @@ const VitaminsProvider = ({ children }: { children: ReactNode }) => {
         rationTypes,
         animals,
         cages,
-        deliveryItems,
+        approvedItems,
         addRecord,
         addBulkRecords,
         updateRecord: updateRecordFn,
@@ -1123,7 +1164,7 @@ const VitaminRecordModal = ({
   editing: VitaminRecord | null
   onClose: () => void
 }) => {
-  const { addRecord, addBulkRecords, updateRecord, rationTypes, animals, cages, deliveryItems } = useVitamins()
+  const { addRecord, addBulkRecords, updateRecord, rationTypes, animals, cages, approvedItems } = useVitamins()
   const vitaminTypes = rationTypes.filter((t) => ['Vitamin', 'Injection', 'Supplement'].includes(t.name))
   const [selectionMode, setSelectionMode] = useState<'individual' | 'cage'>(editing ? 'individual' : 'individual')
   const [selectedCageId, setSelectedCageId] = useState('')
@@ -1160,18 +1201,16 @@ const VitaminRecordModal = ({
   const set = (key: keyof VitaminFormValues, val: string) =>
     setForm((prev) => ({ ...prev, [key]: val }))
 
-  // Find selected delivery item and compute cost
+  // Find selected approved stock item and compute cost
   const selectedItem = useMemo(
-    () => deliveryItems.find((d) => d.id === form.delivery_item_id) ?? null,
-    [deliveryItems, form.delivery_item_id]
+    () => approvedItems.find((item) => item.id === form.delivery_item_id) ?? null,
+    [approvedItems, form.delivery_item_id]
   )
 
-  // Cost per kg calculation: price per sack ÷ kg per sack
+  // Cost per kg - already calculated in approved stock items
   const vitCostPerKg = useMemo(() => {
     if (!selectedItem) return 0
-    const pricePerSack = selectedItem.unit_price_delivery ?? 0
-    const kgPerSack = selectedItem.unit_issuance_rate ?? 1
-    return kgPerSack > 0 ? pricePerSack / kgPerSack : 0
+    return selectedItem.unit_price_per_issuance
   }, [selectedItem])
 
   const vitQtyGiven = parseFloat(form.quantity_given) || 0
@@ -1286,21 +1325,21 @@ const VitaminRecordModal = ({
               className={VIT_FIELD}
               value={form.delivery_item_id}
               onChange={(e) => {
-                const item = deliveryItems.find((d) => d.id === e.target.value)
+                const item = approvedItems.find((item) => item.id === e.target.value)
                 set('delivery_item_id', e.target.value)
-                set('unit_id', item?.unit_delivery_id ?? '')
+                set('unit_id', item?.unit_issuance_id ?? '')
               }}
             >
               <option value="">Select item…</option>
-              {deliveryItems.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.description ?? d.id.slice(0, 8)} {d.brand?.name ? `(${d.brand.name})` : ''} — {d.category?.name ?? ''} — ₱{d.unit_price_delivery?.toFixed(2) ?? '0.00'}/{d.unit_delivery?.name ?? 'unit'}
+              {approvedItems.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.description ?? item.id.slice(0, 8)} {item.brand_name ? `(${item.brand_name})` : ''} — {item.category_name ?? ''} — ₱{item.unit_price_per_issuance.toFixed(2)}/{item.unit_issuance_name}
                 </option>
               ))}
             </select>
             {selectedItem && (
               <p className="text-xs text-muted mt-1">
-                Unit: {selectedItem.unit_delivery?.name ?? '—'} · Qty: {selectedItem.quantity_delivery} · Expiry: {selectedItem.expiry_date ?? '—'}
+                Unit: {selectedItem.unit_issuance_name} · Available: {selectedItem.available_quantity} {selectedItem.unit_issuance_name} · Expiry: {selectedItem.expiry_date ?? '—'}
               </p>
             )}
           </div>
@@ -1349,11 +1388,11 @@ const VitaminRecordModal = ({
             <h3 className="text-xs font-bold text-purple-800 uppercase tracking-wide mb-2">Cost Estimate</h3>
             <div className="space-y-1 text-sm text-purple-900">
               <div className="flex justify-between">
-                <span>Cost per {selectedItem.unit_issuance?.name ?? 'kg'}</span>
+                <span>Cost per {selectedItem.unit_issuance_name}</span>
                 <span className="font-semibold">₱{vitCostPerKg.toFixed(2)}</span>
               </div>
               <div className="flex justify-between">
-                <span>Qty × {vitQtyGiven.toFixed(1)} {selectedItem.unit_issuance?.name ?? 'kg'}</span>
+                <span>Qty × {vitQtyGiven.toFixed(1)} {selectedItem.unit_issuance_name}</span>
                 <span className="font-semibold">₱{vitUnitCost.toFixed(2)}</span>
               </div>
               {selectionMode === 'cage' && vitAnimalCount > 1 && (
@@ -1636,12 +1675,14 @@ const StockTransactionModal = ({
   type,
   editing,
   deliveryItems,
+  returnableItems,
   onSubmit,
   onClose,
 }: {
   type: 'request' | 'return'
   editing: StockTransaction | null
   deliveryItems: DeliveryItem[]
+  returnableItems?: ApprovedStockItem[]
   onSubmit: (values: StockFormValues, id?: string) => Promise<void>
   onClose: () => void
 }) => {
@@ -1662,24 +1703,42 @@ const StockTransactionModal = ({
   const set = (key: keyof StockFormValues, val: string) =>
     setForm((prev) => ({ ...prev, [key]: val }))
 
-  const selectedItem = useMemo(
-    () => deliveryItems.find((d) => d.id === form.delivery_item_id) ?? null,
-    [deliveryItems, form.delivery_item_id]
-  )
+  const isRequest = type === 'request'
+
+  const selectedItem = useMemo(() => {
+    if (isRequest) {
+      return deliveryItems.find((d) => d.id === form.delivery_item_id) ?? null
+    } else {
+      return returnableItems?.find((d) => d.delivery_item_id === form.delivery_item_id) ?? null
+    }
+  }, [isRequest, deliveryItems, returnableItems, form.delivery_item_id])
 
   const qty = parseFloat(form.quantity) || 0
-  const estimatedCost = qty * (selectedItem?.unit_price_delivery ?? 0)
+  
+  const estimatedCost = useMemo(() => {
+    if (!selectedItem || qty === 0) return 0
+    if (isRequest) {
+      return qty * ((selectedItem as DeliveryItem).unit_price_delivery ?? 0)
+    } else {
+      return qty * ((selectedItem as ApprovedStockItem).unit_price_per_issuance ?? 0)
+    }
+  }, [selectedItem, qty, isRequest])
 
-  const isRequest = type === 'request'
-  const insufficientStock = isRequest && selectedItem && qty > 0 && qty > (selectedItem.quantity_delivery ?? 0)
+  const insufficientStock = isRequest && selectedItem && qty > 0 && qty > ((selectedItem as DeliveryItem).quantity_delivery ?? 0)
+  
+  const exceedsAvailable = !isRequest && selectedItem && qty > 0 && qty > ((selectedItem as ApprovedStockItem).available_quantity ?? 0)
 
   const handleSubmit = async () => {
     if (!form.delivery_item_id || !form.quantity || !form.requested_by.trim()) {
       alert('Please fill in all required fields.')
       return
     }
-    if (isRequest && selectedItem && qty > (selectedItem.quantity_delivery ?? 0)) {
-      alert(`Insufficient stock. Available: ${selectedItem.quantity_delivery ?? 0}, Requested: ${qty}`)
+    if (isRequest && selectedItem && qty > ((selectedItem as DeliveryItem).quantity_delivery ?? 0)) {
+      alert(`Insufficient stock. Available: ${(selectedItem as DeliveryItem).quantity_delivery ?? 0}, Requested: ${qty}`)
+      return
+    }
+    if (!isRequest && selectedItem && qty > ((selectedItem as ApprovedStockItem).available_quantity ?? 0)) {
+      alert(`Cannot return more than available. Available: ${(selectedItem as ApprovedStockItem).available_quantity ?? 0}`)
       return
     }
     await onSubmit(form, editing?.id)
@@ -1707,21 +1766,46 @@ const StockTransactionModal = ({
               className={STK_FIELD}
               value={form.delivery_item_id}
               onChange={(e) => {
-                const item = deliveryItems.find((d) => d.id === e.target.value)
-                set('delivery_item_id', e.target.value)
-                set('unit_id', item?.unit_delivery_id ?? '')
+                if (isRequest) {
+                  const item = deliveryItems.find((d) => d.id === e.target.value)
+                  set('delivery_item_id', e.target.value)
+                  set('unit_id', item?.unit_delivery_id ?? '')
+                } else {
+                  const item = returnableItems?.find((d) => d.delivery_item_id === e.target.value)
+                  set('delivery_item_id', e.target.value)
+                  set('unit_id', item?.unit_issuance_id ?? '')
+                }
               }}
             >
               <option value="">Select item…</option>
-              {deliveryItems.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.description ?? d.id.slice(0, 8)} {d.brand?.name ? `(${d.brand.name})` : ''} — {d.category?.name ?? ''} — ₱{d.unit_price_delivery?.toFixed(2) ?? '0.00'}/{d.unit_delivery?.name ?? 'unit'}
-                </option>
-              ))}
+              {isRequest ? (
+                deliveryItems.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.description ?? d.id.slice(0, 8)} {d.brand?.name ? `(${d.brand.name})` : ''} — {d.category?.name ?? ''} — ₱{d.unit_price_delivery?.toFixed(2) ?? '0.00'}/{d.unit_delivery?.name ?? 'unit'}
+                  </option>
+                ))
+              ) : (
+                returnableItems?.map((d) => (
+                  <option key={d.id} value={d.delivery_item_id}>
+                    {d.description ?? d.id.slice(0, 8)} {d.brand_name ? `(${d.brand_name})` : ''} — {d.category_name ?? ''} — ₱{d.unit_price_per_issuance?.toFixed(2) ?? '0.00'}/{d.unit_issuance_name ?? 'unit'}
+                  </option>
+                ))
+              )}
             </select>
-            {selectedItem && (
+            {!isRequest && returnableItems && returnableItems.length === 0 && (
+              <p className="text-xs text-orange-600 font-medium mt-1 flex items-center gap-1">
+                <AlertTriangle className="w-3 h-3" />
+                No items available for return. All approved items have been partially used.
+              </p>
+            )}
+            {isRequest && selectedItem && (
               <p className="text-xs text-muted mt-1">
-                Unit: {selectedItem.unit_delivery?.name ?? '—'} · Available: {selectedItem.quantity_delivery} · Expiry: {selectedItem.expiry_date ?? '—'}
+                Unit: {(selectedItem as DeliveryItem).unit_delivery?.name ?? '—'} · Available: {(selectedItem as DeliveryItem).quantity_delivery} · Expiry: {(selectedItem as DeliveryItem).expiry_date ?? '—'}
+              </p>
+            )}
+            {!isRequest && selectedItem && (
+              <p className="text-xs text-muted mt-1">
+                Unit: {(selectedItem as ApprovedStockItem).unit_issuance_name ?? '—'} · Available: {(selectedItem as ApprovedStockItem).available_quantity.toFixed(1)} · Expiry: {(selectedItem as ApprovedStockItem).expiry_date ?? '—'}
               </p>
             )}
           </div>
@@ -1732,7 +1816,12 @@ const StockTransactionModal = ({
             <input type="number" min="0" step="0.1" className={STK_FIELD} placeholder="e.g. 10" value={form.quantity} onChange={(e) => set('quantity', e.target.value)} />
             {insufficientStock && (
               <p className="text-xs text-red-500 font-medium mt-1">
-                Insufficient stock! Available: {selectedItem!.quantity_delivery}
+                Insufficient stock! Available: {(selectedItem as DeliveryItem)!.quantity_delivery}
+              </p>
+            )}
+            {exceedsAvailable && (
+              <p className="text-xs text-red-500 font-medium mt-1">
+                Cannot exceed available! Available: {(selectedItem as ApprovedStockItem)!.available_quantity.toFixed(1)}
               </p>
             )}
           </div>
@@ -1769,8 +1858,8 @@ const StockTransactionModal = ({
             <h3 className={cn('text-xs font-bold uppercase tracking-wide mb-2', isRequest ? 'text-blue-800' : 'text-orange-800')}>Estimated Value</h3>
             <div className={cn('space-y-1 text-sm', isRequest ? 'text-blue-900' : 'text-orange-900')}>
               <div className="flex justify-between">
-                <span>Price per {selectedItem.unit_delivery?.name ?? 'unit'}</span>
-                <span className="font-semibold">₱{(selectedItem.unit_price_delivery ?? 0).toFixed(2)}</span>
+                <span>Price per {isRequest ? ((selectedItem as DeliveryItem).unit_delivery?.name ?? 'unit') : ((selectedItem as ApprovedStockItem).unit_issuance_name ?? 'unit')}</span>
+                <span className="font-semibold">₱{isRequest ? ((selectedItem as DeliveryItem).unit_price_delivery ?? 0).toFixed(2) : ((selectedItem as ApprovedStockItem).unit_price_per_issuance ?? 0).toFixed(2)}</span>
               </div>
               <div className={cn('flex justify-between border-t pt-1 mt-1 text-base', isRequest ? 'border-blue-300' : 'border-orange-300')}>
                 <span className="font-bold">Total ({qty}×)</span>
@@ -1786,10 +1875,10 @@ const StockTransactionModal = ({
           </button>
           <button
             className={cn('flex-1 py-2.5 text-white rounded-lg text-sm font-medium transition-colors',
-              insufficientStock ? 'bg-gray-400 cursor-not-allowed' : isRequest ? 'bg-blue-500 hover:bg-blue-600' : 'bg-orange-500 hover:bg-orange-600'
+              (insufficientStock || exceedsAvailable) ? 'bg-gray-400 cursor-not-allowed' : isRequest ? 'bg-blue-500 hover:bg-blue-600' : 'bg-orange-500 hover:bg-orange-600'
             )}
             onClick={handleSubmit}
-            disabled={!!insufficientStock}
+            disabled={!!(insufficientStock || exceedsAvailable)}
           >
             {editing ? 'Save Changes' : isRequest ? 'Submit Request' : 'Submit Return'}
           </button>
@@ -1941,9 +2030,14 @@ const StockRequestApp = () => {
   const [viewing, setViewing] = useState<StockTransaction | null>(null)
   const [search, setSearch] = useState('')
 
-  const REQ_TAB_FILTERS = ['All', 'pending', 'approved', 'rejected', 'cancelled'] as const
+  const REQ_TAB_FILTERS = ['All', 'pending', 'approved', 'rejected', 'cancelled', 'Monitoring'] as const
   type ReqTabFilter = (typeof REQ_TAB_FILTERS)[number]
   const [activeTab, setActiveTab] = useState<ReqTabFilter>('All')
+  
+  // Monitoring state
+  const [stockItems, setStockItems] = useState<ApprovedStockItem[]>([])
+  const [consumption, setConsumption] = useState<Record<string, { daily: number; weekly: number }>>({})
+  const [monitoringLoading, setMonitoringLoading] = useState(false)
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -1962,6 +2056,57 @@ const StockRequestApp = () => {
   }, [])
 
   useEffect(() => { loadData() }, [loadData])
+
+  // Load monitoring data when Monitoring tab is active
+  useEffect(() => {
+    if (activeTab !== 'Monitoring') return
+    
+    const loadMonitoringData = async () => {
+      setMonitoringLoading(true)
+      try {
+        const items = await fetchApprovedStockItems()
+        setStockItems(items)
+
+        // Calculate consumption from recent ration records (last 30 days)
+        const rationAnimals = await fetchRationAnimals()
+        const thirtyDaysAgo = new Date()
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+
+        const consumptionMap: Record<string, number[]> = {}
+        
+        rationAnimals.forEach((ra) => {
+          if (!ra.ration?.date_given) return
+          const dateGiven = new Date(ra.ration.date_given)
+          if (dateGiven < thirtyDaysAgo) return
+
+          const itemId = ra.ration.delivery_item_id
+          const qty = ra.quantity_given || 0
+
+          if (!consumptionMap[itemId]) consumptionMap[itemId] = []
+          consumptionMap[itemId].push(qty)
+        })
+
+        // Calculate average daily and weekly consumption
+        const consumptionRates: Record<string, { daily: number; weekly: number }> = {}
+        Object.entries(consumptionMap).forEach(([itemId, quantities]) => {
+          const total = quantities.reduce((sum, q) => sum + q, 0)
+          const daily = total / 30
+          consumptionRates[itemId] = {
+            daily,
+            weekly: daily * 7,
+          }
+        })
+
+        setConsumption(consumptionRates)
+      } catch (err) {
+        console.error('Error loading monitoring data:', err)
+      } finally {
+        setMonitoringLoading(false)
+      }
+    }
+
+    loadMonitoringData()
+  }, [activeTab])
 
   const handleSubmit = async (values: StockFormValues, id?: string) => {
     if (id) {
@@ -2135,30 +2280,188 @@ const StockRequestApp = () => {
             onClick={() => setActiveTab(tab)}
           >
             {tab}
-            <span className={cn('ml-1.5 px-1.5 py-0.5 text-xs rounded-full', activeTab === tab ? 'bg-blue-50 text-blue-600' : 'bg-background text-muted')}>
-              {tab === 'All' ? records.length : records.filter((r) => r.status === tab).length}
-            </span>
+            {tab !== 'Monitoring' && (
+              <span className={cn('ml-1.5 px-1.5 py-0.5 text-xs rounded-full', activeTab === tab ? 'bg-blue-50 text-blue-600' : 'bg-background text-muted')}>
+                {tab === 'All' ? records.length : records.filter((r) => r.status === tab).length}
+              </span>
+            )}
           </button>
         ))}
       </div>
 
-      <ActionsBar>
-        <PrimaryButton onClick={() => { setEditing(null); setShowModal(true) }}>
-          <Plus className="w-4 h-4" /> New Request
-        </PrimaryButton>
-      </ActionsBar>
+      {activeTab !== 'Monitoring' && (
+        <>
+          <ActionsBar>
+            <PrimaryButton onClick={() => { setEditing(null); setShowModal(true) }}>
+              <Plus className="w-4 h-4" /> New Request
+            </PrimaryButton>
+          </ActionsBar>
 
-      <DataTable
-        data={filtered}
-        columns={columns}
-        emptyMessage="No stock requests found."
-        searchValue={search}
-        onSearchChange={setSearch}
-        searchPlaceholder="Search by item, requester, purpose..."
-        title="Stock Requests"
-        titleIcon={<PackagePlus className="w-5 h-5" />}
-        keyField="id"
-      />
+          <DataTable
+            data={filtered}
+            columns={columns}
+            emptyMessage="No stock requests found."
+            searchValue={search}
+            onSearchChange={setSearch}
+            searchPlaceholder="Search by item, requester, purpose..."
+            title="Stock Requests"
+            titleIcon={<PackagePlus className="w-5 h-5" />}
+            keyField="id"
+          />
+        </>
+      )}
+
+      {activeTab === 'Monitoring' && (
+        <div className="space-y-4">
+          {monitoringLoading ? (
+            <div className="flex items-center justify-center py-20">
+              <Loader2 className="w-6 h-6 animate-spin text-muted" />
+              <span className="ml-2 text-muted text-sm">Loading monitoring data...</span>
+            </div>
+          ) : (
+            <>
+              {/* Stock Items List */}
+              <div className="bg-surface border border-border rounded-xl p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-2">
+                    <Package className="w-5 h-5 text-blue-600" />
+                    <h3 className="font-bold text-lg">Stock Monitoring</h3>
+                  </div>
+                  <div className="flex items-center gap-4 text-sm">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                      <span className="text-muted">Critical (&lt;3 days): </span>
+                      <span className="font-bold text-red-600">
+                        {stockItems.filter(item => {
+                          const rate = consumption[item.delivery_item_id]?.daily || 0
+                          const days = rate > 0 ? item.available_quantity / rate : Infinity
+                          return days < 3
+                        }).length}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-3 h-3 rounded-full bg-orange-500"></div>
+                      <span className="text-muted">Warning (&lt;7 days): </span>
+                      <span className="font-bold text-orange-600">
+                        {stockItems.filter(item => {
+                          const rate = consumption[item.delivery_item_id]?.daily || 0
+                          const days = rate > 0 ? item.available_quantity / rate : Infinity
+                          return days >= 3 && days < 7
+                        }).length}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+                      <span className="text-muted">Low (&lt;14 days): </span>
+                      <span className="font-bold text-yellow-600">
+                        {stockItems.filter(item => {
+                          const rate = consumption[item.delivery_item_id]?.daily || 0
+                          const days = rate > 0 ? item.available_quantity / rate : Infinity
+                          return days >= 7 && days < 14
+                        }).length}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  {stockItems.length === 0 ? (
+                    <div className="text-center py-8 text-muted">No stock items available</div>
+                  ) : (
+                    stockItems
+                      .map(item => {
+                        const rate = consumption[item.delivery_item_id] || { daily: 0, weekly: 0 }
+                        const daysRemaining = rate.daily > 0 ? item.available_quantity / rate.daily : Infinity
+                        const status = 
+                          daysRemaining < 3 ? 'critical' :
+                          daysRemaining < 7 ? 'warning' :
+                          daysRemaining < 14 ? 'low' : 'ok'
+                        return { ...item, dailyConsumption: rate.daily, weeklyConsumption: rate.weekly, daysRemaining, status }
+                      })
+                      .sort((a, b) => a.daysRemaining - b.daysRemaining)
+                      .map(item => {
+                        const statusColors = {
+                          critical: 'bg-red-50 border-red-300',
+                          warning: 'bg-orange-50 border-orange-300',
+                          low: 'bg-yellow-50 border-yellow-300',
+                          ok: 'bg-green-50 border-green-200',
+                        }
+                        const textColors = {
+                          critical: 'text-red-700',
+                          warning: 'text-orange-700',
+                          low: 'text-yellow-700',
+                          ok: 'text-green-700',
+                        }
+
+                        return (
+                          <div
+                            key={item.id}
+                            className={cn(
+                              'p-4 rounded-lg border transition-all',
+                              statusColors[item.status as keyof typeof statusColors]
+                            )}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex-1 min-w-0">
+                                <div className="font-semibold text-sm text-foreground truncate">
+                                  {item.description}
+                                </div>
+                                <div className="text-xs text-muted mt-0.5">
+                                  {item.brand_name && <span className="mr-2">{item.brand_name}</span>}
+                                  {item.category_name && <span className="text-muted">• {item.category_name}</span>}
+                                </div>
+                                {item.dailyConsumption > 0 && (
+                                  <div className="text-xs text-muted mt-1">
+                                    Consumption: {item.dailyConsumption.toFixed(1)} {item.unit_issuance_name}/day
+                                    {' • '}
+                                    {item.weeklyConsumption.toFixed(1)} {item.unit_issuance_name}/week
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="text-right flex-shrink-0">
+                                <div className={cn('text-xl font-bold', textColors[item.status as keyof typeof textColors])}>
+                                  {item.available_quantity.toFixed(1)} {item.unit_issuance_name}
+                                </div>
+                                {item.daysRemaining !== Infinity && (
+                                  <div className={cn('text-xs font-semibold mt-0.5', textColors[item.status as keyof typeof textColors])}>
+                                    {item.daysRemaining < 1 
+                                      ? '< 1 day left' 
+                                      : `~${Math.floor(item.daysRemaining)} days left`}
+                                  </div>
+                                )}
+                                {item.daysRemaining === Infinity && (
+                                  <div className="text-xs text-muted mt-0.5">No usage data</div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Progress bar */}
+                            {item.daysRemaining !== Infinity && (
+                              <div className="mt-3 h-2 bg-white/50 rounded-full overflow-hidden">
+                                <div
+                                  className={cn(
+                                    'h-full transition-all',
+                                    item.status === 'critical' ? 'bg-red-500' :
+                                    item.status === 'warning' ? 'bg-orange-500' :
+                                    item.status === 'low' ? 'bg-yellow-500' : 'bg-green-500'
+                                  )}
+                                  style={{
+                                    width: `${Math.min(100, (item.daysRemaining / 30) * 100)}%`,
+                                  }}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       {showModal && (
         <StockTransactionModal
@@ -2193,6 +2496,8 @@ const StockReturnApp = () => {
   const { user } = useAuthStore()
   const [records, setRecords] = useState<StockTransaction[]>([])
   const [deliveryItems, setDeliveryItems] = useState<DeliveryItem[]>([])
+  const [approvedItems, setApprovedItems] = useState<ApprovedStockItem[]>([])
+  const [consumption, setConsumption] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState<StockTransaction | null>(null)
@@ -2207,12 +2512,25 @@ const StockReturnApp = () => {
   const loadData = useCallback(async () => {
     setLoading(true)
     try {
-      const [txns, items] = await Promise.all([
+      const [txns, items, approved, rationAnimals] = await Promise.all([
         fetchStockTransactions('return'),
         fetchDeliveryItems(),
+        fetchApprovedStockItems(),
+        fetchRationAnimals(),
       ])
       setRecords(txns)
       setDeliveryItems(items)
+      setApprovedItems(approved)
+      
+      // Calculate total consumption per delivery_item_id
+      const consumptionMap: Record<string, number> = {}
+      rationAnimals.forEach((ra) => {
+        if (!ra.ration?.delivery_item_id) return
+        const itemId = ra.ration.delivery_item_id
+        const qty = ra.quantity_given || 0
+        consumptionMap[itemId] = (consumptionMap[itemId] || 0) + qty
+      })
+      setConsumption(consumptionMap)
     } catch (err) {
       console.error('Error loading stock returns:', err)
     } finally {
@@ -2221,6 +2539,14 @@ const StockReturnApp = () => {
   }, [])
 
   useEffect(() => { loadData() }, [loadData])
+  
+  // Filter to only show items that are intact (not used at all)
+  const returnableItems = useMemo(() => {
+    return approvedItems.filter(item => {
+      const used = consumption[item.delivery_item_id] || 0
+      return used === 0 // Only items with zero consumption can be returned
+    })
+  }, [approvedItems, consumption])
 
   const handleSubmit = async (values: StockFormValues, id?: string) => {
     if (id) {
@@ -2417,6 +2743,7 @@ const StockReturnApp = () => {
           type="return"
           editing={editing}
           deliveryItems={deliveryItems}
+          returnableItems={returnableItems}
           onSubmit={handleSubmit}
           onClose={() => { setShowModal(false); setEditing(null) }}
         />
