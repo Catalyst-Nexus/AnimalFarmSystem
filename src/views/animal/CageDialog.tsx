@@ -1,4 +1,4 @@
-import { BaseDialog, FormInput } from '@/components/ui/dialog'
+import { BaseDialog, FormInput, FormNumber, FormCheckbox } from '@/components/ui/dialog'
 
 interface CageDialogProps {
   open: boolean
@@ -44,49 +44,36 @@ export default function CageDialog({
           onChange={onCageLabelChange}
           placeholder="e.g. Pen A, Cage 101"
           required
+          disabled={isLoading}
         />
 
-        <div className="space-y-1.5">
-          <label
-            htmlFor="max-capacity"
-            className="block text-sm font-medium text-foreground"
-          >
-            Maximum Capacity <span className="text-error ml-1">*</span>
-          </label>
-          <input
-            id="max-capacity"
-            type="number"
-            className="w-full px-3 py-2.5 border border-border rounded-lg text-sm bg-background text-foreground focus:outline-none focus:border-success"
-            value={maxCapacity}
-            onChange={(e) => onMaxCapacityChange(e.target.value)}
-            placeholder="e.g. 20"
-            min="1"
-            required
-          />
-        </div>
+        <FormNumber
+          id="max-capacity"
+          label="Maximum Capacity"
+          value={maxCapacity}
+          onChange={onMaxCapacityChange}
+          placeholder="e.g. 20"
+          min={1}
+          required
+          disabled={isLoading}
+        />
 
         <div className="space-y-1.5">
           <label className="block text-sm font-medium text-foreground">
             Status
           </label>
-          <div className="flex items-center gap-3">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={isActive}
-                onChange={(e) => onIsActiveChange(e.target.checked)}
-                className="w-4 h-4 text-success border-border rounded focus:ring-success"
-              />
-              <span className="text-sm text-foreground">
-                Active {isActive ? '✓' : ''}
-              </span>
-            </label>
-          </div>
-          <p className="text-xs text-muted mt-1">
-            {isActive
-              ? 'This cage is currently active and can be used for animal assignments.'
-              : 'This cage is inactive and will not be available for animal assignments.'}
-          </p>
+          <FormCheckbox
+            id="is-active"
+            label="Active"
+            checked={isActive}
+            onChange={onIsActiveChange}
+            description={
+              isActive
+                ? 'This cage is currently active and can be used for animal assignments.'
+                : 'This cage is inactive and will not be available for animal assignments.'
+            }
+            disabled={isLoading}
+          />
         </div>
       </div>
     </BaseDialog>

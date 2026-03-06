@@ -1,4 +1,4 @@
-import { BaseDialog } from '@/components/ui/dialog'
+import { BaseDialog, FormSelect, FormNumber, FormPreview } from '@/components/ui/dialog'
 import type { AnimalType, TagColor, TagType } from '@/services/animalAdminService'
 
 interface TagCodeDialogProps {
@@ -48,88 +48,58 @@ export default function TagCodeDialog({
       isLoading={isLoading}
     >
       <div className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Animal Type *
-          </label>
-          <select
-            value={animalTypeId}
-            onChange={(e) => onAnimalTypeIdChange(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={isLoading}
-          >
-            <option value="">Select Animal Type</option>
-            {animalTypes.map((at) => (
-              <option key={at.id} value={at.id}>
-                {at.animal_name}
-              </option>
-            ))}
-          </select>
-        </div>
+        <FormSelect
+          id="animal-type"
+          label="Animal Type"
+          value={animalTypeId}
+          onChange={onAnimalTypeIdChange}
+          options={animalTypes.map((at) => ({ value: at.id, label: at.animal_name }))}
+          placeholder="Select Animal Type"
+          required
+          disabled={isLoading}
+        />
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Tag Color *
-          </label>
-          <select
-            value={tagColorId}
-            onChange={(e) => onTagColorIdChange(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={isLoading}
-          >
-            <option value="">Select Tag Color</option>
-            {tagColors.map((tc) => (
-              <option key={tc.id} value={tc.id}>
-                {tc.color}
-              </option>
-            ))}
-          </select>
-        </div>
+        <FormSelect
+          id="tag-color"
+          label="Tag Color"
+          value={tagColorId}
+          onChange={onTagColorIdChange}
+          options={tagColors.map((tc) => ({ value: tc.id, label: tc.color }))}
+          placeholder="Select Tag Color"
+          required
+          disabled={isLoading}
+        />
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Tag Type *
-          </label>
-          <select
-            value={tagTypeId}
-            onChange={(e) => onTagTypeIdChange(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={isLoading}
-          >
-            <option value="">Select Tag Type</option>
-            {tagTypes.map((tt) => (
-              <option key={tt.id} value={tt.id}>
-                {tt.type}
-              </option>
-            ))}
-          </select>
-        </div>
+        <FormSelect
+          id="tag-type"
+          label="Tag Type"
+          value={tagTypeId}
+          onChange={onTagTypeIdChange}
+          options={tagTypes.map((tt) => ({ value: tt.id, label: tt.type }))}
+          placeholder="Select Tag Type"
+          required
+          disabled={isLoading}
+        />
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Tag Code *
-          </label>
-          <input
-            type="number"
-            value={tagCode}
-            onChange={(e) => onTagCodeChange(e.target.value)}
-            placeholder="e.g., 1, 2, 3"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={isLoading}
-            min="1"
-          />
-          <p className="text-xs text-gray-500 mt-1">
-            Enter a numeric code (e.g., 1, 2, 3). It will be combined with the tag type.
-          </p>
-        </div>
+        <FormNumber
+          id="tag-code"
+          label="Tag Code"
+          value={tagCode}
+          onChange={onTagCodeChange}
+          placeholder="e.g., 1, 2, 3"
+          description="Enter a numeric code (e.g., 1, 2, 3). It will be combined with the tag type."
+          min={1}
+          required
+          disabled={isLoading}
+        />
 
         {tagTypeId && tagCode && (
-          <div className="bg-blue-50 border border-blue-200 rounded p-3">
-            <p className="text-sm text-gray-700">
+          <FormPreview>
+            <p className="text-sm">
               <span className="font-medium">Preview:</span>{' '}
               {tagTypes.find((tt) => tt.id === tagTypeId)?.type}-{parseInt(tagCode)}
             </p>
-          </div>
+          </FormPreview>
         )}
       </div>
     </BaseDialog>
