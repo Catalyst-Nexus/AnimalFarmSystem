@@ -45,11 +45,12 @@ export const MonitoringProvider = ({ children }: { children: ReactNode }) => {
 
   // Fetch data from Supabase
   const refreshData = async () => {
+    if (!user?.id) return
     try {
       setIsLoading(true)
       const [animalsData, cagesData] = await Promise.all([
-        getAnimals(),
-        getCages(),
+        getAnimals(user.id),
+        getCages(user.id),
       ])
       
       setPigs(animalsData.map(convertAnimalToPig))
@@ -62,11 +63,11 @@ export const MonitoringProvider = ({ children }: { children: ReactNode }) => {
     }
   }
 
-  // Load data on mount
+  // Load data on mount and when user changes
   useEffect(() => {
     refreshData()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [user?.id])
 
   const pigsInCage = (cageId: string): Pig[] => {
     const list = pigs.filter((p) => p.cageId === cageId)
@@ -119,7 +120,8 @@ export const MonitoringProvider = ({ children }: { children: ReactNode }) => {
 
   const editCage = async (id: string, updates: Partial<Omit<DBCage, 'id' | 'created_at'>>) => {
     try {
-      const updatedCage = await updateCage(id, updates)
+      if (!user?.id) throw new Error('User not authenticated')
+      const updatedCage = await updateCage(id, user.id, updates)
       setCages((prev) =>
         prev.map((c) => (c.id === id ? convertDBCage(updatedCage) : c))
       )
@@ -133,7 +135,8 @@ export const MonitoringProvider = ({ children }: { children: ReactNode }) => {
 
   const removeCage = async (id: string) => {
     try {
-      await deleteCage(id)
+      if (!user?.id) throw new Error('User not authenticated')
+      await deleteCage(id, user.id)
       setCages((prev) => prev.filter((c) => c.id !== id))
       showToast('Cage deleted', 'success')
     } catch (error) {
