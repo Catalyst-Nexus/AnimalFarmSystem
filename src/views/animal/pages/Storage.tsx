@@ -1,6 +1,13 @@
-import { createContext, useContext, useState, useMemo, useEffect, useCallback } from 'react'
-import type { ReactNode } from 'react'
-import { cn } from '@/lib/utils'
+import {
+  createContext,
+  useContext,
+  useState,
+  useMemo,
+  useEffect,
+  useCallback,
+} from "react";
+import type { ReactNode } from "react";
+import { cn } from "@/lib/utils";
 import {
   PageHeader,
   StatsRow,
@@ -9,9 +16,26 @@ import {
   PrimaryButton,
   DataTable,
   IconButton,
-} from '@/components/ui'
-import { UtensilsCrossed, Plus, Pencil, Trash2, Syringe, FlaskConical, CalendarCheck, Loader2, Users, User, PackagePlus, Undo2, X, Eye, Package, AlertTriangle } from 'lucide-react'
-import { useAuthStore } from '@/store/authStore'
+} from "@/components/ui";
+import {
+  UtensilsCrossed,
+  Plus,
+  Pencil,
+  Trash2,
+  Syringe,
+  FlaskConical,
+  CalendarCheck,
+  Loader2,
+  Users,
+  User,
+  PackagePlus,
+  Undo2,
+  X,
+  Eye,
+  Package,
+  AlertTriangle,
+} from "lucide-react";
+import { useAuthStore } from "@/store/authStore";
 import {
   createRation,
   updateRation,
@@ -23,9 +47,17 @@ import {
   fetchRationTypes,
   type RationAnimal,
   type RationType,
-} from '@/services/rationService'
-import { animalService, cageService, type Animal, type Cage } from '@/services/animalService'
-import { fetchDeliveryItems, type DeliveryItem } from '@/services/inventoryService'
+} from "@/services/rationService";
+import {
+  animalService,
+  cageService,
+  type Animal,
+  type Cage,
+} from "@/services/animalService";
+import {
+  fetchDeliveryItems,
+  type DeliveryItem,
+} from "@/services/inventoryService";
 import {
   fetchStockTransactions,
   createStockTransaction,
@@ -34,69 +66,78 @@ import {
   fetchApprovedStockItems,
   type StockTransaction,
   type ApprovedStockItem,
-} from '@/services/stockTransactionService'
+} from "@/services/stockTransactionService";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface FeedingRecord {
-  id: string
-  ration_id: string
-  animal_id: string
-  quantity_given: number
-  meal_number: number | null
-  date_given: string
-  administered_by: string
-  status: string
-  notes: string | null
-  ration_type_name: string
+  id: string;
+  ration_id: string;
+  animal_id: string;
+  quantity_given: number;
+  meal_number: number | null;
+  date_given: string;
+  administered_by: string;
+  status: string;
+  notes: string | null;
+  ration_type_name: string;
   // from the ration join
-  delivery_item_id: string
-  unit_id: string
-  quantity_used: number
+  delivery_item_id: string;
+  unit_id: string;
+  quantity_used: number;
 }
 
 interface FeedingFormValues {
-  animal_id: string
-  delivery_item_id: string
-  unit_id: string
-  quantity_given: string
-  quantity_used: string
-  meal_number: string
-  date_given: string
-  administered_by: string
-  status: string
-  notes: string
+  animal_id: string;
+  delivery_item_id: string;
+  unit_id: string;
+  quantity_given: string;
+  quantity_used: string;
+  meal_number: string;
+  date_given: string;
+  administered_by: string;
+  status: string;
+  notes: string;
 }
 
 // ─── Context ──────────────────────────────────────────────────────────────────
 
 interface FeedingContextType {
-  records: FeedingRecord[]
-  loading: boolean
-  rationTypes: RationType[]
-  feedingTypeId: string | null
-  animals: (Animal & { tag_code: number | null; cage_label: string | null })[]
-  cages: Cage[]
-  approvedItems: ApprovedStockItem[]
-  addRecord: (values: FeedingFormValues) => Promise<void>
-  addBulkRecords: (animalIds: string[], values: FeedingFormValues) => Promise<void>
-  updateRecord: (id: string, rationId: string, values: FeedingFormValues) => Promise<void>
-  deleteRecord: (id: string) => Promise<void>
-  changeStatus: (id: string, status: string) => Promise<void>
-  reload: () => Promise<void>
+  records: FeedingRecord[];
+  loading: boolean;
+  rationTypes: RationType[];
+  feedingTypeId: string | null;
+  animals: (Animal & { tag_code: number | null; cage_label: string | null })[];
+  cages: Cage[];
+  approvedItems: ApprovedStockItem[];
+  addRecord: (values: FeedingFormValues) => Promise<void>;
+  addBulkRecords: (
+    animalIds: string[],
+    values: FeedingFormValues,
+  ) => Promise<void>;
+  updateRecord: (
+    id: string,
+    rationId: string,
+    values: FeedingFormValues,
+  ) => Promise<void>;
+  deleteRecord: (id: string) => Promise<void>;
+  changeStatus: (id: string, status: string) => Promise<void>;
+  reload: () => Promise<void>;
 }
 
-const FeedingContext = createContext<FeedingContextType | undefined>(undefined)
+const FeedingContext = createContext<FeedingContextType | undefined>(undefined);
 
 const FeedingProvider = ({ children }: { children: ReactNode }) => {
-  const { user } = useAuthStore()
-  const [records, setRecords] = useState<FeedingRecord[]>([])
-  const [loading, setLoading] = useState(true)
-  const [rationTypes, setRationTypes] = useState<RationType[]>([])
-  const [feedingTypeId, setFeedingTypeId] = useState<string | null>(null)
-  const [animals, setAnimals] = useState<(Animal & { tag_code: number | null; cage_label: string | null })[]>([])
-  const [cages, setCages] = useState<Cage[]>([])
-  const [approvedItems, setApprovedItems] = useState<ApprovedStockItem[]>([])
+  const { user } = useAuthStore();
+  const [records, setRecords] = useState<FeedingRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [rationTypes, setRationTypes] = useState<RationType[]>([]);
+  const [feedingTypeId, setFeedingTypeId] = useState<string | null>(null);
+  const [animals, setAnimals] = useState<
+    (Animal & { tag_code: number | null; cage_label: string | null })[]
+  >([]);
+  const [cages, setCages] = useState<Cage[]>([]);
+  const [approvedItems, setApprovedItems] = useState<ApprovedStockItem[]>([]);
 
   const mapRationAnimalToRecord = (ra: RationAnimal): FeedingRecord => ({
     id: ra.id,
@@ -104,67 +145,70 @@ const FeedingProvider = ({ children }: { children: ReactNode }) => {
     animal_id: ra.animal_id,
     quantity_given: ra.quantity_given,
     meal_number: ra.ration?.meal_number ?? null,
-    date_given: ra.ration?.date_given ?? '',
-    administered_by: ra.ration?.administered_by ?? '',
+    date_given: ra.ration?.date_given ?? "",
+    administered_by: ra.ration?.administered_by ?? "",
     status: ra.status,
     notes: ra.notes ?? ra.ration?.notes ?? null,
-    ration_type_name: ra.ration?.ration_type?.name ?? '',
-    delivery_item_id: ra.ration?.delivery_item_id ?? '',
-    unit_id: ra.ration?.unit_id ?? '',
+    ration_type_name: ra.ration?.ration_type?.name ?? "",
+    delivery_item_id: ra.ration?.delivery_item_id ?? "",
+    unit_id: ra.ration?.unit_id ?? "",
     quantity_used: ra.ration?.quantity_used ?? 0,
-  })
+  });
 
   const loadData = useCallback(async () => {
-    if (!user?.id) return
-    setLoading(true)
+    if (!user?.id) return;
+    setLoading(true);
     try {
-      const [types, allRationAnimals, allAnimals, allCages, stockItems] = await Promise.all([
-        fetchRationTypes(),
-        fetchRationAnimals(),
-        animalService.getAnimalsWithTag(),
-        cageService.getCages(user.id),
-        fetchApprovedStockItems(),
-      ])
-      
-      console.log('=== FEEDING DATA LOADED ===')
-      console.log('Ration types:', types)
-      console.log('Animals:', allAnimals.length)
-      console.log('Cages:', allCages.length)
-      console.log('Approved stock items:', stockItems)
-      
-      setRationTypes(types)
-      setAnimals(allAnimals)
-      setCages(allCages)
-      setApprovedItems(stockItems)
-      const feedType = types.find((t) => t.name === 'Feeding')
-      setFeedingTypeId(feedType?.id ?? null)
+      const [types, allRationAnimals, allAnimals, allCages, stockItems] =
+        await Promise.all([
+          fetchRationTypes(),
+          fetchRationAnimals(),
+          animalService.getAnimalsWithTag(),
+          cageService.getCages(user.id),
+          fetchApprovedStockItems(),
+        ]);
+
+      console.log("=== FEEDING DATA LOADED ===");
+      console.log("Ration types:", types);
+      console.log("Animals:", allAnimals.length);
+      console.log("Cages:", allCages.length);
+      console.log("Approved stock items:", stockItems);
+
+      setRationTypes(types);
+      setAnimals(allAnimals);
+      setCages(allCages);
+      setApprovedItems(stockItems);
+      const feedType = types.find((t) => t.name === "Feeding");
+      setFeedingTypeId(feedType?.id ?? null);
 
       // Filter only feeding ration_animals
       const feedingRecords = allRationAnimals
-        .filter((ra) => ra.ration?.ration_type?.name === 'Feeding')
-        .map(mapRationAnimalToRecord)
-      setRecords(feedingRecords)
+        .filter((ra) => ra.ration?.ration_type?.name === "Feeding")
+        .map(mapRationAnimalToRecord);
+      setRecords(feedingRecords);
     } catch (err) {
-      console.error('Error loading feeding data:', err)
+      console.error("Error loading feeding data:", err);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }, [user?.id])
+  }, [user?.id]);
 
-  useEffect(() => { loadData() }, [loadData])
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const addRecord = async (values: FeedingFormValues) => {
-    console.log('=== ADD RECORD CALLED ===')
-    console.log('Feeding type ID:', feedingTypeId)
-    console.log('Form values:', values)
-    
+    console.log("=== ADD RECORD CALLED ===");
+    console.log("Feeding type ID:", feedingTypeId);
+    console.log("Form values:", values);
+
     if (!feedingTypeId) {
-      console.error('No feeding type ID found!')
-      return
+      console.error("No feeding type ID found!");
+      return;
     }
-    
+
     // 1. Create the ration (parent)
-    console.log('Creating ration...')
+    console.log("Creating ration...");
     const rationResult = await createRation({
       ration_type_id: feedingTypeId,
       delivery_item_id: values.delivery_item_id,
@@ -175,40 +219,43 @@ const FeedingProvider = ({ children }: { children: ReactNode }) => {
       administered_by: values.administered_by,
       status: values.status,
       notes: values.notes || null,
-    })
-    
-    console.log('Ration result:', rationResult)
-    
+    });
+
+    console.log("Ration result:", rationResult);
+
     if (!rationResult.success || !rationResult.data) {
-      console.error('Ration creation failed:', rationResult.error)
-      alert('Error creating ration: ' + rationResult.error)
-      return
+      console.error("Ration creation failed:", rationResult.error);
+      alert("Error creating ration: " + rationResult.error);
+      return;
     }
-    
+
     // 2. Create the ration_animal (child)
-    console.log('Creating ration_animal...')
+    console.log("Creating ration_animal...");
     const raResult = await createRationAnimal({
       ration_id: rationResult.data.id,
       animal_id: values.animal_id,
       quantity_given: parseFloat(values.quantity_given) || 0,
       status: values.status,
       notes: values.notes || null,
-    })
-    
-    console.log('Ration animal result:', raResult)
-    
-    if (!raResult.success) {
-      console.error('Ration animal creation failed:', raResult.error)
-      alert('Error creating ration animal: ' + raResult.error)
-      return
-    }
-    
-    console.log('Record created successfully, reloading data...')
-    await loadData()
-  }
+    });
 
-  const addBulkRecords = async (animalIds: string[], values: FeedingFormValues) => {
-    if (!feedingTypeId || animalIds.length === 0) return
+    console.log("Ration animal result:", raResult);
+
+    if (!raResult.success) {
+      console.error("Ration animal creation failed:", raResult.error);
+      alert("Error creating ration animal: " + raResult.error);
+      return;
+    }
+
+    console.log("Record created successfully, reloading data...");
+    await loadData();
+  };
+
+  const addBulkRecords = async (
+    animalIds: string[],
+    values: FeedingFormValues,
+  ) => {
+    if (!feedingTypeId || animalIds.length === 0) return;
     const rationResult = await createRation({
       ration_type_id: feedingTypeId,
       delivery_item_id: values.delivery_item_id,
@@ -219,10 +266,10 @@ const FeedingProvider = ({ children }: { children: ReactNode }) => {
       administered_by: values.administered_by,
       status: values.status,
       notes: values.notes || null,
-    })
+    });
     if (!rationResult.success || !rationResult.data) {
-      alert('Error creating ration: ' + rationResult.error)
-      return
+      alert("Error creating ration: " + rationResult.error);
+      return;
     }
     for (const animalId of animalIds) {
       await createRationAnimal({
@@ -231,12 +278,16 @@ const FeedingProvider = ({ children }: { children: ReactNode }) => {
         quantity_given: parseFloat(values.quantity_given) || 0,
         status: values.status,
         notes: values.notes || null,
-      })
+      });
     }
-    await loadData()
-  }
+    await loadData();
+  };
 
-  const updateRecordFn = async (id: string, rationId: string, values: FeedingFormValues) => {
+  const updateRecordFn = async (
+    id: string,
+    rationId: string,
+    values: FeedingFormValues,
+  ) => {
     // Update ration parent
     await updateRation(rationId, {
       delivery_item_id: values.delivery_item_id,
@@ -247,30 +298,30 @@ const FeedingProvider = ({ children }: { children: ReactNode }) => {
       administered_by: values.administered_by,
       status: values.status,
       notes: values.notes || null,
-    })
+    });
     // Update ration_animal child
     await updateRationAnimal(id, {
       animal_id: values.animal_id,
       quantity_given: parseFloat(values.quantity_given) || 0,
       status: values.status,
       notes: values.notes || null,
-    })
-    await loadData()
-  }
+    });
+    await loadData();
+  };
 
   const deleteRecordFn = async (id: string) => {
-    const record = records.find((r) => r.id === id)
-    if (!record) return
+    const record = records.find((r) => r.id === id);
+    if (!record) return;
     // Delete ration_animal first, then ration (cascade should handle it, but be explicit)
-    await deleteRationAnimalApi(id)
-    await deleteRationApi(record.ration_id)
-    await loadData()
-  }
+    await deleteRationAnimalApi(id);
+    await deleteRationApi(record.ration_id);
+    await loadData();
+  };
 
   const changeStatus = async (id: string, status: string) => {
-    await updateRationAnimal(id, { status })
-    setRecords((prev) => prev.map((r) => (r.id === id ? { ...r, status } : r)))
-  }
+    await updateRationAnimal(id, { status });
+    setRecords((prev) => prev.map((r) => (r.id === id ? { ...r, status } : r)));
+  };
 
   return (
     <FeedingContext.Provider
@@ -292,71 +343,92 @@ const FeedingProvider = ({ children }: { children: ReactNode }) => {
     >
       {children}
     </FeedingContext.Provider>
-  )
-}
+  );
+};
 
 const useFeeding = () => {
-  const ctx = useContext(FeedingContext)
-  if (!ctx) throw new Error('useFeeding must be used inside FeedingProvider')
-  return ctx
-}
+  const ctx = useContext(FeedingContext);
+  if (!ctx) throw new Error("useFeeding must be used inside FeedingProvider");
+  return ctx;
+};
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const STATUS_OPTIONS = ['fed', 'pending', 'skipped']
-const TAB_FILTERS = ['All', 'fed', 'pending', 'skipped'] as const
-type TabFilter = (typeof TAB_FILTERS)[number]
+const STATUS_OPTIONS = ["fed", "pending", "skipped"];
+const TAB_FILTERS = ["All", "fed", "pending", "skipped"] as const;
+type TabFilter = (typeof TAB_FILTERS)[number];
 
 const EMPTY_FORM: FeedingFormValues = {
-  animal_id: '',
-  delivery_item_id: '',
-  unit_id: '',
-  quantity_given: '',
-  quantity_used: '',
-  meal_number: '',
+  animal_id: "",
+  delivery_item_id: "",
+  unit_id: "",
+  quantity_given: "",
+  quantity_used: "",
+  meal_number: "",
   date_given: new Date().toISOString().slice(0, 10),
-  administered_by: '',
-  status: 'pending',
-  notes: '',
-}
+  administered_by: "",
+  status: "pending",
+  notes: "",
+};
 
 const STATUS_STYLES: Record<string, string> = {
-  fed: 'bg-green-100 text-green-700',
-  pending: 'bg-yellow-100 text-yellow-700',
-  skipped: 'bg-red-100 text-red-600',
-}
+  fed: "bg-green-100 text-green-700",
+  pending: "bg-yellow-100 text-yellow-700",
+  skipped: "bg-red-100 text-red-600",
+};
 
 // ─── Badges ───────────────────────────────────────────────────────────────────
 
 const StatusBadge = ({ status }: { status: string }) => (
-  <span className={cn('inline-block px-2.5 py-0.5 text-xs font-medium rounded-full capitalize', STATUS_STYLES[status] || 'bg-gray-100 text-gray-600')}>
+  <span
+    className={cn(
+      "inline-block px-2.5 py-0.5 text-xs font-medium rounded-full capitalize",
+      STATUS_STYLES[status] || "bg-gray-100 text-gray-600",
+    )}
+  >
     {status}
   </span>
-)
+);
 
 const MealNumberBadge = ({ mealNumber }: { mealNumber: number | null }) => (
-  <span className={cn('inline-block px-2.5 py-0.5 text-xs font-medium rounded-full', 'bg-blue-50 text-blue-600')}>
-    {mealNumber ? `Meal #${mealNumber}` : '—'}
+  <span
+    className={cn(
+      "inline-block px-2.5 py-0.5 text-xs font-medium rounded-full",
+      "bg-blue-50 text-blue-600",
+    )}
+  >
+    {mealNumber ? `Meal #${mealNumber}` : "—"}
   </span>
-)
+);
 
 // ─── Form Modal ───────────────────────────────────────────────────────────────
 
-const FIELD = 'w-full px-3 py-2 border border-border rounded-lg text-sm bg-background text-foreground placeholder:text-muted focus:outline-none focus:border-success'
-const LABEL = 'block text-xs font-semibold text-muted uppercase tracking-wide mb-1'
+const FIELD =
+  "w-full px-3 py-2 border border-border rounded-lg text-sm bg-background text-foreground placeholder:text-muted focus:outline-none focus:border-success";
+const LABEL =
+  "block text-xs font-semibold text-muted uppercase tracking-wide mb-1";
 
 const RecordModal = ({
   editing,
   onClose,
 }: {
-  editing: FeedingRecord | null
-  onClose: () => void
+  editing: FeedingRecord | null;
+  onClose: () => void;
 }) => {
-  const { addRecord, addBulkRecords, updateRecord, animals, cages, approvedItems } = useFeeding()
-  const [selectionMode, setSelectionMode] = useState<'individual' | 'cage'>(editing ? 'individual' : 'individual')
-  const [selectedCageId, setSelectedCageId] = useState('')
-  const [cageAnimals, setCageAnimals] = useState<Animal[]>([])
-  const [loadingCage, setLoadingCage] = useState(false)
+  const {
+    addRecord,
+    addBulkRecords,
+    updateRecord,
+    animals,
+    cages,
+    approvedItems,
+  } = useFeeding();
+  const [selectionMode, setSelectionMode] = useState<"individual" | "cage">(
+    editing ? "individual" : "individual",
+  );
+  const [selectedCageId, setSelectedCageId] = useState("");
+  const [cageAnimals, setCageAnimals] = useState<Animal[]>([]);
+  const [loadingCage, setLoadingCage] = useState(false);
   const [form, setForm] = useState<FeedingFormValues>(
     editing
       ? {
@@ -365,50 +437,54 @@ const RecordModal = ({
           unit_id: editing.unit_id,
           quantity_given: String(editing.quantity_given),
           quantity_used: String(editing.quantity_used),
-          meal_number: editing.meal_number ? String(editing.meal_number) : '',
+          meal_number: editing.meal_number ? String(editing.meal_number) : "",
           date_given: editing.date_given,
           administered_by: editing.administered_by,
           status: editing.status,
-          notes: editing.notes ?? '',
+          notes: editing.notes ?? "",
         }
-      : EMPTY_FORM
-  )
+      : EMPTY_FORM,
+  );
 
   const handleCageChange = async (cageId: string) => {
-    setSelectedCageId(cageId)
-    if (!cageId) { setCageAnimals([]); return }
-    setLoadingCage(true)
-    const result = await animalService.getAnimalsByCage(cageId)
-    setCageAnimals(result)
-    setLoadingCage(false)
-  }
+    setSelectedCageId(cageId);
+    if (!cageId) {
+      setCageAnimals([]);
+      return;
+    }
+    setLoadingCage(true);
+    const result = await animalService.getAnimalsByCage(cageId);
+    setCageAnimals(result);
+    setLoadingCage(false);
+  };
 
   const set = (key: keyof FeedingFormValues, val: string) =>
-    setForm((prev) => ({ ...prev, [key]: val }))
+    setForm((prev) => ({ ...prev, [key]: val }));
 
   // Find selected approved stock item and compute cost
   const selectedItem = useMemo(
-    () => approvedItems.find((item) => item.id === form.delivery_item_id) ?? null,
-    [approvedItems, form.delivery_item_id]
-  )
+    () =>
+      approvedItems.find((item) => item.id === form.delivery_item_id) ?? null,
+    [approvedItems, form.delivery_item_id],
+  );
 
   // Cost per kg - already calculated in approved stock items
   const costPerKg = useMemo(() => {
-    if (!selectedItem) return 0
-    return selectedItem.unit_price_per_issuance
-  }, [selectedItem])
+    if (!selectedItem) return 0;
+    return selectedItem.unit_price_per_issuance;
+  }, [selectedItem]);
 
-  const qtyGiven = parseFloat(form.quantity_given) || 0
-  const unitCost = qtyGiven * costPerKg
-  const animalCount = selectionMode === 'cage' ? cageAnimals.length : 1
-  const totalCost = unitCost * animalCount
+  const qtyGiven = parseFloat(form.quantity_given) || 0;
+  const unitCost = qtyGiven * costPerKg;
+  const animalCount = selectionMode === "cage" ? cageAnimals.length : 1;
+  const totalCost = unitCost * animalCount;
 
   const handleSubmit = async () => {
-    console.log('=== FEEDING FORM SUBMISSION ===')
-    console.log('Form values:', form)
-    console.log('Selection mode:', selectionMode)
-    console.log('Approved items available:', approvedItems.length)
-    
+    console.log("=== FEEDING FORM SUBMISSION ===");
+    console.log("Form values:", form);
+    console.log("Selection mode:", selectionMode);
+    console.log("Approved items available:", approvedItems.length);
+
     if (
       !form.delivery_item_id.trim() ||
       !form.unit_id.trim() ||
@@ -416,29 +492,38 @@ const RecordModal = ({
       !form.date_given ||
       !form.administered_by.trim()
     ) {
-      console.error('Validation failed: missing required fields')
-      alert('Please fill in all required fields.')
-      return
+      console.error("Validation failed: missing required fields");
+      alert("Please fill in all required fields.");
+      return;
     }
 
-    console.log('Validation passed, submitting...')
-    
+    console.log("Validation passed, submitting...");
+
     if (editing) {
-      console.log('Updating existing record:', editing.id)
-      await updateRecord(editing.id, editing.ration_id, form)
-    } else if (selectionMode === 'cage') {
-      console.log('Bulk adding for cage animals:', cageAnimals.length)
-      if (cageAnimals.length === 0) { alert('No animals in the selected cage.'); return }
-      await addBulkRecords(cageAnimals.map((a) => a.id), form)
+      console.log("Updating existing record:", editing.id);
+      await updateRecord(editing.id, editing.ration_id, form);
+    } else if (selectionMode === "cage") {
+      console.log("Bulk adding for cage animals:", cageAnimals.length);
+      if (cageAnimals.length === 0) {
+        alert("No animals in the selected cage.");
+        return;
+      }
+      await addBulkRecords(
+        cageAnimals.map((a) => a.id),
+        form,
+      );
     } else {
-      console.log('Adding individual record for animal:', form.animal_id)
-      if (!form.animal_id.trim()) { alert('Please select an animal.'); return }
-      await addRecord(form)
+      console.log("Adding individual record for animal:", form.animal_id);
+      if (!form.animal_id.trim()) {
+        alert("Please select an animal.");
+        return;
+      }
+      await addRecord(form);
     }
-    
-    console.log('Submission complete')
-    onClose()
-  }
+
+    console.log("Submission complete");
+    onClose();
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -446,9 +531,12 @@ const RecordModal = ({
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-lg font-bold text-primary flex items-center gap-2">
             <UtensilsCrossed className="w-5 h-5 text-success" />
-            {editing ? 'Edit Feeding Record' : 'Log Feeding'}
+            {editing ? "Edit Feeding Record" : "Log Feeding"}
           </h2>
-          <button className="p-1.5 rounded hover:bg-background text-muted transition-colors" onClick={onClose}>
+          <button
+            className="p-1.5 rounded hover:bg-background text-muted transition-colors"
+            onClick={onClose}
+          >
             ✕
           </button>
         </div>
@@ -458,19 +546,32 @@ const RecordModal = ({
           <div className="flex gap-2 mb-4">
             <button
               type="button"
-              className={cn('flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium border transition-all',
-                selectionMode === 'individual' ? 'bg-success text-white border-success' : 'border-border text-muted hover:text-foreground hover:bg-background'
+              className={cn(
+                "flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium border transition-all",
+                selectionMode === "individual"
+                  ? "bg-success text-white border-success"
+                  : "border-border text-muted hover:text-foreground hover:bg-background",
               )}
-              onClick={() => { setSelectionMode('individual'); setSelectedCageId(''); setCageAnimals([]) }}
+              onClick={() => {
+                setSelectionMode("individual");
+                setSelectedCageId("");
+                setCageAnimals([]);
+              }}
             >
               <User className="w-4 h-4" /> Individual
             </button>
             <button
               type="button"
-              className={cn('flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium border transition-all',
-                selectionMode === 'cage' ? 'bg-success text-white border-success' : 'border-border text-muted hover:text-foreground hover:bg-background'
+              className={cn(
+                "flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium border transition-all",
+                selectionMode === "cage"
+                  ? "bg-success text-white border-success"
+                  : "border-border text-muted hover:text-foreground hover:bg-background",
               )}
-              onClick={() => { setSelectionMode('cage'); set('animal_id', '') }}
+              onClick={() => {
+                setSelectionMode("cage");
+                set("animal_id", "");
+              }}
             >
               <Users className="w-4 h-4" /> By Cage
             </button>
@@ -479,36 +580,55 @@ const RecordModal = ({
 
         <div className="grid grid-cols-2 gap-4">
           {/* Animal Selection */}
-          {selectionMode === 'individual' ? (
+          {selectionMode === "individual" ? (
             <div className="col-span-2">
-              <label className={LABEL}>Animal <span className="text-red-500">*</span></label>
-              <select className={FIELD} value={form.animal_id} onChange={(e) => set('animal_id', e.target.value)}>
+              <label className={LABEL}>
+                Animal <span className="text-red-500">*</span>
+              </label>
+              <select
+                className={FIELD}
+                value={form.animal_id}
+                onChange={(e) => set("animal_id", e.target.value)}
+              >
                 <option value="">Select animal…</option>
                 {animals.map((a) => (
                   <option key={a.id} value={a.id}>
-                    {a.tag_code ? `Tag #${a.tag_code}` : a.id.slice(0, 8)} — {a.sex} {a.weight}kg {a.cage_label ? `(${a.cage_label})` : ''}
+                    {a.tag_code ? `Tag #${a.tag_code}` : a.id.slice(0, 8)} —{" "}
+                    {a.sex} {a.weight}kg{" "}
+                    {a.cage_label ? `(${a.cage_label})` : ""}
                   </option>
                 ))}
               </select>
             </div>
           ) : !editing ? (
             <div className="col-span-2">
-              <label className={LABEL}>Cage <span className="text-red-500">*</span></label>
-              <select className={FIELD} value={selectedCageId} onChange={(e) => handleCageChange(e.target.value)}>
+              <label className={LABEL}>
+                Cage <span className="text-red-500">*</span>
+              </label>
+              <select
+                className={FIELD}
+                value={selectedCageId}
+                onChange={(e) => handleCageChange(e.target.value)}
+              >
                 <option value="">Select cage…</option>
                 {cages.map((c) => {
-                  const animalCount = animals.filter(a => a.current_cage_id === c.id).length
+                  const animalCount = animals.filter(
+                    (a) => a.current_cage_id === c.id,
+                  ).length;
                   return (
                     <option key={c.id} value={c.id}>
                       {c.cage_label} ({animalCount}/{c.max_capacity} animals)
                     </option>
-                  )
+                  );
                 })}
               </select>
-              {loadingCage && <p className="text-xs text-muted mt-1">Loading animals…</p>}
+              {loadingCage && (
+                <p className="text-xs text-muted mt-1">Loading animals…</p>
+              )}
               {!loadingCage && selectedCageId && (
                 <p className="text-xs mt-1 text-success font-medium">
-                  {cageAnimals.length} animal{cageAnimals.length !== 1 ? 's' : ''} will be fed
+                  {cageAnimals.length} animal
+                  {cageAnimals.length !== 1 ? "s" : ""} will be fed
                 </p>
               )}
             </div>
@@ -516,114 +636,197 @@ const RecordModal = ({
 
           {/* Feed Item */}
           <div className="col-span-2">
-            <label className={LABEL}>Feed Item <span className="text-red-500">*</span></label>
+            <label className={LABEL}>
+              Feed Item <span className="text-red-500">*</span>
+            </label>
             <select
               className={FIELD}
               value={form.delivery_item_id}
               onChange={(e) => {
-                const item = approvedItems.find((item) => item.id === e.target.value)
-                set('delivery_item_id', e.target.value)
-                set('unit_id', item?.unit_issuance_id ?? '')
+                const item = approvedItems.find(
+                  (item) => item.id === e.target.value,
+                );
+                set("delivery_item_id", e.target.value);
+                set("unit_id", item?.unit_issuance_id ?? "");
               }}
             >
               <option value="">Select feed item…</option>
               {approvedItems.map((item) => (
                 <option key={item.id} value={item.id}>
-                  {item.description ?? item.id.slice(0, 8)} {item.brand_name ? `(${item.brand_name})` : ''} — {item.category_name ?? ''} — ₱{item.unit_price_per_issuance.toFixed(2)}/{item.unit_issuance_name}
+                  {item.description ?? item.id.slice(0, 8)}{" "}
+                  {item.brand_name ? `(${item.brand_name})` : ""} —{" "}
+                  {item.category_name ?? ""} — ₱
+                  {item.unit_price_per_issuance.toFixed(2)}/
+                  {item.unit_issuance_name}
                 </option>
               ))}
             </select>
             {selectedItem && (
               <p className="text-xs text-muted mt-1">
-                Unit: {selectedItem.unit_issuance_name} · Available: {selectedItem.available_quantity} {selectedItem.unit_issuance_name} · Expiry: {selectedItem.expiry_date ?? '—'}
+                Unit: {selectedItem.unit_issuance_name} · Available:{" "}
+                {selectedItem.available_quantity}{" "}
+                {selectedItem.unit_issuance_name} · Expiry:{" "}
+                {selectedItem.expiry_date ?? "—"}
               </p>
             )}
           </div>
 
           {/* Quantity Given */}
           <div>
-            <label className={LABEL}>Qty Given (kg) <span className="text-red-500">*</span></label>
-            <input type="number" min="0" step="0.1" className={FIELD} placeholder="e.g. 3.5" value={form.quantity_given} onChange={(e) => set('quantity_given', e.target.value)} />
+            <label className={LABEL}>
+              Qty Given (kg) <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="number"
+              min="0"
+              step="0.1"
+              className={FIELD}
+              placeholder="e.g. 3.5"
+              value={form.quantity_given}
+              onChange={(e) => set("quantity_given", e.target.value)}
+            />
           </div>
 
           {/* Quantity Used (from inventory) */}
           <div>
             <label className={LABEL}>Qty Used (inventory)</label>
-            <input type="number" min="0" step="0.1" className={FIELD} placeholder="e.g. 3.5" value={form.quantity_used} onChange={(e) => set('quantity_used', e.target.value)} />
+            <input
+              type="number"
+              min="0"
+              step="0.1"
+              className={FIELD}
+              placeholder="e.g. 3.5"
+              value={form.quantity_used}
+              onChange={(e) => set("quantity_used", e.target.value)}
+            />
           </div>
 
           {/* Meal Number */}
           <div>
             <label className={LABEL}>Meal # (feeding count)</label>
-            <input type="number" min="1" step="1" className={FIELD} placeholder="e.g. 1, 2, 3" value={form.meal_number} onChange={(e) => set('meal_number', e.target.value)} />
+            <input
+              type="number"
+              min="1"
+              step="1"
+              className={FIELD}
+              placeholder="e.g. 1, 2, 3"
+              value={form.meal_number}
+              onChange={(e) => set("meal_number", e.target.value)}
+            />
           </div>
 
           {/* Date Given */}
           <div>
-            <label className={LABEL}>Date Given <span className="text-red-500">*</span></label>
-            <input type="date" className={FIELD} value={form.date_given} onChange={(e) => set('date_given', e.target.value)} />
+            <label className={LABEL}>
+              Date Given <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="date"
+              className={FIELD}
+              value={form.date_given}
+              onChange={(e) => set("date_given", e.target.value)}
+            />
           </div>
 
           {/* Administered By */}
           <div>
-            <label className={LABEL}>Administered By <span className="text-red-500">*</span></label>
-            <input className={FIELD} placeholder="e.g. Juan dela Cruz" value={form.administered_by} onChange={(e) => set('administered_by', e.target.value)} />
+            <label className={LABEL}>
+              Administered By <span className="text-red-500">*</span>
+            </label>
+            <input
+              className={FIELD}
+              placeholder="e.g. Juan dela Cruz"
+              value={form.administered_by}
+              onChange={(e) => set("administered_by", e.target.value)}
+            />
           </div>
 
           {/* Status */}
           <div>
             <label className={LABEL}>Status</label>
-            <select className={FIELD} value={form.status} onChange={(e) => set('status', e.target.value)}>
-              {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+            <select
+              className={FIELD}
+              value={form.status}
+              onChange={(e) => set("status", e.target.value)}
+            >
+              {STATUS_OPTIONS.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
             </select>
           </div>
 
           {/* Notes */}
           <div className="col-span-2">
             <label className={LABEL}>Notes</label>
-            <textarea className={cn(FIELD, 'resize-none')} rows={3} placeholder="Optional remarks..." value={form.notes} onChange={(e) => set('notes', e.target.value)} />
+            <textarea
+              className={cn(FIELD, "resize-none")}
+              rows={3}
+              placeholder="Optional remarks..."
+              value={form.notes}
+              onChange={(e) => set("notes", e.target.value)}
+            />
           </div>
         </div>
 
         {/* Cost Computation Display */}
         {selectedItem && qtyGiven > 0 && (
           <div className="mt-4 p-4 rounded-xl bg-green-50 border border-green-200">
-            <h3 className="text-xs font-bold text-green-800 uppercase tracking-wide mb-2">Cost Estimate</h3>
+            <h3 className="text-xs font-bold text-green-800 uppercase tracking-wide mb-2">
+              Cost Estimate
+            </h3>
             <div className="space-y-1 text-sm text-green-900">
               <div className="flex justify-between">
                 <span>Cost per {selectedItem.unit_issuance_name}</span>
                 <span className="font-semibold">₱{costPerKg.toFixed(2)}</span>
               </div>
               <div className="flex justify-between">
-                <span>Qty × {qtyGiven.toFixed(1)} {selectedItem.unit_issuance_name}</span>
+                <span>
+                  Qty × {qtyGiven.toFixed(1)} {selectedItem.unit_issuance_name}
+                </span>
                 <span className="font-semibold">₱{unitCost.toFixed(2)}</span>
               </div>
-              {selectionMode === 'cage' && animalCount > 1 && (
+              {selectionMode === "cage" && animalCount > 1 && (
                 <div className="flex justify-between border-t border-green-300 pt-1 mt-1">
                   <span>× {animalCount} animals</span>
-                  <span className="font-bold text-green-800">₱{totalCost.toFixed(2)}</span>
+                  <span className="font-bold text-green-800">
+                    ₱{totalCost.toFixed(2)}
+                  </span>
                 </div>
               )}
               <div className="flex justify-between border-t border-green-300 pt-1 mt-1 text-base">
                 <span className="font-bold">Total</span>
-                <span className="font-bold text-green-800">₱{totalCost.toFixed(2)}</span>
+                <span className="font-bold text-green-800">
+                  ₱{totalCost.toFixed(2)}
+                </span>
               </div>
             </div>
           </div>
         )}
 
         <div className="flex gap-3 mt-6">
-          <button className="flex-1 py-2.5 border border-border rounded-lg text-sm font-medium text-muted hover:bg-background transition-colors" onClick={onClose}>
+          <button
+            className="flex-1 py-2.5 border border-border rounded-lg text-sm font-medium text-muted hover:bg-background transition-colors"
+            onClick={onClose}
+          >
             Cancel
           </button>
-          <button className="flex-1 py-2.5 bg-success text-white rounded-lg text-sm font-medium hover:bg-success/90 transition-colors" onClick={handleSubmit}>
-            {editing ? 'Save Changes' : selectionMode === 'cage' ? `Feed ${cageAnimals.length} Animal${cageAnimals.length !== 1 ? 's' : ''}` : 'Log Feeding'}
+          <button
+            className="flex-1 py-2.5 bg-success text-white rounded-lg text-sm font-medium hover:bg-success/90 transition-colors"
+            onClick={handleSubmit}
+          >
+            {editing
+              ? "Save Changes"
+              : selectionMode === "cage"
+                ? `Feed ${cageAnimals.length} Animal${cageAnimals.length !== 1 ? "s" : ""}`
+                : "Log Feeding"}
           </button>
         </div>
       </div>
     </div>
-  )
-}
+  );
+};
 
 // ─── Delete Confirm Modal ─────────────────────────────────────────────────────
 
@@ -632,169 +835,215 @@ const DeleteModal = ({
   onConfirm,
   onClose,
 }: {
-  record: FeedingRecord
-  onConfirm: () => void
-  onClose: () => void
+  record: FeedingRecord;
+  onConfirm: () => void;
+  onClose: () => void;
 }) => (
   <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
     <div className="bg-surface border border-border rounded-2xl shadow-2xl w-full max-w-sm p-6">
       <h2 className="text-lg font-bold text-primary mb-2">Delete Record?</h2>
       <p className="text-sm text-muted mb-5">
-        Remove feeding record for animal{' '}
-        <strong>{record.animal_id}</strong> on <strong>{record.date_given}</strong>? This cannot be undone.
+        Remove feeding record for animal <strong>{record.animal_id}</strong> on{" "}
+        <strong>{record.date_given}</strong>? This cannot be undone.
       </p>
       <div className="flex gap-3">
-        <button className="flex-1 py-2.5 border border-border rounded-lg text-sm font-medium text-muted hover:bg-background transition-colors" onClick={onClose}>
+        <button
+          className="flex-1 py-2.5 border border-border rounded-lg text-sm font-medium text-muted hover:bg-background transition-colors"
+          onClick={onClose}
+        >
           Cancel
         </button>
-        <button className="flex-1 py-2.5 bg-red-500 text-white rounded-lg text-sm font-medium hover:bg-red-600 transition-colors" onClick={onConfirm}>
+        <button
+          className="flex-1 py-2.5 bg-red-500 text-white rounded-lg text-sm font-medium hover:bg-red-600 transition-colors"
+          onClick={onConfirm}
+        >
           Delete
         </button>
       </div>
     </div>
   </div>
-)
+);
 
 // ─── Quick Status Toggle ──────────────────────────────────────────────────────
 
 const QuickStatusToggle = ({ record }: { record: FeedingRecord }) => {
-  const { changeStatus } = useFeeding()
-  const next: Record<string, string> = { pending: 'fed', fed: 'pending', skipped: 'fed' }
+  const { changeStatus } = useFeeding();
+  const next: Record<string, string> = {
+    pending: "fed",
+    fed: "pending",
+    skipped: "fed",
+  };
   return (
     <button
-      title={`Mark as ${next[record.status] || 'fed'}`}
-      onClick={() => changeStatus(record.id, next[record.status] || 'fed')}
+      title={`Mark as ${next[record.status] || "fed"}`}
+      onClick={() => changeStatus(record.id, next[record.status] || "fed")}
       className={cn(
-        'w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all',
-        record.status === 'fed'
-          ? 'bg-green-500 border-green-500 text-white'
-          : record.status === 'skipped'
-          ? 'bg-red-400 border-red-400 text-white'
-          : 'border-border bg-background hover:border-green-400'
+        "w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all",
+        record.status === "fed"
+          ? "bg-green-500 border-green-500 text-white"
+          : record.status === "skipped"
+            ? "bg-red-400 border-red-400 text-white"
+            : "border-border bg-background hover:border-green-400",
       )}
     >
-      {record.status === 'fed' && (
+      {record.status === "fed" && (
         <svg className="w-3 h-3" viewBox="0 0 12 12" fill="none">
-          <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+          <path
+            d="M2 6l3 3 5-5"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
         </svg>
       )}
     </button>
-  )
-}
+  );
+};
 
 // ─── Main App ─────────────────────────────────────────────────────────────────
 
 const FeedingApp = () => {
-  const { records, loading, deleteRecord } = useFeeding()
-  const [activeTab, setActiveTab] = useState<TabFilter>('All')
-  const [search, setSearch] = useState('')
-  const [showModal, setShowModal] = useState(false)
-  const [editing, setEditing] = useState<FeedingRecord | null>(null)
-  const [deleting, setDeleting] = useState<FeedingRecord | null>(null)
+  const { records, loading, deleteRecord } = useFeeding();
+  const [activeTab, setActiveTab] = useState<TabFilter>("All");
+  const [search, setSearch] = useState("");
+  const [showModal, setShowModal] = useState(false);
+  const [editing, setEditing] = useState<FeedingRecord | null>(null);
+  const [deleting, setDeleting] = useState<FeedingRecord | null>(null);
 
   const filtered = useMemo(() => {
-    let list = records
-    if (activeTab !== 'All') list = list.filter((r) => r.status === activeTab)
+    let list = records;
+    if (activeTab !== "All") list = list.filter((r) => r.status === activeTab);
     if (search.trim()) {
-      const q = search.toLowerCase()
+      const q = search.toLowerCase();
       list = list.filter(
         (r) =>
           r.animal_id.toLowerCase().includes(q) ||
           r.administered_by.toLowerCase().includes(q) ||
-          (r.notes ?? '').toLowerCase().includes(q)
-      )
+          (r.notes ?? "").toLowerCase().includes(q),
+      );
     }
-    return list
-  }, [records, activeTab, search])
+    return list;
+  }, [records, activeTab, search]);
 
   const counts = useMemo(
     () => ({
       total: records.length,
-      fed: records.filter((r) => r.status === 'fed').length,
-      pending: records.filter((r) => r.status === 'pending').length,
-      skipped: records.filter((r) => r.status === 'skipped').length,
+      fed: records.filter((r) => r.status === "fed").length,
+      pending: records.filter((r) => r.status === "pending").length,
+      skipped: records.filter((r) => r.status === "skipped").length,
     }),
-    [records]
-  )
+    [records],
+  );
 
   const totalQtyToday = useMemo(() => {
-    const today = new Date().toISOString().slice(0, 10)
+    const today = new Date().toISOString().slice(0, 10);
     return records
-      .filter((r) => r.date_given === today && r.status === 'fed')
+      .filter((r) => r.date_given === today && r.status === "fed")
       .reduce((sum, r) => sum + r.quantity_given, 0)
-      .toFixed(1)
-  }, [records])
+      .toFixed(1);
+  }, [records]);
 
   const columns = [
     {
-      key: 'status' as const,
-      header: '',
-      className: 'w-10',
+      key: "status" as const,
+      header: "",
+      className: "w-10",
       render: (r: FeedingRecord) => <QuickStatusToggle record={r} />,
     },
     {
-      key: 'animal_id' as const,
-      header: 'Animal',
+      key: "animal_id" as const,
+      header: "Animal",
       render: (r: FeedingRecord) => (
-        <span className="text-sm font-mono font-semibold text-foreground truncate max-w-[120px] block" title={r.animal_id}>{r.animal_id.slice(0, 8)}…</span>
+        <span
+          className="text-sm font-mono font-semibold text-foreground truncate max-w-30 block"
+          title={r.animal_id}
+        >
+          {r.animal_id.slice(0, 8)}…
+        </span>
       ),
     },
     {
-      key: 'quantity_given' as const,
-      header: 'Qty Given (kg)',
+      key: "quantity_given" as const,
+      header: "Qty Given (kg)",
       render: (r: FeedingRecord) => (
-        <span className="text-sm font-semibold text-foreground">{r.quantity_given}</span>
+        <span className="text-sm font-semibold text-foreground">
+          {r.quantity_given}
+        </span>
       ),
     },
     {
-      key: 'meal_number' as const,
-      header: 'Meal #',
-      render: (r: FeedingRecord) => <MealNumberBadge mealNumber={r.meal_number} />,
+      key: "meal_number" as const,
+      header: "Meal #",
+      render: (r: FeedingRecord) => (
+        <MealNumberBadge mealNumber={r.meal_number} />
+      ),
     },
     {
-      key: 'date_given' as const,
-      header: 'Date',
-      render: (r: FeedingRecord) => <span className="text-sm">{r.date_given}</span>,
+      key: "date_given" as const,
+      header: "Date",
+      render: (r: FeedingRecord) => (
+        <span className="text-sm">{r.date_given}</span>
+      ),
     },
     {
-      key: 'administered_by' as const,
-      header: 'Given By',
-      render: (r: FeedingRecord) => <span className="text-sm text-muted">{r.administered_by}</span>,
+      key: "administered_by" as const,
+      header: "Given By",
+      render: (r: FeedingRecord) => (
+        <span className="text-sm text-muted">{r.administered_by}</span>
+      ),
     },
     {
-      key: 'notes' as const,
-      header: 'Notes',
+      key: "notes" as const,
+      header: "Notes",
       render: (r: FeedingRecord) =>
         r.notes ? (
-          <span className="text-xs text-muted max-w-[160px] truncate block" title={r.notes}>{r.notes}</span>
+          <span
+            className="text-xs text-muted max-w-40 truncate block"
+            title={r.notes}
+          >
+            {r.notes}
+          </span>
         ) : (
           <span className="text-xs text-muted">—</span>
         ),
     },
     {
-      key: 'actions' as const,
-      header: 'Status / Actions',
+      key: "actions" as const,
+      header: "Status / Actions",
       render: (r: FeedingRecord) => (
         <div className="flex items-center gap-2">
           <StatusBadge status={r.status} />
-          <IconButton onClick={() => { setEditing(r); setShowModal(true) }} title="Edit">
+          <IconButton
+            onClick={() => {
+              setEditing(r);
+              setShowModal(true);
+            }}
+            title="Edit"
+          >
             <Pencil className="w-4 h-4" />
           </IconButton>
-          <IconButton onClick={() => setDeleting(r)} title="Delete" variant="danger">
+          <IconButton
+            onClick={() => setDeleting(r)}
+            title="Delete"
+            variant="danger"
+          >
             <Trash2 className="w-4 h-4" />
           </IconButton>
         </div>
       ),
     },
-  ]
+  ];
 
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
         <Loader2 className="w-6 h-6 animate-spin text-muted" />
-        <span className="ml-2 text-muted text-sm">Loading feeding records…</span>
+        <span className="ml-2 text-muted text-sm">
+          Loading feeding records…
+        </span>
       </div>
-    )
+    );
   }
 
   return (
@@ -809,8 +1058,14 @@ const FeedingApp = () => {
       {/* Today summary strip */}
       <div className="flex items-center gap-6 mb-5 px-5 py-3 bg-surface border border-border rounded-xl text-sm">
         <span className="text-muted font-medium">Today's Summary</span>
-        <span className="text-foreground font-semibold">{totalQtyToday} <span className="font-normal text-muted">total fed today</span></span>
-        <span className="text-foreground font-semibold">{counts.pending} <span className="font-normal text-muted">pending feedings</span></span>
+        <span className="text-foreground font-semibold">
+          {totalQtyToday}{" "}
+          <span className="font-normal text-muted">total fed today</span>
+        </span>
+        <span className="text-foreground font-semibold">
+          {counts.pending}{" "}
+          <span className="font-normal text-muted">pending feedings</span>
+        </span>
       </div>
 
       {/* Tabs */}
@@ -819,21 +1074,37 @@ const FeedingApp = () => {
           <button
             key={tab}
             className={cn(
-              'px-4 py-2 text-sm font-medium rounded-md transition-colors capitalize',
-              activeTab === tab ? 'bg-surface text-foreground shadow-sm' : 'text-muted hover:text-foreground'
+              "px-4 py-2 text-sm font-medium rounded-md transition-colors capitalize",
+              activeTab === tab
+                ? "bg-surface text-foreground shadow-sm"
+                : "text-muted hover:text-foreground",
             )}
             onClick={() => setActiveTab(tab)}
           >
             {tab}
-            <span className={cn('ml-1.5 px-1.5 py-0.5 text-xs rounded-full', activeTab === tab ? 'bg-success/10 text-success' : 'bg-background text-muted')}>
-              {tab === 'All' ? records.length : records.filter((r) => r.status === tab).length}
+            <span
+              className={cn(
+                "ml-1.5 px-1.5 py-0.5 text-xs rounded-full",
+                activeTab === tab
+                  ? "bg-success/10 text-success"
+                  : "bg-background text-muted",
+              )}
+            >
+              {tab === "All"
+                ? records.length
+                : records.filter((r) => r.status === tab).length}
             </span>
           </button>
         ))}
       </div>
 
       <ActionsBar>
-        <PrimaryButton onClick={() => { setEditing(null); setShowModal(true) }}>
+        <PrimaryButton
+          onClick={() => {
+            setEditing(null);
+            setShowModal(true);
+          }}
+        >
           <Plus className="w-4 h-4" /> Log Feeding
         </PrimaryButton>
       </ActionsBar>
@@ -853,20 +1124,26 @@ const FeedingApp = () => {
       {showModal && (
         <RecordModal
           editing={editing}
-          onClose={() => { setShowModal(false); setEditing(null) }}
+          onClose={() => {
+            setShowModal(false);
+            setEditing(null);
+          }}
         />
       )}
 
       {deleting && (
         <DeleteModal
           record={deleting}
-          onConfirm={async () => { await deleteRecord(deleting.id); setDeleting(null) }}
+          onConfirm={async () => {
+            await deleteRecord(deleting.id);
+            setDeleting(null);
+          }}
           onClose={() => setDeleting(null)}
         />
       )}
     </div>
-  )
-}
+  );
+};
 
 // ════════════════════════════════════════════════════════════════════════════
 // ─── VITAMINS & INJECTIONS ────────────────────────────────────────────────
@@ -875,108 +1152,124 @@ const FeedingApp = () => {
 // ─── Vitamin Types ────────────────────────────────────────────────────────
 
 interface VitaminRecord {
-  id: string
-  ration_id: string
-  animal_id: string
-  ration_type_name: string
-  delivery_item_id: string
-  unit_id: string
-  quantity_given: number
-  quantity_used: number
-  date_given: string
-  administered_by: string
-  status: string
-  next_due_date: string | null
-  notes: string | null
+  id: string;
+  ration_id: string;
+  animal_id: string;
+  ration_type_name: string;
+  delivery_item_id: string;
+  unit_id: string;
+  quantity_given: number;
+  quantity_used: number;
+  date_given: string;
+  administered_by: string;
+  status: string;
+  next_due_date: string | null;
+  notes: string | null;
 }
 
 interface VitaminFormValues {
-  animal_id: string
-  ration_type_id: string
-  delivery_item_id: string
-  unit_id: string
-  quantity_given: string
-  quantity_used: string
-  date_given: string
-  administered_by: string
-  status: string
-  next_due_date: string
-  notes: string
+  animal_id: string;
+  ration_type_id: string;
+  delivery_item_id: string;
+  unit_id: string;
+  quantity_given: string;
+  quantity_used: string;
+  date_given: string;
+  administered_by: string;
+  status: string;
+  next_due_date: string;
+  notes: string;
 }
 
 // ─── Vitamin Context ──────────────────────────────────────────────────────
 
 interface VitaminsContextType {
-  records: VitaminRecord[]
-  loading: boolean
-  rationTypes: RationType[]
-  animals: (Animal & { tag_code: number | null; cage_label: string | null })[]
-  cages: Cage[]
-  approvedItems: ApprovedStockItem[]
-  addRecord: (values: VitaminFormValues) => Promise<void>
-  addBulkRecords: (animalIds: string[], values: VitaminFormValues) => Promise<void>
-  updateRecord: (id: string, rationId: string, values: VitaminFormValues) => Promise<void>
-  deleteRecord: (id: string) => Promise<void>
-  changeStatus: (id: string, status: string) => Promise<void>
-  reload: () => Promise<void>
+  records: VitaminRecord[];
+  loading: boolean;
+  rationTypes: RationType[];
+  animals: (Animal & { tag_code: number | null; cage_label: string | null })[];
+  cages: Cage[];
+  approvedItems: ApprovedStockItem[];
+  addRecord: (values: VitaminFormValues) => Promise<void>;
+  addBulkRecords: (
+    animalIds: string[],
+    values: VitaminFormValues,
+  ) => Promise<void>;
+  updateRecord: (
+    id: string,
+    rationId: string,
+    values: VitaminFormValues,
+  ) => Promise<void>;
+  deleteRecord: (id: string) => Promise<void>;
+  changeStatus: (id: string, status: string) => Promise<void>;
+  reload: () => Promise<void>;
 }
 
-const VitaminsContext = createContext<VitaminsContextType | undefined>(undefined)
+const VitaminsContext = createContext<VitaminsContextType | undefined>(
+  undefined,
+);
 
 const VitaminsProvider = ({ children }: { children: ReactNode }) => {
-  const { user } = useAuthStore()
-  const [records, setRecords] = useState<VitaminRecord[]>([])
-  const [loading, setLoading] = useState(true)
-  const [rationTypes, setRationTypes] = useState<RationType[]>([])
-  const [animals, setAnimals] = useState<(Animal & { tag_code: number | null; cage_label: string | null })[]>([])
-  const [cages, setCages] = useState<Cage[]>([])
-  const [approvedItems, setApprovedItems] = useState<ApprovedStockItem[]>([])
+  const { user } = useAuthStore();
+  const [records, setRecords] = useState<VitaminRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [rationTypes, setRationTypes] = useState<RationType[]>([]);
+  const [animals, setAnimals] = useState<
+    (Animal & { tag_code: number | null; cage_label: string | null })[]
+  >([]);
+  const [cages, setCages] = useState<Cage[]>([]);
+  const [approvedItems, setApprovedItems] = useState<ApprovedStockItem[]>([]);
 
-  const VITAMIN_TYPE_NAMES = ['Vitamin', 'Injection', 'Supplement']
+  const VITAMIN_TYPE_NAMES = ["Vitamin", "Injection", "Supplement"];
 
   const mapToVitaminRecord = (ra: RationAnimal): VitaminRecord => ({
     id: ra.id,
     ration_id: ra.ration_id,
     animal_id: ra.animal_id,
-    ration_type_name: ra.ration?.ration_type?.name ?? '',
-    delivery_item_id: ra.ration?.delivery_item_id ?? '',
-    unit_id: ra.ration?.unit_id ?? '',
+    ration_type_name: ra.ration?.ration_type?.name ?? "",
+    delivery_item_id: ra.ration?.delivery_item_id ?? "",
+    unit_id: ra.ration?.unit_id ?? "",
     quantity_given: ra.quantity_given,
     quantity_used: ra.ration?.quantity_used ?? 0,
-    date_given: ra.ration?.date_given ?? '',
-    administered_by: ra.ration?.administered_by ?? '',
+    date_given: ra.ration?.date_given ?? "",
+    administered_by: ra.ration?.administered_by ?? "",
     status: ra.status,
     next_due_date: ra.next_due_date ?? null,
     notes: ra.notes ?? ra.ration?.notes ?? null,
-  })
+  });
 
   const loadData = useCallback(async () => {
-    if (!user?.id) return
-    setLoading(true)
+    if (!user?.id) return;
+    setLoading(true);
     try {
-      const [types, allRationAnimals, allAnimals, allCages, stockItems] = await Promise.all([
-        fetchRationTypes(),
-        fetchRationAnimals(),
-        animalService.getAnimalsWithTag(),
-        cageService.getCages(user.id),
-        fetchApprovedStockItems(),
-      ])
-      setRationTypes(types)
-      setAnimals(allAnimals)
-      setCages(allCages)
-      setApprovedItems(stockItems)
+      const [types, allRationAnimals, allAnimals, allCages, stockItems] =
+        await Promise.all([
+          fetchRationTypes(),
+          fetchRationAnimals(),
+          animalService.getAnimalsWithTag(),
+          cageService.getCages(user.id),
+          fetchApprovedStockItems(),
+        ]);
+      setRationTypes(types);
+      setAnimals(allAnimals);
+      setCages(allCages);
+      setApprovedItems(stockItems);
       const vitaminRecords = allRationAnimals
-        .filter((ra) => VITAMIN_TYPE_NAMES.includes(ra.ration?.ration_type?.name ?? ''))
-        .map(mapToVitaminRecord)
-      setRecords(vitaminRecords)
+        .filter((ra) =>
+          VITAMIN_TYPE_NAMES.includes(ra.ration?.ration_type?.name ?? ""),
+        )
+        .map(mapToVitaminRecord);
+      setRecords(vitaminRecords);
     } catch (err) {
-      console.error('Error loading vitamin data:', err)
+      console.error("Error loading vitamin data:", err);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }, [user?.id])
+  }, [user?.id]);
 
-  useEffect(() => { loadData() }, [loadData])
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const addRecord = async (values: VitaminFormValues) => {
     const rationResult = await createRation({
@@ -988,10 +1281,10 @@ const VitaminsProvider = ({ children }: { children: ReactNode }) => {
       administered_by: values.administered_by,
       status: values.status,
       notes: values.notes || null,
-    })
+    });
     if (!rationResult.success || !rationResult.data) {
-      alert('Error creating ration: ' + rationResult.error)
-      return
+      alert("Error creating ration: " + rationResult.error);
+      return;
     }
     const raResult = await createRationAnimal({
       ration_id: rationResult.data.id,
@@ -1000,16 +1293,19 @@ const VitaminsProvider = ({ children }: { children: ReactNode }) => {
       status: values.status,
       next_due_date: values.next_due_date || null,
       notes: values.notes || null,
-    })
+    });
     if (!raResult.success) {
-      alert('Error creating ration animal: ' + raResult.error)
-      return
+      alert("Error creating ration animal: " + raResult.error);
+      return;
     }
-    await loadData()
-  }
+    await loadData();
+  };
 
-  const addBulkRecords = async (animalIds: string[], values: VitaminFormValues) => {
-    if (animalIds.length === 0) return
+  const addBulkRecords = async (
+    animalIds: string[],
+    values: VitaminFormValues,
+  ) => {
+    if (animalIds.length === 0) return;
     const rationResult = await createRation({
       ration_type_id: values.ration_type_id,
       delivery_item_id: values.delivery_item_id,
@@ -1019,10 +1315,10 @@ const VitaminsProvider = ({ children }: { children: ReactNode }) => {
       administered_by: values.administered_by,
       status: values.status,
       notes: values.notes || null,
-    })
+    });
     if (!rationResult.success || !rationResult.data) {
-      alert('Error creating ration: ' + rationResult.error)
-      return
+      alert("Error creating ration: " + rationResult.error);
+      return;
     }
     for (const animalId of animalIds) {
       await createRationAnimal({
@@ -1032,12 +1328,16 @@ const VitaminsProvider = ({ children }: { children: ReactNode }) => {
         status: values.status,
         next_due_date: values.next_due_date || null,
         notes: values.notes || null,
-      })
+      });
     }
-    await loadData()
-  }
+    await loadData();
+  };
 
-  const updateRecordFn = async (id: string, rationId: string, values: VitaminFormValues) => {
+  const updateRecordFn = async (
+    id: string,
+    rationId: string,
+    values: VitaminFormValues,
+  ) => {
     await updateRation(rationId, {
       ration_type_id: values.ration_type_id,
       delivery_item_id: values.delivery_item_id,
@@ -1047,29 +1347,29 @@ const VitaminsProvider = ({ children }: { children: ReactNode }) => {
       administered_by: values.administered_by,
       status: values.status,
       notes: values.notes || null,
-    })
+    });
     await updateRationAnimal(id, {
       animal_id: values.animal_id,
       quantity_given: parseFloat(values.quantity_given) || 0,
       status: values.status,
       next_due_date: values.next_due_date || null,
       notes: values.notes || null,
-    })
-    await loadData()
-  }
+    });
+    await loadData();
+  };
 
   const deleteRecordFn = async (id: string) => {
-    const record = records.find((r) => r.id === id)
-    if (!record) return
-    await deleteRationAnimalApi(id)
-    await deleteRationApi(record.ration_id)
-    await loadData()
-  }
+    const record = records.find((r) => r.id === id);
+    if (!record) return;
+    await deleteRationAnimalApi(id);
+    await deleteRationApi(record.ration_id);
+    await loadData();
+  };
 
   const changeStatus = async (id: string, status: string) => {
-    await updateRationAnimal(id, { status })
-    setRecords((prev) => prev.map((r) => (r.id === id ? { ...r, status } : r)))
-  }
+    await updateRationAnimal(id, { status });
+    setRecords((prev) => prev.map((r) => (r.id === id ? { ...r, status } : r)));
+  };
 
   return (
     <VitaminsContext.Provider
@@ -1090,92 +1390,123 @@ const VitaminsProvider = ({ children }: { children: ReactNode }) => {
     >
       {children}
     </VitaminsContext.Provider>
-  )
-}
+  );
+};
 
 const useVitamins = () => {
-  const ctx = useContext(VitaminsContext)
-  if (!ctx) throw new Error('useVitamins must be used inside VitaminsProvider')
-  return ctx
-}
+  const ctx = useContext(VitaminsContext);
+  if (!ctx) throw new Error("useVitamins must be used inside VitaminsProvider");
+  return ctx;
+};
 
 // ─── Vitamin Constants ────────────────────────────────────────────────────
 
-const VITAMIN_STATUS_OPTIONS = ['completed', 'upcoming', 'overdue']
-const VITAMIN_TAB_FILTERS = ['All', 'completed', 'upcoming', 'overdue'] as const
-type VitaminTabFilter = (typeof VITAMIN_TAB_FILTERS)[number]
+const VITAMIN_STATUS_OPTIONS = ["completed", "upcoming", "overdue"];
+const VITAMIN_TAB_FILTERS = [
+  "All",
+  "completed",
+  "upcoming",
+  "overdue",
+] as const;
+type VitaminTabFilter = (typeof VITAMIN_TAB_FILTERS)[number];
 
 const VITAMIN_EMPTY_FORM: VitaminFormValues = {
-  animal_id: '',
-  ration_type_id: '',
-  delivery_item_id: '',
-  unit_id: '',
-  quantity_given: '',
-  quantity_used: '',
-  date_given: '',
-  administered_by: '',
-  status: 'completed',
-  next_due_date: '',
-  notes: '',
-}
+  animal_id: "",
+  ration_type_id: "",
+  delivery_item_id: "",
+  unit_id: "",
+  quantity_given: "",
+  quantity_used: "",
+  date_given: "",
+  administered_by: "",
+  status: "completed",
+  next_due_date: "",
+  notes: "",
+};
 
 const VITAMIN_STATUS_STYLES: Record<string, string> = {
-  completed: 'bg-green-100 text-green-700',
-  upcoming: 'bg-blue-100 text-blue-700',
-  overdue: 'bg-red-100 text-red-600',
-}
+  completed: "bg-green-100 text-green-700",
+  upcoming: "bg-blue-100 text-blue-700",
+  overdue: "bg-red-100 text-red-600",
+};
 
 const ADMIN_TYPE_STYLES: Record<string, string> = {
-  Vitamin: 'bg-yellow-100 text-yellow-700',
-  Injection: 'bg-purple-100 text-purple-700',
-  Supplement: 'bg-teal-100 text-teal-700',
-}
+  Vitamin: "bg-yellow-100 text-yellow-700",
+  Injection: "bg-purple-100 text-purple-700",
+  Supplement: "bg-teal-100 text-teal-700",
+};
 
 const ADMIN_TYPE_ICONS: Record<string, ReactNode> = {
   Injection: <Syringe className="w-3.5 h-3.5" />,
   Vitamin: <FlaskConical className="w-3.5 h-3.5" />,
   Supplement: <CalendarCheck className="w-3.5 h-3.5" />,
-}
+};
 
 // ─── Vitamin Badges ───────────────────────────────────────────────────────
 
 const VitaminStatusBadge = ({ status }: { status: string }) => (
-  <span className={cn('inline-block px-2.5 py-0.5 text-xs font-medium rounded-full capitalize', VITAMIN_STATUS_STYLES[status] || 'bg-gray-100 text-gray-600')}>
+  <span
+    className={cn(
+      "inline-block px-2.5 py-0.5 text-xs font-medium rounded-full capitalize",
+      VITAMIN_STATUS_STYLES[status] || "bg-gray-100 text-gray-600",
+    )}
+  >
     {status}
   </span>
-)
+);
 
 const AdminTypeBadge = ({ type }: { type: string }) => (
-  <span className={cn('inline-flex items-center gap-1 px-2.5 py-0.5 text-xs font-medium rounded-full', ADMIN_TYPE_STYLES[type] || 'bg-gray-100 text-gray-600')}>
+  <span
+    className={cn(
+      "inline-flex items-center gap-1 px-2.5 py-0.5 text-xs font-medium rounded-full",
+      ADMIN_TYPE_STYLES[type] || "bg-gray-100 text-gray-600",
+    )}
+  >
     {ADMIN_TYPE_ICONS[type]}
     {type}
   </span>
-)
+);
 
 // ─── Vitamin Form Modal ───────────────────────────────────────────────────
 
-const VIT_FIELD = 'w-full px-3 py-2 border border-border rounded-lg text-sm bg-background text-foreground placeholder:text-muted focus:outline-none focus:border-success'
-const VIT_LABEL = 'block text-xs font-semibold text-muted uppercase tracking-wide mb-1'
+const VIT_FIELD =
+  "w-full px-3 py-2 border border-border rounded-lg text-sm bg-background text-foreground placeholder:text-muted focus:outline-none focus:border-success";
+const VIT_LABEL =
+  "block text-xs font-semibold text-muted uppercase tracking-wide mb-1";
 
 const VitaminRecordModal = ({
   editing,
   onClose,
 }: {
-  editing: VitaminRecord | null
-  onClose: () => void
+  editing: VitaminRecord | null;
+  onClose: () => void;
 }) => {
-  const { addRecord, addBulkRecords, updateRecord, rationTypes, animals, cages, approvedItems } = useVitamins()
-  const vitaminTypes = rationTypes.filter((t) => ['Vitamin', 'Injection', 'Supplement'].includes(t.name))
-  const [selectionMode, setSelectionMode] = useState<'individual' | 'cage'>(editing ? 'individual' : 'individual')
-  const [selectedCageId, setSelectedCageId] = useState('')
-  const [cageAnimals, setCageAnimals] = useState<Animal[]>([])
-  const [loadingCage, setLoadingCage] = useState(false)
+  const {
+    addRecord,
+    addBulkRecords,
+    updateRecord,
+    rationTypes,
+    animals,
+    cages,
+    approvedItems,
+  } = useVitamins();
+  const vitaminTypes = rationTypes.filter((t) =>
+    ["Vitamin", "Injection", "Supplement"].includes(t.name),
+  );
+  const [selectionMode, setSelectionMode] = useState<"individual" | "cage">(
+    editing ? "individual" : "individual",
+  );
+  const [selectedCageId, setSelectedCageId] = useState("");
+  const [cageAnimals, setCageAnimals] = useState<Animal[]>([]);
+  const [loadingCage, setLoadingCage] = useState(false);
 
   const [form, setForm] = useState<VitaminFormValues>(
     editing
       ? {
           animal_id: editing.animal_id,
-          ration_type_id: rationTypes.find((t) => t.name === editing.ration_type_name)?.id ?? '',
+          ration_type_id:
+            rationTypes.find((t) => t.name === editing.ration_type_name)?.id ??
+            "",
           delivery_item_id: editing.delivery_item_id,
           unit_id: editing.unit_id,
           quantity_given: String(editing.quantity_given),
@@ -1183,40 +1514,44 @@ const VitaminRecordModal = ({
           date_given: editing.date_given,
           administered_by: editing.administered_by,
           status: editing.status,
-          next_due_date: editing.next_due_date ?? '',
-          notes: editing.notes ?? '',
+          next_due_date: editing.next_due_date ?? "",
+          notes: editing.notes ?? "",
         }
-      : VITAMIN_EMPTY_FORM
-  )
+      : VITAMIN_EMPTY_FORM,
+  );
 
   const handleCageChange = async (cageId: string) => {
-    setSelectedCageId(cageId)
-    if (!cageId) { setCageAnimals([]); return }
-    setLoadingCage(true)
-    const result = await animalService.getAnimalsByCage(cageId)
-    setCageAnimals(result)
-    setLoadingCage(false)
-  }
+    setSelectedCageId(cageId);
+    if (!cageId) {
+      setCageAnimals([]);
+      return;
+    }
+    setLoadingCage(true);
+    const result = await animalService.getAnimalsByCage(cageId);
+    setCageAnimals(result);
+    setLoadingCage(false);
+  };
 
   const set = (key: keyof VitaminFormValues, val: string) =>
-    setForm((prev) => ({ ...prev, [key]: val }))
+    setForm((prev) => ({ ...prev, [key]: val }));
 
   // Find selected approved stock item and compute cost
   const selectedItem = useMemo(
-    () => approvedItems.find((item) => item.id === form.delivery_item_id) ?? null,
-    [approvedItems, form.delivery_item_id]
-  )
+    () =>
+      approvedItems.find((item) => item.id === form.delivery_item_id) ?? null,
+    [approvedItems, form.delivery_item_id],
+  );
 
   // Cost per kg - already calculated in approved stock items
   const vitCostPerKg = useMemo(() => {
-    if (!selectedItem) return 0
-    return selectedItem.unit_price_per_issuance
-  }, [selectedItem])
+    if (!selectedItem) return 0;
+    return selectedItem.unit_price_per_issuance;
+  }, [selectedItem]);
 
-  const vitQtyGiven = parseFloat(form.quantity_given) || 0
-  const vitUnitCost = vitQtyGiven * vitCostPerKg
-  const vitAnimalCount = selectionMode === 'cage' ? cageAnimals.length : 1
-  const vitTotalCost = vitUnitCost * vitAnimalCount
+  const vitQtyGiven = parseFloat(form.quantity_given) || 0;
+  const vitUnitCost = vitQtyGiven * vitCostPerKg;
+  const vitAnimalCount = selectionMode === "cage" ? cageAnimals.length : 1;
+  const vitTotalCost = vitUnitCost * vitAnimalCount;
 
   const handleSubmit = async () => {
     if (
@@ -1225,25 +1560,34 @@ const VitaminRecordModal = ({
       !form.date_given ||
       !form.administered_by.trim()
     ) {
-      alert('Please fill in all required fields.')
-      return
+      alert("Please fill in all required fields.");
+      return;
     }
     // Auto-assign ration_type_id from first matching vitamin type if not set
-    const finalForm = { ...form }
+    const finalForm = { ...form };
     if (!finalForm.ration_type_id && vitaminTypes.length > 0) {
-      finalForm.ration_type_id = vitaminTypes[0].id
+      finalForm.ration_type_id = vitaminTypes[0].id;
     }
     if (editing) {
-      await updateRecord(editing.id, editing.ration_id, finalForm)
-    } else if (selectionMode === 'cage') {
-      if (cageAnimals.length === 0) { alert('No animals in the selected cage.'); return }
-      await addBulkRecords(cageAnimals.map((a) => a.id), finalForm)
+      await updateRecord(editing.id, editing.ration_id, finalForm);
+    } else if (selectionMode === "cage") {
+      if (cageAnimals.length === 0) {
+        alert("No animals in the selected cage.");
+        return;
+      }
+      await addBulkRecords(
+        cageAnimals.map((a) => a.id),
+        finalForm,
+      );
     } else {
-      if (!finalForm.animal_id.trim()) { alert('Please select an animal.'); return }
-      await addRecord(finalForm)
+      if (!finalForm.animal_id.trim()) {
+        alert("Please select an animal.");
+        return;
+      }
+      await addRecord(finalForm);
     }
-    onClose()
-  }
+    onClose();
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -1251,9 +1595,12 @@ const VitaminRecordModal = ({
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-lg font-bold text-primary flex items-center gap-2">
             <Syringe className="w-5 h-5 text-success" />
-            {editing ? 'Edit Record' : 'Add Vitamin / Injection'}
+            {editing ? "Edit Record" : "Add Vitamin / Injection"}
           </h2>
-          <button className="p-1.5 rounded hover:bg-background text-muted transition-colors" onClick={onClose}>
+          <button
+            className="p-1.5 rounded hover:bg-background text-muted transition-colors"
+            onClick={onClose}
+          >
             ✕
           </button>
         </div>
@@ -1263,19 +1610,32 @@ const VitaminRecordModal = ({
           <div className="flex gap-2 mb-4">
             <button
               type="button"
-              className={cn('flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium border transition-all',
-                selectionMode === 'individual' ? 'bg-success text-white border-success' : 'border-border text-muted hover:text-foreground hover:bg-background'
+              className={cn(
+                "flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium border transition-all",
+                selectionMode === "individual"
+                  ? "bg-success text-white border-success"
+                  : "border-border text-muted hover:text-foreground hover:bg-background",
               )}
-              onClick={() => { setSelectionMode('individual'); setSelectedCageId(''); setCageAnimals([]) }}
+              onClick={() => {
+                setSelectionMode("individual");
+                setSelectedCageId("");
+                setCageAnimals([]);
+              }}
             >
               <User className="w-4 h-4" /> Individual
             </button>
             <button
               type="button"
-              className={cn('flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium border transition-all',
-                selectionMode === 'cage' ? 'bg-success text-white border-success' : 'border-border text-muted hover:text-foreground hover:bg-background'
+              className={cn(
+                "flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium border transition-all",
+                selectionMode === "cage"
+                  ? "bg-success text-white border-success"
+                  : "border-border text-muted hover:text-foreground hover:bg-background",
               )}
-              onClick={() => { setSelectionMode('cage'); set('animal_id', '') }}
+              onClick={() => {
+                setSelectionMode("cage");
+                set("animal_id", "");
+              }}
             >
               <Users className="w-4 h-4" /> By Cage
             </button>
@@ -1284,143 +1644,245 @@ const VitaminRecordModal = ({
 
         <div className="grid grid-cols-2 gap-4">
           {/* Animal Selection */}
-          {selectionMode === 'individual' ? (
+          {selectionMode === "individual" ? (
             <div>
-              <label className={VIT_LABEL}>Animal <span className="text-red-500">*</span></label>
-              <select className={VIT_FIELD} value={form.animal_id} onChange={(e) => set('animal_id', e.target.value)}>
+              <label className={VIT_LABEL}>
+                Animal <span className="text-red-500">*</span>
+              </label>
+              <select
+                className={VIT_FIELD}
+                value={form.animal_id}
+                onChange={(e) => set("animal_id", e.target.value)}
+              >
                 <option value="">Select animal…</option>
                 {animals.map((a) => (
                   <option key={a.id} value={a.id}>
-                    {a.tag_code ? `Tag #${a.tag_code}` : a.id.slice(0, 8)} — {a.sex} {a.weight}kg {a.cage_label ? `(${a.cage_label})` : ''}
+                    {a.tag_code ? `Tag #${a.tag_code}` : a.id.slice(0, 8)} —{" "}
+                    {a.sex} {a.weight}kg{" "}
+                    {a.cage_label ? `(${a.cage_label})` : ""}
                   </option>
                 ))}
               </select>
             </div>
           ) : !editing ? (
             <div>
-              <label className={VIT_LABEL}>Cage <span className="text-red-500">*</span></label>
-              <select className={VIT_FIELD} value={selectedCageId} onChange={(e) => handleCageChange(e.target.value)}>
+              <label className={VIT_LABEL}>
+                Cage <span className="text-red-500">*</span>
+              </label>
+              <select
+                className={VIT_FIELD}
+                value={selectedCageId}
+                onChange={(e) => handleCageChange(e.target.value)}
+              >
                 <option value="">Select cage…</option>
                 {cages.map((c) => {
-                  const animalCount = animals.filter(a => a.current_cage_id === c.id).length
+                  const animalCount = animals.filter(
+                    (a) => a.current_cage_id === c.id,
+                  ).length;
                   return (
                     <option key={c.id} value={c.id}>
                       {c.cage_label} ({animalCount}/{c.max_capacity} animals)
                     </option>
-                  )
+                  );
                 })}
               </select>
-              {loadingCage && <p className="text-xs text-muted mt-1">Loading animals…</p>}
+              {loadingCage && (
+                <p className="text-xs text-muted mt-1">Loading animals…</p>
+              )}
               {!loadingCage && selectedCageId && (
                 <p className="text-xs mt-1 text-success font-medium">
-                  {cageAnimals.length} animal{cageAnimals.length !== 1 ? 's' : ''} selected
+                  {cageAnimals.length} animal
+                  {cageAnimals.length !== 1 ? "s" : ""} selected
                 </p>
               )}
             </div>
           ) : null}
 
           <div className="col-span-2">
-            <label className={VIT_LABEL}>Item <span className="text-red-500">*</span></label>
+            <label className={VIT_LABEL}>
+              Item <span className="text-red-500">*</span>
+            </label>
             <select
               className={VIT_FIELD}
               value={form.delivery_item_id}
               onChange={(e) => {
-                const item = approvedItems.find((item) => item.id === e.target.value)
-                set('delivery_item_id', e.target.value)
-                set('unit_id', item?.unit_issuance_id ?? '')
+                const item = approvedItems.find(
+                  (item) => item.id === e.target.value,
+                );
+                set("delivery_item_id", e.target.value);
+                set("unit_id", item?.unit_issuance_id ?? "");
               }}
             >
               <option value="">Select item…</option>
               {approvedItems.map((item) => (
                 <option key={item.id} value={item.id}>
-                  {item.description ?? item.id.slice(0, 8)} {item.brand_name ? `(${item.brand_name})` : ''} — {item.category_name ?? ''} — ₱{item.unit_price_per_issuance.toFixed(2)}/{item.unit_issuance_name}
+                  {item.description ?? item.id.slice(0, 8)}{" "}
+                  {item.brand_name ? `(${item.brand_name})` : ""} —{" "}
+                  {item.category_name ?? ""} — ₱
+                  {item.unit_price_per_issuance.toFixed(2)}/
+                  {item.unit_issuance_name}
                 </option>
               ))}
             </select>
             {selectedItem && (
               <p className="text-xs text-muted mt-1">
-                Unit: {selectedItem.unit_issuance_name} · Available: {selectedItem.available_quantity} {selectedItem.unit_issuance_name} · Expiry: {selectedItem.expiry_date ?? '—'}
+                Unit: {selectedItem.unit_issuance_name} · Available:{" "}
+                {selectedItem.available_quantity}{" "}
+                {selectedItem.unit_issuance_name} · Expiry:{" "}
+                {selectedItem.expiry_date ?? "—"}
               </p>
             )}
           </div>
 
           <div>
-            <label className={VIT_LABEL}>Qty Given (kg) <span className="text-red-500">*</span></label>
-            <input type="number" min="0" step="0.1" className={VIT_FIELD} placeholder="e.g. 2" value={form.quantity_given} onChange={(e) => set('quantity_given', e.target.value)} />
+            <label className={VIT_LABEL}>
+              Qty Given (kg) <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="number"
+              min="0"
+              step="0.1"
+              className={VIT_FIELD}
+              placeholder="e.g. 2"
+              value={form.quantity_given}
+              onChange={(e) => set("quantity_given", e.target.value)}
+            />
           </div>
 
           <div>
             <label className={VIT_LABEL}>Qty Used (inventory)</label>
-            <input type="number" min="0" step="0.1" className={VIT_FIELD} placeholder="e.g. 2" value={form.quantity_used} onChange={(e) => set('quantity_used', e.target.value)} />
+            <input
+              type="number"
+              min="0"
+              step="0.1"
+              className={VIT_FIELD}
+              placeholder="e.g. 2"
+              value={form.quantity_used}
+              onChange={(e) => set("quantity_used", e.target.value)}
+            />
           </div>
 
           <div>
-            <label className={VIT_LABEL}>Administered By <span className="text-red-500">*</span></label>
-            <input className={VIT_FIELD} placeholder="e.g. Dr. Santos" value={form.administered_by} onChange={(e) => set('administered_by', e.target.value)} />
+            <label className={VIT_LABEL}>
+              Administered By <span className="text-red-500">*</span>
+            </label>
+            <input
+              className={VIT_FIELD}
+              placeholder="e.g. Dr. Santos"
+              value={form.administered_by}
+              onChange={(e) => set("administered_by", e.target.value)}
+            />
           </div>
 
           <div>
-            <label className={VIT_LABEL}>Date Given <span className="text-red-500">*</span></label>
-            <input type="date" className={VIT_FIELD} value={form.date_given} onChange={(e) => set('date_given', e.target.value)} />
+            <label className={VIT_LABEL}>
+              Date Given <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="date"
+              className={VIT_FIELD}
+              value={form.date_given}
+              onChange={(e) => set("date_given", e.target.value)}
+            />
           </div>
 
           <div>
             <label className={VIT_LABEL}>Next Due Date</label>
-            <input type="date" className={VIT_FIELD} value={form.next_due_date} onChange={(e) => set('next_due_date', e.target.value)} />
+            <input
+              type="date"
+              className={VIT_FIELD}
+              value={form.next_due_date}
+              onChange={(e) => set("next_due_date", e.target.value)}
+            />
           </div>
 
           <div>
             <label className={VIT_LABEL}>Status</label>
-            <select className={VIT_FIELD} value={form.status} onChange={(e) => set('status', e.target.value)}>
-              {VITAMIN_STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+            <select
+              className={VIT_FIELD}
+              value={form.status}
+              onChange={(e) => set("status", e.target.value)}
+            >
+              {VITAMIN_STATUS_OPTIONS.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
             </select>
           </div>
 
           <div className="col-span-2">
             <label className={VIT_LABEL}>Notes</label>
-            <textarea className={cn(VIT_FIELD, 'resize-none')} rows={3} placeholder="Optional remarks..." value={form.notes} onChange={(e) => set('notes', e.target.value)} />
+            <textarea
+              className={cn(VIT_FIELD, "resize-none")}
+              rows={3}
+              placeholder="Optional remarks..."
+              value={form.notes}
+              onChange={(e) => set("notes", e.target.value)}
+            />
           </div>
         </div>
 
         {/* Cost Computation Display */}
         {selectedItem && vitQtyGiven > 0 && (
           <div className="mt-4 p-4 rounded-xl bg-purple-50 border border-purple-200">
-            <h3 className="text-xs font-bold text-purple-800 uppercase tracking-wide mb-2">Cost Estimate</h3>
+            <h3 className="text-xs font-bold text-purple-800 uppercase tracking-wide mb-2">
+              Cost Estimate
+            </h3>
             <div className="space-y-1 text-sm text-purple-900">
               <div className="flex justify-between">
                 <span>Cost per {selectedItem.unit_issuance_name}</span>
-                <span className="font-semibold">₱{vitCostPerKg.toFixed(2)}</span>
+                <span className="font-semibold">
+                  ₱{vitCostPerKg.toFixed(2)}
+                </span>
               </div>
               <div className="flex justify-between">
-                <span>Qty × {vitQtyGiven.toFixed(1)} {selectedItem.unit_issuance_name}</span>
+                <span>
+                  Qty × {vitQtyGiven.toFixed(1)}{" "}
+                  {selectedItem.unit_issuance_name}
+                </span>
                 <span className="font-semibold">₱{vitUnitCost.toFixed(2)}</span>
               </div>
-              {selectionMode === 'cage' && vitAnimalCount > 1 && (
+              {selectionMode === "cage" && vitAnimalCount > 1 && (
                 <div className="flex justify-between border-t border-purple-300 pt-1 mt-1">
                   <span>× {vitAnimalCount} animals</span>
-                  <span className="font-bold text-purple-800">₱{vitTotalCost.toFixed(2)}</span>
+                  <span className="font-bold text-purple-800">
+                    ₱{vitTotalCost.toFixed(2)}
+                  </span>
                 </div>
               )}
               <div className="flex justify-between border-t border-purple-300 pt-1 mt-1 text-base">
                 <span className="font-bold">Total</span>
-                <span className="font-bold text-purple-800">₱{vitTotalCost.toFixed(2)}</span>
+                <span className="font-bold text-purple-800">
+                  ₱{vitTotalCost.toFixed(2)}
+                </span>
               </div>
             </div>
           </div>
         )}
 
         <div className="flex gap-3 mt-6">
-          <button className="flex-1 py-2.5 border border-border rounded-lg text-sm font-medium text-muted hover:bg-background transition-colors" onClick={onClose}>
+          <button
+            className="flex-1 py-2.5 border border-border rounded-lg text-sm font-medium text-muted hover:bg-background transition-colors"
+            onClick={onClose}
+          >
             Cancel
           </button>
-          <button className="flex-1 py-2.5 bg-success text-white rounded-lg text-sm font-medium hover:bg-success/90 transition-colors" onClick={handleSubmit}>
-            {editing ? 'Save Changes' : selectionMode === 'cage' ? `Apply to ${cageAnimals.length} Animal${cageAnimals.length !== 1 ? 's' : ''}` : 'Add Record'}
+          <button
+            className="flex-1 py-2.5 bg-success text-white rounded-lg text-sm font-medium hover:bg-success/90 transition-colors"
+            onClick={handleSubmit}
+          >
+            {editing
+              ? "Save Changes"
+              : selectionMode === "cage"
+                ? `Apply to ${cageAnimals.length} Animal${cageAnimals.length !== 1 ? "s" : ""}`
+                : "Add Record"}
           </button>
         </div>
       </div>
     </div>
-  )
-}
+  );
+};
 
 // ─── Vitamin Delete Modal ─────────────────────────────────────────────────
 
@@ -1429,91 +1891,111 @@ const VitaminDeleteModal = ({
   onConfirm,
   onClose,
 }: {
-  record: VitaminRecord
-  onConfirm: () => void
-  onClose: () => void
+  record: VitaminRecord;
+  onConfirm: () => void;
+  onClose: () => void;
 }) => (
   <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
     <div className="bg-surface border border-border rounded-2xl shadow-2xl w-full max-w-sm p-6">
       <h2 className="text-lg font-bold text-primary mb-2">Delete Record?</h2>
       <p className="text-sm text-muted mb-5">
-        Remove <strong>{record.ration_type_name}</strong> record for animal{' '}
-        <strong>{record.animal_id}</strong> on <strong>{record.date_given}</strong>? This cannot be undone.
+        Remove <strong>{record.ration_type_name}</strong> record for animal{" "}
+        <strong>{record.animal_id}</strong> on{" "}
+        <strong>{record.date_given}</strong>? This cannot be undone.
       </p>
       <div className="flex gap-3">
-        <button className="flex-1 py-2.5 border border-border rounded-lg text-sm font-medium text-muted hover:bg-background transition-colors" onClick={onClose}>
+        <button
+          className="flex-1 py-2.5 border border-border rounded-lg text-sm font-medium text-muted hover:bg-background transition-colors"
+          onClick={onClose}
+        >
           Cancel
         </button>
-        <button className="flex-1 py-2.5 bg-red-500 text-white rounded-lg text-sm font-medium hover:bg-red-600 transition-colors" onClick={onConfirm}>
+        <button
+          className="flex-1 py-2.5 bg-red-500 text-white rounded-lg text-sm font-medium hover:bg-red-600 transition-colors"
+          onClick={onConfirm}
+        >
           Delete
         </button>
       </div>
     </div>
   </div>
-)
+);
 
 // ─── Vitamins App ─────────────────────────────────────────────────────────
 
 const VitaminsApp = () => {
-  const { records, loading, deleteRecord } = useVitamins()
-  const [activeTab, setActiveTab] = useState<VitaminTabFilter>('All')
-  const [search, setSearch] = useState('')
-  const [showModal, setShowModal] = useState(false)
-  const [editing, setEditing] = useState<VitaminRecord | null>(null)
-  const [deleting, setDeleting] = useState<VitaminRecord | null>(null)
+  const { records, loading, deleteRecord } = useVitamins();
+  const [activeTab, setActiveTab] = useState<VitaminTabFilter>("All");
+  const [search, setSearch] = useState("");
+  const [showModal, setShowModal] = useState(false);
+  const [editing, setEditing] = useState<VitaminRecord | null>(null);
+  const [deleting, setDeleting] = useState<VitaminRecord | null>(null);
 
   const filtered = useMemo(() => {
-    let list = records
-    if (activeTab !== 'All') list = list.filter((r) => r.status === activeTab)
+    let list = records;
+    if (activeTab !== "All") list = list.filter((r) => r.status === activeTab);
     if (search.trim()) {
-      const q = search.toLowerCase()
+      const q = search.toLowerCase();
       list = list.filter(
         (r) =>
           r.animal_id.toLowerCase().includes(q) ||
           r.ration_type_name.toLowerCase().includes(q) ||
           r.administered_by.toLowerCase().includes(q) ||
-          (r.notes ?? '').toLowerCase().includes(q)
-      )
+          (r.notes ?? "").toLowerCase().includes(q),
+      );
     }
-    return list
-  }, [records, activeTab, search])
+    return list;
+  }, [records, activeTab, search]);
 
   const counts = useMemo(
     () => ({
       total: records.length,
-      completed: records.filter((r) => r.status === 'completed').length,
-      upcoming: records.filter((r) => r.status === 'upcoming').length,
-      overdue: records.filter((r) => r.status === 'overdue').length,
+      completed: records.filter((r) => r.status === "completed").length,
+      upcoming: records.filter((r) => r.status === "upcoming").length,
+      overdue: records.filter((r) => r.status === "overdue").length,
     }),
-    [records]
-  )
+    [records],
+  );
 
   const columns = [
     {
-      key: 'animal_id' as const,
-      header: 'Animal',
+      key: "animal_id" as const,
+      header: "Animal",
       render: (r: VitaminRecord) => (
-        <span className="text-sm font-mono font-semibold text-foreground truncate max-w-[120px] block" title={r.animal_id}>{r.animal_id.slice(0, 8)}…</span>
+        <span
+          className="text-sm font-mono font-semibold text-foreground truncate max-w-30 block"
+          title={r.animal_id}
+        >
+          {r.animal_id.slice(0, 8)}…
+        </span>
       ),
     },
     {
-      key: 'ration_type_name' as const,
-      header: 'Type',
-      render: (r: VitaminRecord) => <AdminTypeBadge type={r.ration_type_name} />,
+      key: "ration_type_name" as const,
+      header: "Type",
+      render: (r: VitaminRecord) => (
+        <AdminTypeBadge type={r.ration_type_name} />
+      ),
     },
     {
-      key: 'quantity_given' as const,
-      header: 'Qty Given (kg)',
-      render: (r: VitaminRecord) => <span className="text-sm font-medium text-foreground">{r.quantity_given}</span>,
+      key: "quantity_given" as const,
+      header: "Qty Given (kg)",
+      render: (r: VitaminRecord) => (
+        <span className="text-sm font-medium text-foreground">
+          {r.quantity_given}
+        </span>
+      ),
     },
     {
-      key: 'date_given' as const,
-      header: 'Date Given',
-      render: (r: VitaminRecord) => <span className="text-sm">{r.date_given}</span>,
+      key: "date_given" as const,
+      header: "Date Given",
+      render: (r: VitaminRecord) => (
+        <span className="text-sm">{r.date_given}</span>
+      ),
     },
     {
-      key: 'next_due_date' as const,
-      header: 'Next Due',
+      key: "next_due_date" as const,
+      header: "Next Due",
       render: (r: VitaminRecord) =>
         r.next_due_date ? (
           <span className="text-sm">{r.next_due_date}</span>
@@ -1522,22 +2004,27 @@ const VitaminsApp = () => {
         ),
     },
     {
-      key: 'administered_by' as const,
-      header: 'Given By',
-      render: (r: VitaminRecord) => <span className="text-sm text-muted">{r.administered_by}</span>,
+      key: "administered_by" as const,
+      header: "Given By",
+      render: (r: VitaminRecord) => (
+        <span className="text-sm text-muted">{r.administered_by}</span>
+      ),
     },
     {
-      key: 'status' as const,
-      header: 'Status',
+      key: "status" as const,
+      header: "Status",
       render: (r: VitaminRecord) => <VitaminStatusBadge status={r.status} />,
     },
     {
-      key: 'actions' as const,
-      header: 'Actions',
+      key: "actions" as const,
+      header: "Actions",
       render: (r: VitaminRecord) => (
         <div className="flex items-center gap-1">
           <IconButton
-            onClick={() => { setEditing(r); setShowModal(true) }}
+            onClick={() => {
+              setEditing(r);
+              setShowModal(true);
+            }}
             title="Edit"
           >
             <Pencil className="w-4 h-4" />
@@ -1552,15 +2039,17 @@ const VitaminsApp = () => {
         </div>
       ),
     },
-  ]
+  ];
 
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
         <Loader2 className="w-6 h-6 animate-spin text-muted" />
-        <span className="ml-2 text-muted text-sm">Loading vitamin records…</span>
+        <span className="ml-2 text-muted text-sm">
+          Loading vitamin records…
+        </span>
       </div>
-    )
+    );
   }
 
   return (
@@ -1577,21 +2066,37 @@ const VitaminsApp = () => {
           <button
             key={tab}
             className={cn(
-              'px-4 py-2 text-sm font-medium rounded-md transition-colors capitalize',
-              activeTab === tab ? 'bg-surface text-foreground shadow-sm' : 'text-muted hover:text-foreground'
+              "px-4 py-2 text-sm font-medium rounded-md transition-colors capitalize",
+              activeTab === tab
+                ? "bg-surface text-foreground shadow-sm"
+                : "text-muted hover:text-foreground",
             )}
             onClick={() => setActiveTab(tab)}
           >
             {tab}
-            <span className={cn('ml-1.5 px-1.5 py-0.5 text-xs rounded-full', activeTab === tab ? 'bg-success/10 text-success' : 'bg-background text-muted')}>
-              {tab === 'All' ? records.length : records.filter((r) => r.status === tab).length}
+            <span
+              className={cn(
+                "ml-1.5 px-1.5 py-0.5 text-xs rounded-full",
+                activeTab === tab
+                  ? "bg-success/10 text-success"
+                  : "bg-background text-muted",
+              )}
+            >
+              {tab === "All"
+                ? records.length
+                : records.filter((r) => r.status === tab).length}
             </span>
           </button>
         ))}
       </div>
 
       <ActionsBar>
-        <PrimaryButton onClick={() => { setEditing(null); setShowModal(true) }}>
+        <PrimaryButton
+          onClick={() => {
+            setEditing(null);
+            setShowModal(true);
+          }}
+        >
           <Plus className="w-4 h-4" /> Add Record
         </PrimaryButton>
       </ActionsBar>
@@ -1611,20 +2116,26 @@ const VitaminsApp = () => {
       {showModal && (
         <VitaminRecordModal
           editing={editing}
-          onClose={() => { setShowModal(false); setEditing(null) }}
+          onClose={() => {
+            setShowModal(false);
+            setEditing(null);
+          }}
         />
       )}
 
       {deleting && (
         <VitaminDeleteModal
           record={deleting}
-          onConfirm={async () => { await deleteRecord(deleting.id); setDeleting(null) }}
+          onConfirm={async () => {
+            await deleteRecord(deleting.id);
+            setDeleting(null);
+          }}
           onClose={() => setDeleting(null)}
         />
       )}
     </div>
-  )
-}
+  );
+};
 
 // ════════════════════════════════════════════════════════════════════════════
 // ─── STOCK TRANSACTION (Request & Return) ─────────────────────────────────
@@ -1633,43 +2144,50 @@ const VitaminsApp = () => {
 // ─── Stock Transaction Form ───────────────────────────────────────────────
 
 interface StockFormValues {
-  delivery_item_id: string
-  unit_id: string
-  quantity: string
-  purpose: string
-  reason: string
-  requested_by: string
-  notes: string
+  delivery_item_id: string;
+  unit_id: string;
+  quantity: string;
+  purpose: string;
+  reason: string;
+  requested_by: string;
+  notes: string;
 }
 
 const STOCK_EMPTY_FORM: StockFormValues = {
-  delivery_item_id: '',
-  unit_id: '',
-  quantity: '',
-  purpose: '',
-  reason: '',
-  requested_by: '',
-  notes: '',
-}
+  delivery_item_id: "",
+  unit_id: "",
+  quantity: "",
+  purpose: "",
+  reason: "",
+  requested_by: "",
+  notes: "",
+};
 
 const REQ_STATUS_STYLES: Record<string, string> = {
-  pending: 'bg-yellow-100 text-yellow-700',
-  approved: 'bg-blue-100 text-blue-700',
-  rejected: 'bg-red-100 text-red-600',
-  received: 'bg-green-100 text-green-700',
-  cancelled: 'bg-gray-100 text-gray-600',
-}
+  pending: "bg-yellow-100 text-yellow-700",
+  approved: "bg-blue-100 text-blue-700",
+  rejected: "bg-red-100 text-red-600",
+  received: "bg-green-100 text-green-700",
+  cancelled: "bg-gray-100 text-gray-600",
+};
 
 const StockStatusBadge = ({ status }: { status: string }) => (
-  <span className={cn('inline-block px-2.5 py-0.5 text-xs font-medium rounded-full capitalize', REQ_STATUS_STYLES[status] || 'bg-gray-100 text-gray-600')}>
+  <span
+    className={cn(
+      "inline-block px-2.5 py-0.5 text-xs font-medium rounded-full capitalize",
+      REQ_STATUS_STYLES[status] || "bg-gray-100 text-gray-600",
+    )}
+  >
     {status}
   </span>
-)
+);
 
 // ─── Stock Transaction Modal ──────────────────────────────────────────────
 
-const STK_FIELD = 'w-full px-3 py-2 border border-border rounded-lg text-sm bg-background text-foreground placeholder:text-muted focus:outline-none focus:border-success'
-const STK_LABEL = 'block text-xs font-semibold text-muted uppercase tracking-wide mb-1'
+const STK_FIELD =
+  "w-full px-3 py-2 border border-border rounded-lg text-sm bg-background text-foreground placeholder:text-muted focus:outline-none focus:border-success";
+const STK_LABEL =
+  "block text-xs font-semibold text-muted uppercase tracking-wide mb-1";
 
 const StockTransactionModal = ({
   type,
@@ -1679,12 +2197,12 @@ const StockTransactionModal = ({
   onSubmit,
   onClose,
 }: {
-  type: 'request' | 'return'
-  editing: StockTransaction | null
-  deliveryItems: DeliveryItem[]
-  returnableItems?: ApprovedStockItem[]
-  onSubmit: (values: StockFormValues, id?: string) => Promise<void>
-  onClose: () => void
+  type: "request" | "return";
+  editing: StockTransaction | null;
+  deliveryItems: DeliveryItem[];
+  returnableItems?: ApprovedStockItem[];
+  onSubmit: (values: StockFormValues, id?: string) => Promise<void>;
+  onClose: () => void;
 }) => {
   const [form, setForm] = useState<StockFormValues>(
     editing
@@ -1692,68 +2210,103 @@ const StockTransactionModal = ({
           delivery_item_id: editing.delivery_item_id,
           unit_id: editing.unit_id,
           quantity: String(editing.quantity),
-          purpose: editing.purpose ?? '',
-          reason: editing.reason ?? '',
+          purpose: editing.purpose ?? "",
+          reason: editing.reason ?? "",
           requested_by: editing.requested_by,
-          notes: editing.notes ?? '',
+          notes: editing.notes ?? "",
         }
-      : STOCK_EMPTY_FORM
-  )
+      : STOCK_EMPTY_FORM,
+  );
 
   const set = (key: keyof StockFormValues, val: string) =>
-    setForm((prev) => ({ ...prev, [key]: val }))
+    setForm((prev) => ({ ...prev, [key]: val }));
 
-  const isRequest = type === 'request'
+  const isRequest = type === "request";
 
   const selectedItem = useMemo(() => {
     if (isRequest) {
-      return deliveryItems.find((d) => d.id === form.delivery_item_id) ?? null
+      return deliveryItems.find((d) => d.id === form.delivery_item_id) ?? null;
     } else {
-      return returnableItems?.find((d) => d.delivery_item_id === form.delivery_item_id) ?? null
+      return (
+        returnableItems?.find(
+          (d) => d.delivery_item_id === form.delivery_item_id,
+        ) ?? null
+      );
     }
-  }, [isRequest, deliveryItems, returnableItems, form.delivery_item_id])
+  }, [isRequest, deliveryItems, returnableItems, form.delivery_item_id]);
 
-  const qty = parseFloat(form.quantity) || 0
-  
+  const qty = parseFloat(form.quantity) || 0;
+
   const estimatedCost = useMemo(() => {
-    if (!selectedItem || qty === 0) return 0
+    if (!selectedItem || qty === 0) return 0;
     if (isRequest) {
-      return qty * ((selectedItem as DeliveryItem).unit_price_delivery ?? 0)
+      return qty * ((selectedItem as DeliveryItem).unit_price_delivery ?? 0);
     } else {
-      return qty * ((selectedItem as ApprovedStockItem).unit_price_per_issuance ?? 0)
+      return (
+        qty * ((selectedItem as ApprovedStockItem).unit_price_per_issuance ?? 0)
+      );
     }
-  }, [selectedItem, qty, isRequest])
+  }, [selectedItem, qty, isRequest]);
 
-  const insufficientStock = isRequest && selectedItem && qty > 0 && qty > ((selectedItem as DeliveryItem).quantity_delivery ?? 0)
-  
-  const exceedsAvailable = !isRequest && selectedItem && qty > 0 && qty > ((selectedItem as ApprovedStockItem).available_quantity ?? 0)
+  const insufficientStock =
+    isRequest &&
+    selectedItem &&
+    qty > 0 &&
+    qty > ((selectedItem as DeliveryItem).quantity_delivery ?? 0);
+
+  const exceedsAvailable =
+    !isRequest &&
+    selectedItem &&
+    qty > 0 &&
+    qty > ((selectedItem as ApprovedStockItem).available_quantity ?? 0);
 
   const handleSubmit = async () => {
     if (!form.delivery_item_id || !form.quantity || !form.requested_by.trim()) {
-      alert('Please fill in all required fields.')
-      return
+      alert("Please fill in all required fields.");
+      return;
     }
-    if (isRequest && selectedItem && qty > ((selectedItem as DeliveryItem).quantity_delivery ?? 0)) {
-      alert(`Insufficient stock. Available: ${(selectedItem as DeliveryItem).quantity_delivery ?? 0}, Requested: ${qty}`)
-      return
+    if (
+      isRequest &&
+      selectedItem &&
+      qty > ((selectedItem as DeliveryItem).quantity_delivery ?? 0)
+    ) {
+      alert(
+        `Insufficient stock. Available: ${(selectedItem as DeliveryItem).quantity_delivery ?? 0}, Requested: ${qty}`,
+      );
+      return;
     }
-    if (!isRequest && selectedItem && qty > ((selectedItem as ApprovedStockItem).available_quantity ?? 0)) {
-      alert(`Cannot return more than available. Available: ${(selectedItem as ApprovedStockItem).available_quantity ?? 0}`)
-      return
+    if (
+      !isRequest &&
+      selectedItem &&
+      qty > ((selectedItem as ApprovedStockItem).available_quantity ?? 0)
+    ) {
+      alert(
+        `Cannot return more than available. Available: ${(selectedItem as ApprovedStockItem).available_quantity ?? 0}`,
+      );
+      return;
     }
-    await onSubmit(form, editing?.id)
-    onClose()
-  }
+    await onSubmit(form, editing?.id);
+    onClose();
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="bg-surface border border-border rounded-2xl shadow-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-lg font-bold text-primary flex items-center gap-2">
-            {isRequest ? <PackagePlus className="w-5 h-5 text-blue-500" /> : <Undo2 className="w-5 h-5 text-orange-500" />}
-            {editing ? `Edit ${isRequest ? 'Request' : 'Return'}` : `New Stock ${isRequest ? 'Request' : 'Return'}`}
+            {isRequest ? (
+              <PackagePlus className="w-5 h-5 text-blue-500" />
+            ) : (
+              <Undo2 className="w-5 h-5 text-orange-500" />
+            )}
+            {editing
+              ? `Edit ${isRequest ? "Request" : "Return"}`
+              : `New Stock ${isRequest ? "Request" : "Return"}`}
           </h2>
-          <button className="p-1.5 rounded hover:bg-background text-muted transition-colors" onClick={onClose}>
+          <button
+            className="p-1.5 rounded hover:bg-background text-muted transition-colors"
+            onClick={onClose}
+          >
             ✕
           </button>
         </div>
@@ -1761,132 +2314,253 @@ const StockTransactionModal = ({
         <div className="grid grid-cols-2 gap-4">
           {/* Delivery Item */}
           <div className="col-span-2">
-            <label className={STK_LABEL}>Item <span className="text-red-500">*</span></label>
+            <label className={STK_LABEL}>
+              Item <span className="text-red-500">*</span>
+            </label>
             <select
               className={STK_FIELD}
               value={form.delivery_item_id}
               onChange={(e) => {
                 if (isRequest) {
-                  const item = deliveryItems.find((d) => d.id === e.target.value)
-                  set('delivery_item_id', e.target.value)
-                  set('unit_id', item?.unit_delivery_id ?? '')
+                  const item = deliveryItems.find(
+                    (d) => d.id === e.target.value,
+                  );
+                  set("delivery_item_id", e.target.value);
+                  set("unit_id", item?.unit_delivery_id ?? "");
                 } else {
-                  const item = returnableItems?.find((d) => d.delivery_item_id === e.target.value)
-                  set('delivery_item_id', e.target.value)
-                  set('unit_id', item?.unit_issuance_id ?? '')
+                  const item = returnableItems?.find(
+                    (d) => d.delivery_item_id === e.target.value,
+                  );
+                  set("delivery_item_id", e.target.value);
+                  set("unit_id", item?.unit_issuance_id ?? "");
                 }
               }}
             >
               <option value="">Select item…</option>
-              {isRequest ? (
-                deliveryItems.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.description ?? d.id.slice(0, 8)} {d.brand?.name ? `(${d.brand.name})` : ''} — {d.category?.name ?? ''} — ₱{d.unit_price_delivery?.toFixed(2) ?? '0.00'}/{d.unit_delivery?.name ?? 'unit'}
-                  </option>
-                ))
-              ) : (
-                returnableItems?.map((d) => (
-                  <option key={d.id} value={d.delivery_item_id}>
-                    {d.description ?? d.id.slice(0, 8)} {d.brand_name ? `(${d.brand_name})` : ''} — {d.category_name ?? ''} — ₱{d.unit_price_per_issuance?.toFixed(2) ?? '0.00'}/{d.unit_issuance_name ?? 'unit'}
-                  </option>
-                ))
-              )}
+              {isRequest
+                ? deliveryItems.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.description ?? d.id.slice(0, 8)}{" "}
+                      {d.brand?.name ? `(${d.brand.name})` : ""} —{" "}
+                      {d.category?.name ?? ""} — ₱
+                      {d.unit_price_delivery?.toFixed(2) ?? "0.00"}/
+                      {d.unit_delivery?.name ?? "unit"}
+                    </option>
+                  ))
+                : returnableItems?.map((d) => (
+                    <option key={d.id} value={d.delivery_item_id}>
+                      {d.description ?? d.id.slice(0, 8)}{" "}
+                      {d.brand_name ? `(${d.brand_name})` : ""} —{" "}
+                      {d.category_name ?? ""} — ₱
+                      {d.unit_price_per_issuance?.toFixed(2) ?? "0.00"}/
+                      {d.unit_issuance_name ?? "unit"}
+                    </option>
+                  ))}
             </select>
             {!isRequest && returnableItems && returnableItems.length === 0 && (
               <p className="text-xs text-orange-600 font-medium mt-1 flex items-center gap-1">
                 <AlertTriangle className="w-3 h-3" />
-                No items available for return. All approved items have been partially used.
+                No items available for return. All approved items have been
+                partially used.
               </p>
             )}
             {isRequest && selectedItem && (
               <p className="text-xs text-muted mt-1">
-                Unit: {(selectedItem as DeliveryItem).unit_delivery?.name ?? '—'} · Available: {(selectedItem as DeliveryItem).quantity_delivery} · Expiry: {(selectedItem as DeliveryItem).expiry_date ?? '—'}
+                Unit:{" "}
+                {(selectedItem as DeliveryItem).unit_delivery?.name ?? "—"} ·
+                Available: {(selectedItem as DeliveryItem).quantity_delivery} ·
+                Expiry: {(selectedItem as DeliveryItem).expiry_date ?? "—"}
               </p>
             )}
             {!isRequest && selectedItem && (
               <p className="text-xs text-muted mt-1">
-                Unit: {(selectedItem as ApprovedStockItem).unit_issuance_name ?? '—'} · Available: {(selectedItem as ApprovedStockItem).available_quantity.toFixed(1)} · Expiry: {(selectedItem as ApprovedStockItem).expiry_date ?? '—'}
+                Unit:{" "}
+                {(selectedItem as ApprovedStockItem).unit_issuance_name ?? "—"}{" "}
+                · Available:{" "}
+                {(selectedItem as ApprovedStockItem).available_quantity.toFixed(
+                  1,
+                )}{" "}
+                · Expiry:{" "}
+                {(selectedItem as ApprovedStockItem).expiry_date ?? "—"}
               </p>
             )}
           </div>
 
           {/* Quantity */}
           <div>
-            <label className={STK_LABEL}>Quantity <span className="text-red-500">*</span></label>
-            <input type="number" min="0" step="0.1" className={STK_FIELD} placeholder="e.g. 10" value={form.quantity} onChange={(e) => set('quantity', e.target.value)} />
+            <label className={STK_LABEL}>
+              Quantity <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="number"
+              min="0"
+              step="0.1"
+              className={STK_FIELD}
+              placeholder="e.g. 10"
+              value={form.quantity}
+              onChange={(e) => set("quantity", e.target.value)}
+            />
             {insufficientStock && (
               <p className="text-xs text-red-500 font-medium mt-1">
-                Insufficient stock! Available: {(selectedItem as DeliveryItem)!.quantity_delivery}
+                Insufficient stock! Available:{" "}
+                {(selectedItem as DeliveryItem)!.quantity_delivery}
               </p>
             )}
             {exceedsAvailable && (
               <p className="text-xs text-red-500 font-medium mt-1">
-                Cannot exceed available! Available: {(selectedItem as ApprovedStockItem)!.available_quantity.toFixed(1)}
+                Cannot exceed available! Available:{" "}
+                {(selectedItem as ApprovedStockItem)!.available_quantity.toFixed(
+                  1,
+                )}
               </p>
             )}
           </div>
 
           {/* Requested By */}
           <div>
-            <label className={STK_LABEL}>{isRequest ? 'Requested By' : 'Returned By'} <span className="text-red-500">*</span></label>
-            <input className={STK_FIELD} placeholder="e.g. Juan dela Cruz" value={form.requested_by} onChange={(e) => set('requested_by', e.target.value)} />
+            <label className={STK_LABEL}>
+              {isRequest ? "Requested By" : "Returned By"}{" "}
+              <span className="text-red-500">*</span>
+            </label>
+            <input
+              className={STK_FIELD}
+              placeholder="e.g. Juan dela Cruz"
+              value={form.requested_by}
+              onChange={(e) => set("requested_by", e.target.value)}
+            />
           </div>
 
           {/* Purpose (Request) or Reason (Return) */}
           {isRequest ? (
             <div className="col-span-2">
               <label className={STK_LABEL}>Purpose</label>
-              <input className={STK_FIELD} placeholder="e.g. Daily feeding supply" value={form.purpose} onChange={(e) => set('purpose', e.target.value)} />
+              <input
+                className={STK_FIELD}
+                placeholder="e.g. Daily feeding supply"
+                value={form.purpose}
+                onChange={(e) => set("purpose", e.target.value)}
+              />
             </div>
           ) : (
             <div className="col-span-2">
               <label className={STK_LABEL}>Reason for Return</label>
-              <input className={STK_FIELD} placeholder="e.g. Excess supply" value={form.reason} onChange={(e) => set('reason', e.target.value)} />
+              <input
+                className={STK_FIELD}
+                placeholder="e.g. Excess supply"
+                value={form.reason}
+                onChange={(e) => set("reason", e.target.value)}
+              />
             </div>
           )}
 
           {/* Notes */}
           <div className="col-span-2">
             <label className={STK_LABEL}>Notes</label>
-            <textarea className={cn(STK_FIELD, 'resize-none')} rows={3} placeholder="Optional remarks..." value={form.notes} onChange={(e) => set('notes', e.target.value)} />
+            <textarea
+              className={cn(STK_FIELD, "resize-none")}
+              rows={3}
+              placeholder="Optional remarks..."
+              value={form.notes}
+              onChange={(e) => set("notes", e.target.value)}
+            />
           </div>
         </div>
 
         {/* Cost Estimate */}
         {selectedItem && qty > 0 && (
-          <div className={cn('mt-4 p-4 rounded-xl border', isRequest ? 'bg-blue-50 border-blue-200' : 'bg-orange-50 border-orange-200')}>
-            <h3 className={cn('text-xs font-bold uppercase tracking-wide mb-2', isRequest ? 'text-blue-800' : 'text-orange-800')}>Estimated Value</h3>
-            <div className={cn('space-y-1 text-sm', isRequest ? 'text-blue-900' : 'text-orange-900')}>
+          <div
+            className={cn(
+              "mt-4 p-4 rounded-xl border",
+              isRequest
+                ? "bg-blue-50 border-blue-200"
+                : "bg-orange-50 border-orange-200",
+            )}
+          >
+            <h3
+              className={cn(
+                "text-xs font-bold uppercase tracking-wide mb-2",
+                isRequest ? "text-blue-800" : "text-orange-800",
+              )}
+            >
+              Estimated Value
+            </h3>
+            <div
+              className={cn(
+                "space-y-1 text-sm",
+                isRequest ? "text-blue-900" : "text-orange-900",
+              )}
+            >
               <div className="flex justify-between">
-                <span>Price per {isRequest ? ((selectedItem as DeliveryItem).unit_delivery?.name ?? 'unit') : ((selectedItem as ApprovedStockItem).unit_issuance_name ?? 'unit')}</span>
-                <span className="font-semibold">₱{isRequest ? ((selectedItem as DeliveryItem).unit_price_delivery ?? 0).toFixed(2) : ((selectedItem as ApprovedStockItem).unit_price_per_issuance ?? 0).toFixed(2)}</span>
+                <span>
+                  Price per{" "}
+                  {isRequest
+                    ? ((selectedItem as DeliveryItem).unit_delivery?.name ??
+                      "unit")
+                    : ((selectedItem as ApprovedStockItem).unit_issuance_name ??
+                      "unit")}
+                </span>
+                <span className="font-semibold">
+                  ₱
+                  {isRequest
+                    ? (
+                        (selectedItem as DeliveryItem).unit_price_delivery ?? 0
+                      ).toFixed(2)
+                    : (
+                        (selectedItem as ApprovedStockItem)
+                          .unit_price_per_issuance ?? 0
+                      ).toFixed(2)}
+                </span>
               </div>
-              <div className={cn('flex justify-between border-t pt-1 mt-1 text-base', isRequest ? 'border-blue-300' : 'border-orange-300')}>
+              <div
+                className={cn(
+                  "flex justify-between border-t pt-1 mt-1 text-base",
+                  isRequest ? "border-blue-300" : "border-orange-300",
+                )}
+              >
                 <span className="font-bold">Total ({qty}×)</span>
-                <span className={cn('font-bold', isRequest ? 'text-blue-800' : 'text-orange-800')}>₱{estimatedCost.toFixed(2)}</span>
+                <span
+                  className={cn(
+                    "font-bold",
+                    isRequest ? "text-blue-800" : "text-orange-800",
+                  )}
+                >
+                  ₱{estimatedCost.toFixed(2)}
+                </span>
               </div>
             </div>
           </div>
         )}
 
         <div className="flex gap-3 mt-6">
-          <button className="flex-1 py-2.5 border border-border rounded-lg text-sm font-medium text-muted hover:bg-background transition-colors" onClick={onClose}>
+          <button
+            className="flex-1 py-2.5 border border-border rounded-lg text-sm font-medium text-muted hover:bg-background transition-colors"
+            onClick={onClose}
+          >
             Cancel
           </button>
           <button
-            className={cn('flex-1 py-2.5 text-white rounded-lg text-sm font-medium transition-colors',
-              (insufficientStock || exceedsAvailable) ? 'bg-gray-400 cursor-not-allowed' : isRequest ? 'bg-blue-500 hover:bg-blue-600' : 'bg-orange-500 hover:bg-orange-600'
+            className={cn(
+              "flex-1 py-2.5 text-white rounded-lg text-sm font-medium transition-colors",
+              insufficientStock || exceedsAvailable
+                ? "bg-gray-400 cursor-not-allowed"
+                : isRequest
+                  ? "bg-blue-500 hover:bg-blue-600"
+                  : "bg-orange-500 hover:bg-orange-600",
             )}
             onClick={handleSubmit}
             disabled={!!(insufficientStock || exceedsAvailable)}
           >
-            {editing ? 'Save Changes' : isRequest ? 'Submit Request' : 'Submit Return'}
+            {editing
+              ? "Save Changes"
+              : isRequest
+                ? "Submit Request"
+                : "Submit Return"}
           </button>
         </div>
       </div>
     </div>
-  )
-}
+  );
+};
 
 // ─── Stock Delete Modal ───────────────────────────────────────────────────
 
@@ -1895,27 +2569,36 @@ const StockDeleteModal = ({
   onConfirm,
   onClose,
 }: {
-  record: StockTransaction
-  onConfirm: () => void
-  onClose: () => void
+  record: StockTransaction;
+  onConfirm: () => void;
+  onClose: () => void;
 }) => (
   <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
     <div className="bg-surface border border-border rounded-2xl shadow-2xl w-full max-w-sm p-6">
-      <h2 className="text-lg font-bold text-primary mb-2">Delete {record.type === 'request' ? 'Request' : 'Return'}?</h2>
+      <h2 className="text-lg font-bold text-primary mb-2">
+        Delete {record.type === "request" ? "Request" : "Return"}?
+      </h2>
       <p className="text-sm text-muted mb-5">
-        Remove this stock {record.type} of <strong>{record.quantity}</strong> units? This cannot be undone.
+        Remove this stock {record.type} of <strong>{record.quantity}</strong>{" "}
+        units? This cannot be undone.
       </p>
       <div className="flex gap-3">
-        <button className="flex-1 py-2.5 border border-border rounded-lg text-sm font-medium text-muted hover:bg-background transition-colors" onClick={onClose}>
+        <button
+          className="flex-1 py-2.5 border border-border rounded-lg text-sm font-medium text-muted hover:bg-background transition-colors"
+          onClick={onClose}
+        >
           Cancel
         </button>
-        <button className="flex-1 py-2.5 bg-red-500 text-white rounded-lg text-sm font-medium hover:bg-red-600 transition-colors" onClick={onConfirm}>
+        <button
+          className="flex-1 py-2.5 bg-red-500 text-white rounded-lg text-sm font-medium hover:bg-red-600 transition-colors"
+          onClick={onConfirm}
+        >
           Delete
         </button>
       </div>
     </div>
   </div>
-)
+);
 
 // ─── Stock View Modal ─────────────────────────────────────────────────────
 
@@ -1924,12 +2607,12 @@ const StockViewModal = ({
   deliveryItems,
   onClose,
 }: {
-  record: StockTransaction
-  deliveryItems: DeliveryItem[]
-  onClose: () => void
+  record: StockTransaction;
+  deliveryItems: DeliveryItem[];
+  onClose: () => void;
 }) => {
-  const isRequest = record.type === 'request'
-  const item = deliveryItems.find(d => d.id === record.delivery_item_id)
+  const isRequest = record.type === "request";
+  const item = deliveryItems.find((d) => d.id === record.delivery_item_id);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -1937,9 +2620,12 @@ const StockViewModal = ({
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-bold text-primary flex items-center gap-2">
             <Eye className="w-5 h-5 text-blue-500" />
-            View {isRequest ? 'Request' : 'Return'}
+            View {isRequest ? "Request" : "Return"}
           </h2>
-          <button className="p-1.5 rounded hover:bg-background text-muted transition-colors" onClick={onClose}>
+          <button
+            className="p-1.5 rounded hover:bg-background text-muted transition-colors"
+            onClick={onClose}
+          >
             ✕
           </button>
         </div>
@@ -1948,24 +2634,32 @@ const StockViewModal = ({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className={STK_LABEL}>Item</label>
-              <p className="text-sm font-medium">{item?.description ?? record.delivery_item_id.slice(0, 8)}</p>
+              <p className="text-sm font-medium">
+                {item?.description ?? record.delivery_item_id.slice(0, 8)}
+              </p>
             </div>
             <div>
               <label className={STK_LABEL}>Status</label>
               <StockStatusBadge status={record.status} />
             </div>
             <div>
-              <label className={STK_LABEL}>Quantity {isRequest ? 'Requested' : 'Returned'}</label>
+              <label className={STK_LABEL}>
+                Quantity {isRequest ? "Requested" : "Returned"}
+              </label>
               <p className="text-sm font-semibold">{record.quantity}</p>
             </div>
             {isRequest && record.approved_quantity != null && (
               <div>
                 <label className={STK_LABEL}>Approved Quantity</label>
-                <p className="text-sm font-semibold">{record.approved_quantity}</p>
+                <p className="text-sm font-semibold">
+                  {record.approved_quantity}
+                </p>
               </div>
             )}
             <div>
-              <label className={STK_LABEL}>{isRequest ? 'Requested By' : 'Returned By'}</label>
+              <label className={STK_LABEL}>
+                {isRequest ? "Requested By" : "Returned By"}
+              </label>
               <p className="text-sm">{record.requested_by}</p>
             </div>
             {record.reviewed_by && (
@@ -1976,12 +2670,16 @@ const StockViewModal = ({
             )}
             <div>
               <label className={STK_LABEL}>Date</label>
-              <p className="text-sm">{new Date(record.created_at).toLocaleDateString()}</p>
+              <p className="text-sm">
+                {new Date(record.created_at).toLocaleDateString()}
+              </p>
             </div>
             {record.reviewed_at && (
               <div>
                 <label className={STK_LABEL}>Reviewed At</label>
-                <p className="text-sm">{new Date(record.reviewed_at).toLocaleDateString()}</p>
+                <p className="text-sm">
+                  {new Date(record.reviewed_at).toLocaleDateString()}
+                </p>
               </div>
             )}
           </div>
@@ -2014,99 +2712,113 @@ const StockViewModal = ({
         </button>
       </div>
     </div>
-  )
-}
+  );
+};
 
 // ─── Stock Request App ────────────────────────────────────────────────────
 
 const StockRequestApp = () => {
-  const { user } = useAuthStore()
-  const [records, setRecords] = useState<StockTransaction[]>([])
-  const [deliveryItems, setDeliveryItems] = useState<DeliveryItem[]>([])
-  const [loading, setLoading] = useState(true)
-  const [showModal, setShowModal] = useState(false)
-  const [editing, setEditing] = useState<StockTransaction | null>(null)
-  const [deleting, setDeleting] = useState<StockTransaction | null>(null)
-  const [viewing, setViewing] = useState<StockTransaction | null>(null)
-  const [search, setSearch] = useState('')
+  const { user } = useAuthStore();
+  const [records, setRecords] = useState<StockTransaction[]>([]);
+  const [deliveryItems, setDeliveryItems] = useState<DeliveryItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [editing, setEditing] = useState<StockTransaction | null>(null);
+  const [deleting, setDeleting] = useState<StockTransaction | null>(null);
+  const [viewing, setViewing] = useState<StockTransaction | null>(null);
+  const [search, setSearch] = useState("");
 
-  const REQ_TAB_FILTERS = ['All', 'pending', 'approved', 'rejected', 'cancelled', 'Monitoring'] as const
-  type ReqTabFilter = (typeof REQ_TAB_FILTERS)[number]
-  const [activeTab, setActiveTab] = useState<ReqTabFilter>('All')
-  
+  const REQ_TAB_FILTERS = [
+    "All",
+    "pending",
+    "approved",
+    "rejected",
+    "cancelled",
+    "Monitoring",
+  ] as const;
+  type ReqTabFilter = (typeof REQ_TAB_FILTERS)[number];
+  const [activeTab, setActiveTab] = useState<ReqTabFilter>("All");
+
   // Monitoring state
-  const [stockItems, setStockItems] = useState<ApprovedStockItem[]>([])
-  const [consumption, setConsumption] = useState<Record<string, { daily: number; weekly: number }>>({})
-  const [monitoringLoading, setMonitoringLoading] = useState(false)
+  const [stockItems, setStockItems] = useState<ApprovedStockItem[]>([]);
+  const [consumption, setConsumption] = useState<
+    Record<string, { daily: number; weekly: number }>
+  >({});
+  const [monitoringLoading, setMonitoringLoading] = useState(false);
 
   const loadData = useCallback(async () => {
-    setLoading(true)
+    setLoading(true);
     try {
       const [txns, items] = await Promise.all([
-        fetchStockTransactions('request'),
+        fetchStockTransactions("request"),
         fetchDeliveryItems(),
-      ])
-      setRecords(txns)
-      setDeliveryItems(items)
+      ]);
+      setRecords(txns);
+      setDeliveryItems(items);
     } catch (err) {
-      console.error('Error loading stock requests:', err)
+      console.error("Error loading stock requests:", err);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }, [])
+  }, []);
 
-  useEffect(() => { loadData() }, [loadData])
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   // Load monitoring data when Monitoring tab is active
   useEffect(() => {
-    if (activeTab !== 'Monitoring') return
-    
+    if (activeTab !== "Monitoring") return;
+
     const loadMonitoringData = async () => {
-      setMonitoringLoading(true)
+      setMonitoringLoading(true);
       try {
-        const items = await fetchApprovedStockItems()
-        setStockItems(items)
+        const items = await fetchApprovedStockItems();
+        setStockItems(items);
 
         // Calculate consumption from recent ration records (last 30 days)
-        const rationAnimals = await fetchRationAnimals()
-        const thirtyDaysAgo = new Date()
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+        const rationAnimals = await fetchRationAnimals();
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-        const consumptionMap: Record<string, number[]> = {}
-        
+        const consumptionMap: Record<string, number[]> = {};
+
         rationAnimals.forEach((ra) => {
-          if (!ra.ration?.date_given) return
-          const dateGiven = new Date(ra.ration.date_given)
-          if (dateGiven < thirtyDaysAgo) return
+          if (!ra.ration?.date_given) return;
+          const dateGiven = new Date(ra.ration.date_given);
+          if (dateGiven < thirtyDaysAgo) return;
 
-          const itemId = ra.ration.delivery_item_id
-          const qty = ra.quantity_given || 0
+          const itemId = ra.ration.delivery_item_id;
+          const qty = ra.quantity_given || 0;
 
-          if (!consumptionMap[itemId]) consumptionMap[itemId] = []
-          consumptionMap[itemId].push(qty)
-        })
+          if (!consumptionMap[itemId]) consumptionMap[itemId] = [];
+          consumptionMap[itemId].push(qty);
+        });
 
         // Calculate average daily and weekly consumption
-        const consumptionRates: Record<string, { daily: number; weekly: number }> = {}
+        const consumptionRates: Record<
+          string,
+          { daily: number; weekly: number }
+        > = {};
         Object.entries(consumptionMap).forEach(([itemId, quantities]) => {
-          const total = quantities.reduce((sum, q) => sum + q, 0)
-          const daily = total / 30
+          const total = quantities.reduce((sum, q) => sum + q, 0);
+          const daily = total / 30;
           consumptionRates[itemId] = {
             daily,
             weekly: daily * 7,
-          }
-        })
+          };
+        });
 
-        setConsumption(consumptionRates)
+        setConsumption(consumptionRates);
       } catch (err) {
-        console.error('Error loading monitoring data:', err)
+        console.error("Error loading monitoring data:", err);
       } finally {
-        setMonitoringLoading(false)
+        setMonitoringLoading(false);
       }
-    }
+    };
 
-    loadMonitoringData()
-  }, [activeTab])
+    loadMonitoringData();
+  }, [activeTab]);
 
   const handleSubmit = async (values: StockFormValues, id?: string) => {
     if (id) {
@@ -2117,104 +2829,133 @@ const StockRequestApp = () => {
         purpose: values.purpose || null,
         requested_by: values.requested_by,
         notes: values.notes || null,
-      })
+      });
     } else {
       await createStockTransaction({
-        type: 'request',
+        type: "request",
         delivery_item_id: values.delivery_item_id,
         unit_id: values.unit_id,
         quantity: parseFloat(values.quantity) || 0,
         purpose: values.purpose || null,
         requested_by: values.requested_by,
         notes: values.notes || null,
-        status: 'pending',
-      })
+        status: "pending",
+      });
     }
-    await loadData()
-  }
+    await loadData();
+  };
 
   const handleDelete = async (id: string) => {
-    await deleteStockTransactionApi(id)
-    await loadData()
-  }
+    await deleteStockTransactionApi(id);
+    await loadData();
+  };
 
   const itemMap = useMemo(() => {
-    const map = new Map<string, DeliveryItem>()
-    deliveryItems.forEach((d) => map.set(d.id, d))
-    return map
-  }, [deliveryItems])
+    const map = new Map<string, DeliveryItem>();
+    deliveryItems.forEach((d) => map.set(d.id, d));
+    return map;
+  }, [deliveryItems]);
 
   const filtered = useMemo(() => {
-    let list = records
-    if (activeTab !== 'All') list = list.filter((r) => r.status === activeTab)
+    let list = records;
+    if (activeTab !== "All") list = list.filter((r) => r.status === activeTab);
     if (search.trim()) {
-      const q = search.toLowerCase()
-      list = list.filter((r) =>
-        r.requested_by.toLowerCase().includes(q) ||
-        (r.purpose ?? '').toLowerCase().includes(q) ||
-        (r.notes ?? '').toLowerCase().includes(q) ||
-        (itemMap.get(r.delivery_item_id)?.description ?? '').toLowerCase().includes(q)
-      )
+      const q = search.toLowerCase();
+      list = list.filter(
+        (r) =>
+          r.requested_by.toLowerCase().includes(q) ||
+          (r.purpose ?? "").toLowerCase().includes(q) ||
+          (r.notes ?? "").toLowerCase().includes(q) ||
+          (itemMap.get(r.delivery_item_id)?.description ?? "")
+            .toLowerCase()
+            .includes(q),
+      );
     }
-    return list
-  }, [records, activeTab, search, itemMap])
+    return list;
+  }, [records, activeTab, search, itemMap]);
 
-  const counts = useMemo(() => ({
-    total: records.length,
-    pending: records.filter((r) => r.status === 'pending').length,
-    approved: records.filter((r) => r.status === 'approved').length,
-    rejected: records.filter((r) => r.status === 'rejected').length,
-    cancelled: records.filter((r) => r.status === 'cancelled').length,
-  }), [records])
+  const counts = useMemo(
+    () => ({
+      total: records.length,
+      pending: records.filter((r) => r.status === "pending").length,
+      approved: records.filter((r) => r.status === "approved").length,
+      rejected: records.filter((r) => r.status === "rejected").length,
+      cancelled: records.filter((r) => r.status === "cancelled").length,
+    }),
+    [records],
+  );
 
   const columns = [
     {
-      key: 'delivery_item_id' as const,
-      header: 'Item',
+      key: "delivery_item_id" as const,
+      header: "Item",
       render: (r: StockTransaction) => {
-        const item = itemMap.get(r.delivery_item_id)
-        return <span className="text-sm font-medium text-foreground">{item?.description ?? r.delivery_item_id.slice(0, 8)}</span>
+        const item = itemMap.get(r.delivery_item_id);
+        return (
+          <span className="text-sm font-medium text-foreground">
+            {item?.description ?? r.delivery_item_id.slice(0, 8)}
+          </span>
+        );
       },
     },
     {
-      key: 'quantity' as const,
-      header: 'Qty',
-      render: (r: StockTransaction) => <span className="text-sm font-semibold">{r.quantity}</span>,
-    },
-    {
-      key: 'approved_quantity' as const,
-      header: 'Approved Qty',
+      key: "quantity" as const,
+      header: "Qty",
       render: (r: StockTransaction) => (
-        <span className="text-sm">{r.approved_quantity != null ? r.approved_quantity : '—'}</span>
+        <span className="text-sm font-semibold">{r.quantity}</span>
       ),
     },
     {
-      key: 'purpose' as const,
-      header: 'Purpose',
+      key: "approved_quantity" as const,
+      header: "Approved Qty",
       render: (r: StockTransaction) => (
-        <span className="text-sm text-muted max-w-[160px] truncate block" title={r.purpose ?? ''}>{r.purpose || '—'}</span>
+        <span className="text-sm">
+          {r.approved_quantity != null ? r.approved_quantity : "—"}
+        </span>
       ),
     },
     {
-      key: 'requested_by' as const,
-      header: 'Requested By',
-      render: (r: StockTransaction) => <span className="text-sm text-muted">{r.requested_by}</span>,
+      key: "purpose" as const,
+      header: "Purpose",
+      render: (r: StockTransaction) => (
+        <span
+          className="text-sm text-muted max-w-[160px] truncate block"
+          title={r.purpose ?? ""}
+        >
+          {r.purpose || "—"}
+        </span>
+      ),
     },
     {
-      key: 'reviewed_by' as const,
-      header: 'Reviewed By',
-      render: (r: StockTransaction) => <span className="text-sm text-muted">{r.reviewed_by || '—'}</span>,
+      key: "requested_by" as const,
+      header: "Requested By",
+      render: (r: StockTransaction) => (
+        <span className="text-sm text-muted">{r.requested_by}</span>
+      ),
     },
     {
-      key: 'created_at' as const,
-      header: 'Date',
-      render: (r: StockTransaction) => <span className="text-sm">{new Date(r.created_at).toLocaleDateString()}</span>,
+      key: "reviewed_by" as const,
+      header: "Reviewed By",
+      render: (r: StockTransaction) => (
+        <span className="text-sm text-muted">{r.reviewed_by || "—"}</span>
+      ),
     },
     {
-      key: 'status' as const,
-      header: 'Status / Actions',
+      key: "created_at" as const,
+      header: "Date",
+      render: (r: StockTransaction) => (
+        <span className="text-sm">
+          {new Date(r.created_at).toLocaleDateString()}
+        </span>
+      ),
+    },
+    {
+      key: "status" as const,
+      header: "Status / Actions",
       render: (r: StockTransaction) => {
-        const isRequester = user && (user.username === r.requested_by || user.email === r.requested_by)
+        const isRequester =
+          user &&
+          (user.username === r.requested_by || user.email === r.requested_by);
 
         return (
           <div className="flex items-center gap-2">
@@ -2222,12 +2963,12 @@ const StockRequestApp = () => {
             <IconButton onClick={() => setViewing(r)} title="View">
               <Eye className="w-4 h-4" />
             </IconButton>
-            {r.status === 'pending' && isRequester && (
+            {r.status === "pending" && isRequester && (
               <IconButton
                 onClick={async () => {
-                  if (confirm('Cancel this request?')) {
-                    await updateStockTransaction(r.id, { status: 'cancelled' })
-                    await loadData()
+                  if (confirm("Cancel this request?")) {
+                    await updateStockTransaction(r.id, { status: "cancelled" });
+                    await loadData();
                   }
                 }}
                 title="Cancel Request"
@@ -2236,19 +2977,29 @@ const StockRequestApp = () => {
                 <X className="w-4 h-4" />
               </IconButton>
             )}
-            {r.status === 'pending' && (
-              <IconButton onClick={() => { setEditing(r); setShowModal(true) }} title="Edit">
+            {r.status === "pending" && (
+              <IconButton
+                onClick={() => {
+                  setEditing(r);
+                  setShowModal(true);
+                }}
+                title="Edit"
+              >
                 <Pencil className="w-4 h-4" />
               </IconButton>
             )}
-            <IconButton onClick={() => setDeleting(r)} title="Delete" variant="danger">
+            <IconButton
+              onClick={() => setDeleting(r)}
+              title="Delete"
+              variant="danger"
+            >
               <Trash2 className="w-4 h-4" />
             </IconButton>
           </div>
-        )
+        );
       },
     },
-  ]
+  ];
 
   if (loading) {
     return (
@@ -2256,7 +3007,7 @@ const StockRequestApp = () => {
         <Loader2 className="w-6 h-6 animate-spin text-muted" />
         <span className="ml-2 text-muted text-sm">Loading stock requests…</span>
       </div>
-    )
+    );
   }
 
   return (
@@ -2274,25 +3025,41 @@ const StockRequestApp = () => {
           <button
             key={tab}
             className={cn(
-              'px-4 py-2 text-sm font-medium rounded-md transition-colors capitalize',
-              activeTab === tab ? 'bg-surface text-foreground shadow-sm' : 'text-muted hover:text-foreground'
+              "px-4 py-2 text-sm font-medium rounded-md transition-colors capitalize",
+              activeTab === tab
+                ? "bg-surface text-foreground shadow-sm"
+                : "text-muted hover:text-foreground",
             )}
             onClick={() => setActiveTab(tab)}
           >
             {tab}
-            {tab !== 'Monitoring' && (
-              <span className={cn('ml-1.5 px-1.5 py-0.5 text-xs rounded-full', activeTab === tab ? 'bg-blue-50 text-blue-600' : 'bg-background text-muted')}>
-                {tab === 'All' ? records.length : records.filter((r) => r.status === tab).length}
+            {tab !== "Monitoring" && (
+              <span
+                className={cn(
+                  "ml-1.5 px-1.5 py-0.5 text-xs rounded-full",
+                  activeTab === tab
+                    ? "bg-blue-50 text-blue-600"
+                    : "bg-background text-muted",
+                )}
+              >
+                {tab === "All"
+                  ? records.length
+                  : records.filter((r) => r.status === tab).length}
               </span>
             )}
           </button>
         ))}
       </div>
 
-      {activeTab !== 'Monitoring' && (
+      {activeTab !== "Monitoring" && (
         <>
           <ActionsBar>
-            <PrimaryButton onClick={() => { setEditing(null); setShowModal(true) }}>
+            <PrimaryButton
+              onClick={() => {
+                setEditing(null);
+                setShowModal(true);
+              }}
+            >
               <Plus className="w-4 h-4" /> New Request
             </PrimaryButton>
           </ActionsBar>
@@ -2311,12 +3078,14 @@ const StockRequestApp = () => {
         </>
       )}
 
-      {activeTab === 'Monitoring' && (
+      {activeTab === "Monitoring" && (
         <div className="space-y-4">
           {monitoringLoading ? (
             <div className="flex items-center justify-center py-20">
               <Loader2 className="w-6 h-6 animate-spin text-muted" />
-              <span className="ml-2 text-muted text-sm">Loading monitoring data...</span>
+              <span className="ml-2 text-muted text-sm">
+                Loading monitoring data...
+              </span>
             </div>
           ) : (
             <>
@@ -2330,35 +3099,55 @@ const StockRequestApp = () => {
                   <div className="flex items-center gap-4 text-sm">
                     <div className="flex items-center gap-1.5">
                       <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                      <span className="text-muted">Critical (&lt;3 days): </span>
+                      <span className="text-muted">
+                        Critical (&lt;3 days):{" "}
+                      </span>
                       <span className="font-bold text-red-600">
-                        {stockItems.filter(item => {
-                          const rate = consumption[item.delivery_item_id]?.daily || 0
-                          const days = rate > 0 ? item.available_quantity / rate : Infinity
-                          return days < 3
-                        }).length}
+                        {
+                          stockItems.filter((item) => {
+                            const rate =
+                              consumption[item.delivery_item_id]?.daily || 0;
+                            const days =
+                              rate > 0
+                                ? item.available_quantity / rate
+                                : Infinity;
+                            return days < 3;
+                          }).length
+                        }
                       </span>
                     </div>
                     <div className="flex items-center gap-1.5">
                       <div className="w-3 h-3 rounded-full bg-orange-500"></div>
                       <span className="text-muted">Warning (&lt;7 days): </span>
                       <span className="font-bold text-orange-600">
-                        {stockItems.filter(item => {
-                          const rate = consumption[item.delivery_item_id]?.daily || 0
-                          const days = rate > 0 ? item.available_quantity / rate : Infinity
-                          return days >= 3 && days < 7
-                        }).length}
+                        {
+                          stockItems.filter((item) => {
+                            const rate =
+                              consumption[item.delivery_item_id]?.daily || 0;
+                            const days =
+                              rate > 0
+                                ? item.available_quantity / rate
+                                : Infinity;
+                            return days >= 3 && days < 7;
+                          }).length
+                        }
                       </span>
                     </div>
                     <div className="flex items-center gap-1.5">
                       <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
                       <span className="text-muted">Low (&lt;14 days): </span>
                       <span className="font-bold text-yellow-600">
-                        {stockItems.filter(item => {
-                          const rate = consumption[item.delivery_item_id]?.daily || 0
-                          const days = rate > 0 ? item.available_quantity / rate : Infinity
-                          return days >= 7 && days < 14
-                        }).length}
+                        {
+                          stockItems.filter((item) => {
+                            const rate =
+                              consumption[item.delivery_item_id]?.daily || 0;
+                            const days =
+                              rate > 0
+                                ? item.available_quantity / rate
+                                : Infinity;
+                            return days >= 7 && days < 14;
+                          }).length
+                        }
                       </span>
                     </div>
                   </div>
@@ -2366,39 +3155,59 @@ const StockRequestApp = () => {
 
                 <div className="space-y-3">
                   {stockItems.length === 0 ? (
-                    <div className="text-center py-8 text-muted">No stock items available</div>
+                    <div className="text-center py-8 text-muted">
+                      No stock items available
+                    </div>
                   ) : (
                     stockItems
-                      .map(item => {
-                        const rate = consumption[item.delivery_item_id] || { daily: 0, weekly: 0 }
-                        const daysRemaining = rate.daily > 0 ? item.available_quantity / rate.daily : Infinity
-                        const status = 
-                          daysRemaining < 3 ? 'critical' :
-                          daysRemaining < 7 ? 'warning' :
-                          daysRemaining < 14 ? 'low' : 'ok'
-                        return { ...item, dailyConsumption: rate.daily, weeklyConsumption: rate.weekly, daysRemaining, status }
+                      .map((item) => {
+                        const rate = consumption[item.delivery_item_id] || {
+                          daily: 0,
+                          weekly: 0,
+                        };
+                        const daysRemaining =
+                          rate.daily > 0
+                            ? item.available_quantity / rate.daily
+                            : Infinity;
+                        const status =
+                          daysRemaining < 3
+                            ? "critical"
+                            : daysRemaining < 7
+                              ? "warning"
+                              : daysRemaining < 14
+                                ? "low"
+                                : "ok";
+                        return {
+                          ...item,
+                          dailyConsumption: rate.daily,
+                          weeklyConsumption: rate.weekly,
+                          daysRemaining,
+                          status,
+                        };
                       })
                       .sort((a, b) => a.daysRemaining - b.daysRemaining)
-                      .map(item => {
+                      .map((item) => {
                         const statusColors = {
-                          critical: 'bg-red-50 border-red-300',
-                          warning: 'bg-orange-50 border-orange-300',
-                          low: 'bg-yellow-50 border-yellow-300',
-                          ok: 'bg-green-50 border-green-200',
-                        }
+                          critical: "bg-red-50 border-red-300",
+                          warning: "bg-orange-50 border-orange-300",
+                          low: "bg-yellow-50 border-yellow-300",
+                          ok: "bg-green-50 border-green-200",
+                        };
                         const textColors = {
-                          critical: 'text-red-700',
-                          warning: 'text-orange-700',
-                          low: 'text-yellow-700',
-                          ok: 'text-green-700',
-                        }
+                          critical: "text-red-700",
+                          warning: "text-orange-700",
+                          low: "text-yellow-700",
+                          ok: "text-green-700",
+                        };
 
                         return (
                           <div
                             key={item.id}
                             className={cn(
-                              'p-4 rounded-lg border transition-all',
-                              statusColors[item.status as keyof typeof statusColors]
+                              "p-4 rounded-lg border transition-all",
+                              statusColors[
+                                item.status as keyof typeof statusColors
+                              ],
                             )}
                           >
                             <div className="flex items-start justify-between gap-3">
@@ -2407,31 +3216,59 @@ const StockRequestApp = () => {
                                   {item.description}
                                 </div>
                                 <div className="text-xs text-muted mt-0.5">
-                                  {item.brand_name && <span className="mr-2">{item.brand_name}</span>}
-                                  {item.category_name && <span className="text-muted">• {item.category_name}</span>}
+                                  {item.brand_name && (
+                                    <span className="mr-2">
+                                      {item.brand_name}
+                                    </span>
+                                  )}
+                                  {item.category_name && (
+                                    <span className="text-muted">
+                                      • {item.category_name}
+                                    </span>
+                                  )}
                                 </div>
                                 {item.dailyConsumption > 0 && (
                                   <div className="text-xs text-muted mt-1">
-                                    Consumption: {item.dailyConsumption.toFixed(1)} {item.unit_issuance_name}/day
-                                    {' • '}
-                                    {item.weeklyConsumption.toFixed(1)} {item.unit_issuance_name}/week
+                                    Consumption:{" "}
+                                    {item.dailyConsumption.toFixed(1)}{" "}
+                                    {item.unit_issuance_name}/day
+                                    {" • "}
+                                    {item.weeklyConsumption.toFixed(1)}{" "}
+                                    {item.unit_issuance_name}/week
                                   </div>
                                 )}
                               </div>
 
                               <div className="text-right flex-shrink-0">
-                                <div className={cn('text-xl font-bold', textColors[item.status as keyof typeof textColors])}>
-                                  {item.available_quantity.toFixed(1)} {item.unit_issuance_name}
+                                <div
+                                  className={cn(
+                                    "text-xl font-bold",
+                                    textColors[
+                                      item.status as keyof typeof textColors
+                                    ],
+                                  )}
+                                >
+                                  {item.available_quantity.toFixed(1)}{" "}
+                                  {item.unit_issuance_name}
                                 </div>
                                 {item.daysRemaining !== Infinity && (
-                                  <div className={cn('text-xs font-semibold mt-0.5', textColors[item.status as keyof typeof textColors])}>
-                                    {item.daysRemaining < 1 
-                                      ? '< 1 day left' 
+                                  <div
+                                    className={cn(
+                                      "text-xs font-semibold mt-0.5",
+                                      textColors[
+                                        item.status as keyof typeof textColors
+                                      ],
+                                    )}
+                                  >
+                                    {item.daysRemaining < 1
+                                      ? "< 1 day left"
                                       : `~${Math.floor(item.daysRemaining)} days left`}
                                   </div>
                                 )}
                                 {item.daysRemaining === Infinity && (
-                                  <div className="text-xs text-muted mt-0.5">No usage data</div>
+                                  <div className="text-xs text-muted mt-0.5">
+                                    No usage data
+                                  </div>
                                 )}
                               </div>
                             </div>
@@ -2441,10 +3278,14 @@ const StockRequestApp = () => {
                               <div className="mt-3 h-2 bg-white/50 rounded-full overflow-hidden">
                                 <div
                                   className={cn(
-                                    'h-full transition-all',
-                                    item.status === 'critical' ? 'bg-red-500' :
-                                    item.status === 'warning' ? 'bg-orange-500' :
-                                    item.status === 'low' ? 'bg-yellow-500' : 'bg-green-500'
+                                    "h-full transition-all",
+                                    item.status === "critical"
+                                      ? "bg-red-500"
+                                      : item.status === "warning"
+                                        ? "bg-orange-500"
+                                        : item.status === "low"
+                                          ? "bg-yellow-500"
+                                          : "bg-green-500",
                                   )}
                                   style={{
                                     width: `${Math.min(100, (item.daysRemaining / 30) * 100)}%`,
@@ -2453,7 +3294,7 @@ const StockRequestApp = () => {
                               </div>
                             )}
                           </div>
-                        )
+                        );
                       })
                   )}
                 </div>
@@ -2469,13 +3310,19 @@ const StockRequestApp = () => {
           editing={editing}
           deliveryItems={deliveryItems}
           onSubmit={handleSubmit}
-          onClose={() => { setShowModal(false); setEditing(null) }}
+          onClose={() => {
+            setShowModal(false);
+            setEditing(null);
+          }}
         />
       )}
       {deleting && (
         <StockDeleteModal
           record={deleting}
-          onConfirm={async () => { await handleDelete(deleting.id); setDeleting(null) }}
+          onConfirm={async () => {
+            await handleDelete(deleting.id);
+            setDeleting(null);
+          }}
           onClose={() => setDeleting(null)}
         />
       )}
@@ -2487,66 +3334,74 @@ const StockRequestApp = () => {
         />
       )}
     </div>
-  )
-}
+  );
+};
 
 // ─── Stock Return App ─────────────────────────────────────────────────────
 
 const StockReturnApp = () => {
-  const { user } = useAuthStore()
-  const [records, setRecords] = useState<StockTransaction[]>([])
-  const [deliveryItems, setDeliveryItems] = useState<DeliveryItem[]>([])
-  const [approvedItems, setApprovedItems] = useState<ApprovedStockItem[]>([])
-  const [consumption, setConsumption] = useState<Record<string, number>>({})
-  const [loading, setLoading] = useState(true)
-  const [showModal, setShowModal] = useState(false)
-  const [editing, setEditing] = useState<StockTransaction | null>(null)
-  const [deleting, setDeleting] = useState<StockTransaction | null>(null)
-  const [viewing, setViewing] = useState<StockTransaction | null>(null)
-  const [search, setSearch] = useState('')
+  const { user } = useAuthStore();
+  const [records, setRecords] = useState<StockTransaction[]>([]);
+  const [deliveryItems, setDeliveryItems] = useState<DeliveryItem[]>([]);
+  const [approvedItems, setApprovedItems] = useState<ApprovedStockItem[]>([]);
+  const [consumption, setConsumption] = useState<Record<string, number>>({});
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [editing, setEditing] = useState<StockTransaction | null>(null);
+  const [deleting, setDeleting] = useState<StockTransaction | null>(null);
+  const [viewing, setViewing] = useState<StockTransaction | null>(null);
+  const [search, setSearch] = useState("");
 
-  const RET_TAB_FILTERS = ['All', 'pending', 'received', 'rejected', 'cancelled'] as const
-  type RetTabFilter = (typeof RET_TAB_FILTERS)[number]
-  const [activeTab, setActiveTab] = useState<RetTabFilter>('All')
+  const RET_TAB_FILTERS = [
+    "All",
+    "pending",
+    "received",
+    "rejected",
+    "cancelled",
+  ] as const;
+  type RetTabFilter = (typeof RET_TAB_FILTERS)[number];
+  const [activeTab, setActiveTab] = useState<RetTabFilter>("All");
 
   const loadData = useCallback(async () => {
-    setLoading(true)
+    setLoading(true);
     try {
       const [txns, items, approved, rationAnimals] = await Promise.all([
-        fetchStockTransactions('return'),
+        fetchStockTransactions("return"),
         fetchDeliveryItems(),
         fetchApprovedStockItems(),
         fetchRationAnimals(),
-      ])
-      setRecords(txns)
-      setDeliveryItems(items)
-      setApprovedItems(approved)
-      
-      // Calculate total consumption per delivery_item_id
-      const consumptionMap: Record<string, number> = {}
-      rationAnimals.forEach((ra) => {
-        if (!ra.ration?.delivery_item_id) return
-        const itemId = ra.ration.delivery_item_id
-        const qty = ra.quantity_given || 0
-        consumptionMap[itemId] = (consumptionMap[itemId] || 0) + qty
-      })
-      setConsumption(consumptionMap)
-    } catch (err) {
-      console.error('Error loading stock returns:', err)
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+      ]);
+      setRecords(txns);
+      setDeliveryItems(items);
+      setApprovedItems(approved);
 
-  useEffect(() => { loadData() }, [loadData])
-  
+      // Calculate total consumption per delivery_item_id
+      const consumptionMap: Record<string, number> = {};
+      rationAnimals.forEach((ra) => {
+        if (!ra.ration?.delivery_item_id) return;
+        const itemId = ra.ration.delivery_item_id;
+        const qty = ra.quantity_given || 0;
+        consumptionMap[itemId] = (consumptionMap[itemId] || 0) + qty;
+      });
+      setConsumption(consumptionMap);
+    } catch (err) {
+      console.error("Error loading stock returns:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
   // Filter to only show items that are intact (not used at all)
   const returnableItems = useMemo(() => {
-    return approvedItems.filter(item => {
-      const used = consumption[item.delivery_item_id] || 0
-      return used === 0 // Only items with zero consumption can be returned
-    })
-  }, [approvedItems, consumption])
+    return approvedItems.filter((item) => {
+      const used = consumption[item.delivery_item_id] || 0;
+      return used === 0; // Only items with zero consumption can be returned
+    });
+  }, [approvedItems, consumption]);
 
   const handleSubmit = async (values: StockFormValues, id?: string) => {
     if (id) {
@@ -2557,97 +3412,124 @@ const StockReturnApp = () => {
         reason: values.reason || null,
         requested_by: values.requested_by,
         notes: values.notes || null,
-      })
+      });
     } else {
       await createStockTransaction({
-        type: 'return',
+        type: "return",
         delivery_item_id: values.delivery_item_id,
         unit_id: values.unit_id,
         quantity: parseFloat(values.quantity) || 0,
         reason: values.reason || null,
         requested_by: values.requested_by,
         notes: values.notes || null,
-        status: 'pending',
-      })
+        status: "pending",
+      });
     }
-    await loadData()
-  }
+    await loadData();
+  };
 
   const handleDelete = async (id: string) => {
-    await deleteStockTransactionApi(id)
-    await loadData()
-  }
+    await deleteStockTransactionApi(id);
+    await loadData();
+  };
 
   const itemMap = useMemo(() => {
-    const map = new Map<string, DeliveryItem>()
-    deliveryItems.forEach((d) => map.set(d.id, d))
-    return map
-  }, [deliveryItems])
+    const map = new Map<string, DeliveryItem>();
+    deliveryItems.forEach((d) => map.set(d.id, d));
+    return map;
+  }, [deliveryItems]);
 
   const filtered = useMemo(() => {
-    let list = records
-    if (activeTab !== 'All') list = list.filter((r) => r.status === activeTab)
+    let list = records;
+    if (activeTab !== "All") list = list.filter((r) => r.status === activeTab);
     if (search.trim()) {
-      const q = search.toLowerCase()
-      list = list.filter((r) =>
-        r.requested_by.toLowerCase().includes(q) ||
-        (r.reason ?? '').toLowerCase().includes(q) ||
-        (r.notes ?? '').toLowerCase().includes(q) ||
-        (itemMap.get(r.delivery_item_id)?.description ?? '').toLowerCase().includes(q)
-      )
+      const q = search.toLowerCase();
+      list = list.filter(
+        (r) =>
+          r.requested_by.toLowerCase().includes(q) ||
+          (r.reason ?? "").toLowerCase().includes(q) ||
+          (r.notes ?? "").toLowerCase().includes(q) ||
+          (itemMap.get(r.delivery_item_id)?.description ?? "")
+            .toLowerCase()
+            .includes(q),
+      );
     }
-    return list
-  }, [records, activeTab, search, itemMap])
+    return list;
+  }, [records, activeTab, search, itemMap]);
 
-  const counts = useMemo(() => ({
-    total: records.length,
-    pending: records.filter((r) => r.status === 'pending').length,
-    received: records.filter((r) => r.status === 'received').length,
-    rejected: records.filter((r) => r.status === 'rejected').length,
-    cancelled: records.filter((r) => r.status === 'cancelled').length,
-  }), [records])
+  const counts = useMemo(
+    () => ({
+      total: records.length,
+      pending: records.filter((r) => r.status === "pending").length,
+      received: records.filter((r) => r.status === "received").length,
+      rejected: records.filter((r) => r.status === "rejected").length,
+      cancelled: records.filter((r) => r.status === "cancelled").length,
+    }),
+    [records],
+  );
 
   const columns = [
     {
-      key: 'delivery_item_id' as const,
-      header: 'Item',
+      key: "delivery_item_id" as const,
+      header: "Item",
       render: (r: StockTransaction) => {
-        const item = itemMap.get(r.delivery_item_id)
-        return <span className="text-sm font-medium text-foreground">{item?.description ?? r.delivery_item_id.slice(0, 8)}</span>
+        const item = itemMap.get(r.delivery_item_id);
+        return (
+          <span className="text-sm font-medium text-foreground">
+            {item?.description ?? r.delivery_item_id.slice(0, 8)}
+          </span>
+        );
       },
     },
     {
-      key: 'quantity' as const,
-      header: 'Qty',
-      render: (r: StockTransaction) => <span className="text-sm font-semibold">{r.quantity}</span>,
-    },
-    {
-      key: 'reason' as const,
-      header: 'Reason',
+      key: "quantity" as const,
+      header: "Qty",
       render: (r: StockTransaction) => (
-        <span className="text-sm text-muted max-w-[160px] truncate block" title={r.reason ?? ''}>{r.reason || '—'}</span>
+        <span className="text-sm font-semibold">{r.quantity}</span>
       ),
     },
     {
-      key: 'requested_by' as const,
-      header: 'Returned By',
-      render: (r: StockTransaction) => <span className="text-sm text-muted">{r.requested_by}</span>,
+      key: "reason" as const,
+      header: "Reason",
+      render: (r: StockTransaction) => (
+        <span
+          className="text-sm text-muted max-w-[160px] truncate block"
+          title={r.reason ?? ""}
+        >
+          {r.reason || "—"}
+        </span>
+      ),
     },
     {
-      key: 'reviewed_by' as const,
-      header: 'Received By',
-      render: (r: StockTransaction) => <span className="text-sm text-muted">{r.reviewed_by || '—'}</span>,
+      key: "requested_by" as const,
+      header: "Returned By",
+      render: (r: StockTransaction) => (
+        <span className="text-sm text-muted">{r.requested_by}</span>
+      ),
     },
     {
-      key: 'created_at' as const,
-      header: 'Date',
-      render: (r: StockTransaction) => <span className="text-sm">{new Date(r.created_at).toLocaleDateString()}</span>,
+      key: "reviewed_by" as const,
+      header: "Received By",
+      render: (r: StockTransaction) => (
+        <span className="text-sm text-muted">{r.reviewed_by || "—"}</span>
+      ),
     },
     {
-      key: 'status' as const,
-      header: 'Status / Actions',
+      key: "created_at" as const,
+      header: "Date",
+      render: (r: StockTransaction) => (
+        <span className="text-sm">
+          {new Date(r.created_at).toLocaleDateString()}
+        </span>
+      ),
+    },
+    {
+      key: "status" as const,
+      header: "Status / Actions",
       render: (r: StockTransaction) => {
-        const isRequester = user && (user.username === r.requested_by || user.email === r.requested_by)
+        const isRequester =
+          user &&
+          (user.username === r.requested_by || user.email === r.requested_by);
 
         return (
           <div className="flex items-center gap-2">
@@ -2655,12 +3537,12 @@ const StockReturnApp = () => {
             <IconButton onClick={() => setViewing(r)} title="View">
               <Eye className="w-4 h-4" />
             </IconButton>
-            {r.status === 'pending' && isRequester && (
+            {r.status === "pending" && isRequester && (
               <IconButton
                 onClick={async () => {
-                  if (confirm('Cancel this return?')) {
-                    await updateStockTransaction(r.id, { status: 'cancelled' })
-                    await loadData()
+                  if (confirm("Cancel this return?")) {
+                    await updateStockTransaction(r.id, { status: "cancelled" });
+                    await loadData();
                   }
                 }}
                 title="Cancel Return"
@@ -2669,19 +3551,29 @@ const StockReturnApp = () => {
                 <X className="w-4 h-4" />
               </IconButton>
             )}
-            {r.status === 'pending' && (
-              <IconButton onClick={() => { setEditing(r); setShowModal(true) }} title="Edit">
+            {r.status === "pending" && (
+              <IconButton
+                onClick={() => {
+                  setEditing(r);
+                  setShowModal(true);
+                }}
+                title="Edit"
+              >
                 <Pencil className="w-4 h-4" />
               </IconButton>
             )}
-            <IconButton onClick={() => setDeleting(r)} title="Delete" variant="danger">
+            <IconButton
+              onClick={() => setDeleting(r)}
+              title="Delete"
+              variant="danger"
+            >
               <Trash2 className="w-4 h-4" />
             </IconButton>
           </div>
-        )
+        );
       },
     },
-  ]
+  ];
 
   if (loading) {
     return (
@@ -2689,7 +3581,7 @@ const StockReturnApp = () => {
         <Loader2 className="w-6 h-6 animate-spin text-muted" />
         <span className="ml-2 text-muted text-sm">Loading stock returns…</span>
       </div>
-    )
+    );
   }
 
   return (
@@ -2707,21 +3599,37 @@ const StockReturnApp = () => {
           <button
             key={tab}
             className={cn(
-              'px-4 py-2 text-sm font-medium rounded-md transition-colors capitalize',
-              activeTab === tab ? 'bg-surface text-foreground shadow-sm' : 'text-muted hover:text-foreground'
+              "px-4 py-2 text-sm font-medium rounded-md transition-colors capitalize",
+              activeTab === tab
+                ? "bg-surface text-foreground shadow-sm"
+                : "text-muted hover:text-foreground",
             )}
             onClick={() => setActiveTab(tab)}
           >
             {tab}
-            <span className={cn('ml-1.5 px-1.5 py-0.5 text-xs rounded-full', activeTab === tab ? 'bg-orange-50 text-orange-600' : 'bg-background text-muted')}>
-              {tab === 'All' ? records.length : records.filter((r) => r.status === tab).length}
+            <span
+              className={cn(
+                "ml-1.5 px-1.5 py-0.5 text-xs rounded-full",
+                activeTab === tab
+                  ? "bg-orange-50 text-orange-600"
+                  : "bg-background text-muted",
+              )}
+            >
+              {tab === "All"
+                ? records.length
+                : records.filter((r) => r.status === tab).length}
             </span>
           </button>
         ))}
       </div>
 
       <ActionsBar>
-        <PrimaryButton onClick={() => { setEditing(null); setShowModal(true) }}>
+        <PrimaryButton
+          onClick={() => {
+            setEditing(null);
+            setShowModal(true);
+          }}
+        >
           <Plus className="w-4 h-4" /> New Return
         </PrimaryButton>
       </ActionsBar>
@@ -2745,13 +3653,19 @@ const StockReturnApp = () => {
           deliveryItems={deliveryItems}
           returnableItems={returnableItems}
           onSubmit={handleSubmit}
-          onClose={() => { setShowModal(false); setEditing(null) }}
+          onClose={() => {
+            setShowModal(false);
+            setEditing(null);
+          }}
         />
       )}
       {deleting && (
         <StockDeleteModal
           record={deleting}
-          onConfirm={async () => { await handleDelete(deleting.id); setDeleting(null) }}
+          onConfirm={async () => {
+            await handleDelete(deleting.id);
+            setDeleting(null);
+          }}
           onClose={() => setDeleting(null)}
         />
       )}
@@ -2763,48 +3677,65 @@ const StockReturnApp = () => {
         />
       )}
     </div>
-  )
-}
+  );
+};
 
 // ════════════════════════════════════════════════════════════════════════════
 // ─── PAGE EXPORT (Tabbed) ─────────────────────────────────────────────────
 // ════════════════════════════════════════════════════════════════════════════
 
-type PageTab = 'feeding' | 'vitamins' | 'request' | 'return'
+type PageTab = "feeding" | "vitamins" | "request" | "return";
 
 const PAGE_TABS: { key: PageTab; label: string; icon: ReactNode }[] = [
-  { key: 'feeding', label: 'Feeding', icon: <UtensilsCrossed className="w-4 h-4" /> },
-  { key: 'vitamins', label: 'Vitamins & Injections', icon: <Syringe className="w-4 h-4" /> },
-  { key: 'request', label: 'Stock Request', icon: <PackagePlus className="w-4 h-4" /> },
-  { key: 'return', label: 'Stock Return', icon: <Undo2 className="w-4 h-4" /> },
-]
+  {
+    key: "feeding",
+    label: "Feeding",
+    icon: <UtensilsCrossed className="w-4 h-4" />,
+  },
+  {
+    key: "vitamins",
+    label: "Vitamins & Injections",
+    icon: <Syringe className="w-4 h-4" />,
+  },
+  {
+    key: "request",
+    label: "Stock Request",
+    icon: <PackagePlus className="w-4 h-4" />,
+  },
+  { key: "return", label: "Stock Return", icon: <Undo2 className="w-4 h-4" /> },
+];
 
-const PAGE_HEADER_MAP: Record<PageTab, { title: string; subtitle: string; icon: ReactNode }> = {
+const PAGE_HEADER_MAP: Record<
+  PageTab,
+  { title: string; subtitle: string; icon: ReactNode }
+> = {
   feeding: {
-    title: 'Feeding Management',
-    subtitle: 'Track daily feed logs for all animals — what, how much, and who fed them.',
+    title: "Feeding Management",
+    subtitle:
+      "Track daily feed logs for all animals — what, how much, and who fed them.",
     icon: <UtensilsCrossed className="w-6 h-6" />,
   },
   vitamins: {
-    title: 'Vitamins & Injections',
-    subtitle: 'Track all vitamins, injections, and supplements given to animals.',
+    title: "Vitamins & Injections",
+    subtitle:
+      "Track all vitamins, injections, and supplements given to animals.",
     icon: <Syringe className="w-6 h-6" />,
   },
   request: {
-    title: 'Stock Request',
-    subtitle: 'Request items from the inventory for feeding or vitamins use.',
+    title: "Stock Request",
+    subtitle: "Request items from the inventory for feeding or vitamins use.",
     icon: <PackagePlus className="w-6 h-6" />,
   },
   return: {
-    title: 'Stock Return',
-    subtitle: 'Return unused items back to the inventory.',
+    title: "Stock Return",
+    subtitle: "Return unused items back to the inventory.",
     icon: <Undo2 className="w-6 h-6" />,
   },
-}
+};
 
 export default function Storage() {
-  const [activeTab, setActiveTab] = useState<PageTab>('feeding')
-  const header = PAGE_HEADER_MAP[activeTab]
+  const [activeTab, setActiveTab] = useState<PageTab>("feeding");
+  const header = PAGE_HEADER_MAP[activeTab];
 
   return (
     <FeedingProvider>
@@ -2816,20 +3747,27 @@ export default function Storage() {
         />
 
         {/* Page-level tabs */}
-        <div className="bg-gradient-to-r from-surface via-background to-surface border border-border rounded-xl p-1.5 mb-6 shadow-sm">
+        <div className="bg-linear-to-r from-surface via-background to-surface border border-border rounded-xl p-1.5 mb-6 shadow-sm">
           <div className="flex gap-1.5">
             {PAGE_TABS.map((tab) => (
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
                 className={cn(
-                  'flex-1 px-4 py-2.5 text-sm font-semibold flex items-center justify-center gap-2 rounded-lg transition-all duration-300 group',
+                  "flex-1 px-4 py-2.5 text-sm font-semibold flex items-center justify-center gap-2 rounded-lg transition-all duration-300 group",
                   activeTab === tab.key
-                    ? 'bg-success text-white shadow-md scale-[1.02] border border-success'
-                    : 'bg-transparent text-muted hover:text-foreground hover:bg-surface/50 border border-transparent hover:border-border'
+                    ? "bg-success text-white shadow-md scale-[1.02] border border-success"
+                    : "bg-transparent text-muted hover:text-foreground hover:bg-surface/50 border border-transparent hover:border-border",
                 )}
               >
-                <span className={cn('transition-transform', activeTab === tab.key ? 'animate-in zoom-in-50' : 'group-hover:scale-110')}>
+                <span
+                  className={cn(
+                    "transition-transform",
+                    activeTab === tab.key
+                      ? "animate-in zoom-in-50"
+                      : "group-hover:scale-110",
+                  )}
+                >
                   {tab.icon}
                 </span>
                 <span>{tab.label}</span>
@@ -2838,11 +3776,11 @@ export default function Storage() {
           </div>
         </div>
 
-        {activeTab === 'feeding' && <FeedingApp />}
-        {activeTab === 'vitamins' && <VitaminsApp />}
-        {activeTab === 'request' && <StockRequestApp />}
-        {activeTab === 'return' && <StockReturnApp />}
+        {activeTab === "feeding" && <FeedingApp />}
+        {activeTab === "vitamins" && <VitaminsApp />}
+        {activeTab === "request" && <StockRequestApp />}
+        {activeTab === "return" && <StockReturnApp />}
       </VitaminsProvider>
     </FeedingProvider>
-  )
+  );
 }

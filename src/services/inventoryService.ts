@@ -1,6 +1,5 @@
 import { supabase, isSupabaseConfigured } from "./supabase";
 
-
 // Helper to query tables in the module3 schema using the shared auth session
 const module3 = () => supabase!.schema("module3");
 // Helper to query tables in the module4 schema (feeding/ration)
@@ -311,66 +310,80 @@ export const deleteStockRequest = async (id: string) => {
   return { success: true };
 };
 
-// ─── Module4 Ration Requests (read-only from inventory side) ─────────────────
+// ─── Module4 Stock Transactions (cross-schema requests) ──────────────────────
 
-export interface RationRequest {
+export interface StockTransaction {
   id: string;
   created_at: string;
-  ration_type_id: string;
+  type: string;
   delivery_item_id: string;
   unit_id: string;
-  meal_number: number | null;
-  administered_by: string;
-  notes: string | null;
-  quantity_used: number;
-  date_given: string;
+  quantity: number;
+  approved_quantity: number | null;
+  purpose: string | null;
+  reason: string | null;
+  requested_by: string;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
   status: string;
+  notes: string | null;
+  ration_id: string | null;
   // JS-merged lookups
   delivery_item?: DeliveryItem;
-  ration_type?: { id: string; name: string };
   unit?: Unit;
 }
 
-export const fetchRationRequests = async (): Promise<RationRequest[]> => {
+export const fetchStockTransactions = async (): Promise<StockTransaction[]> => {
   if (!isSupabaseConfigured() || !supabase) return [];
-  // Fetch from module4 and resolve lookups from module3 in JS
-  // (cross-schema PostgREST joins are not supported)
-  const [
-    { data: rations, error },
-    { data: rationTypes },
-    { data: deliveryItems },
-    { data: units },
-  ] = await Promise.all([
-    module4()
-      .from("ration")
-      .select("*")
-      .order("created_at", { ascending: false }),
-    module4().from("ration_type").select("*"),
-    module3()
-      .from("delivery_items")
-      .select(
-        "*, category(*), brand(*), unit_delivery:unit!unit_delivery_id(*), unit_issuance:unit!unit_issuance_id(*)",
-      ),
-    module3().from("unit").select("*"),
-  ]);
+  const [{ data: txns, error }, { data: deliveryItems }, { data: units }] =
+    await Promise.all([
+      module4()
+        .from("stock_transaction")
+        .select("*")
+        .order("created_at", { ascending: false }),
+      module3()
+        .from("delivery_items")
+        .select(
+          "*, category(*), brand(*), unit_delivery:unit!unit_delivery_id(*), unit_issuance:unit!unit_issuance_id(*)",
+        ),
+      module3().from("unit").select("*"),
+    ]);
   if (error) {
-    console.error("fetchRationRequests error:", error);
+    console.error("fetchStockTransactions error:", error);
     return [];
   }
-  return (rations || []).map((r) => ({
-    ...r,
+  return (txns || []).map((t) => ({
+    ...t,
     delivery_item: (deliveryItems || []).find(
-      (d) => d.id === r.delivery_item_id,
+      (d) => d.id === t.delivery_item_id,
     ),
-    ration_type: (rationTypes || []).find((t) => t.id === r.ration_type_id),
-    unit: (units || []).find((u) => u.id === r.unit_id),
+    unit: (units || []).find((u) => u.id === t.unit_id),
   }));
 };
 
-export const approveRationRequest = async (
-  rationId: string,
+export const createStockTransaction = async (fields: {
+  delivery_item_id: string;
+  unit_id: string;
+  quantity: number;
+  purpose?: string;
+  requested_by: string;
+  notes?: string;
+  type?: string;
+}) => {
+  if (!isSupabaseConfigured() || !supabase)
+    return { success: false, error: "Supabase not configured" };
+  const { error } = await module4()
+    .from("stock_transaction")
+    .insert({ status: "pending", type: fields.type || "request", ...fields });
+  if (error) return { success: false, error: error.message };
+  return { success: true };
+};
+
+export const approveStockTransaction = async (
+  txnId: string,
   deliveryItemId: string,
   quantityToDeduct: number,
+  reviewedBy: string,
 ) => {
   if (!isSupabaseConfigured() || !supabase)
     return { success: false, error: "Supabase not configured" };
@@ -387,11 +400,16 @@ export const approveRationRequest = async (
       success: false,
       error: `Insufficient stock. Available: ${item.quantity_delivery}`,
     };
-  const { error: rationError } = await module4()
-    .from("ration")
-    .update({ status: "approved" })
-    .eq("id", rationId);
-  if (rationError) return { success: false, error: rationError.message };
+  const { error: txnError } = await module4()
+    .from("stock_transaction")
+    .update({
+      status: "approved",
+      approved_quantity: quantityToDeduct,
+      reviewed_by: reviewedBy,
+      reviewed_at: new Date().toISOString(),
+    })
+    .eq("id", txnId);
+  if (txnError) return { success: false, error: txnError.message };
   const { error: deductError } = await module3()
     .from("delivery_items")
     .update({ quantity_delivery: newQty })
@@ -400,13 +418,22 @@ export const approveRationRequest = async (
   return { success: true };
 };
 
-export const rejectRationRequest = async (rationId: string) => {
+export const rejectStockTransaction = async (
+  txnId: string,
+  reviewedBy: string,
+  reason?: string,
+) => {
   if (!isSupabaseConfigured() || !supabase)
     return { success: false, error: "Supabase not configured" };
   const { error } = await module4()
-    .from("ration")
-    .update({ status: "rejected" })
-    .eq("id", rationId);
+    .from("stock_transaction")
+    .update({
+      status: "rejected",
+      reviewed_by: reviewedBy,
+      reviewed_at: new Date().toISOString(),
+      reason: reason || null,
+    })
+    .eq("id", txnId);
   if (error) return { success: false, error: error.message };
   return { success: true };
 };
