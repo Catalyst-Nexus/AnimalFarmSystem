@@ -504,6 +504,7 @@ const AnimalModal = ({
                   className={FIELD}
                   value={form.animal_type_id}
                   onChange={(e) => set('animal_type_id', e.target.value)}
+                  aria-label="Animal Type"
                 >
                   <option value="">-- Select Animal Type --</option>
                   {animalTypes.map((at) => (
@@ -532,6 +533,7 @@ const AnimalModal = ({
                   value={form.tag_color_id}
                   onChange={(e) => set('tag_color_id', e.target.value)}
                   disabled={!form.animal_type_id}
+                  aria-label="Tag Color"
                 >
                   <option value="">-- Select Color --</option>
                   {tagColors.map((tc) => (
@@ -560,6 +562,7 @@ const AnimalModal = ({
                   value={form.tag_type_id}
                   onChange={(e) => set('tag_type_id', e.target.value)}
                   disabled={!form.animal_type_id}
+                  aria-label="Tag Type"
                 >
                   <option value="">-- Select Type --</option>
                   {tagTypes.map((tt) => (
@@ -594,6 +597,7 @@ const AnimalModal = ({
                     const selectedCode = allTagCodes.find((tc) => tc.id === e.target.value)
                     if (selectedCode) handleSelectTagCode(selectedCode)
                   }}
+                  aria-label="Tag Code"
                 >
                   <option value="">-- Select Tag Code --</option>
                   {availableTagCodes.map((tc) => (
