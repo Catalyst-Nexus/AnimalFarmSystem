@@ -12,6 +12,8 @@ import { Tag, Plus, Pencil, Trash2, QrCode, MoreHorizontal, Loader2 } from 'luci
 import { animalService, cageService } from '@/services/animalService'
 import type { Animal as DBAnimal, Cage } from '@/services/animalService'
 import { checkCageCapacity } from '@/services/cageService'
+import { fetchTagAnimalColors, fetchAnimalTypes, fetchTagColors, fetchTagTypes } from '@/services/animalAdminService'
+import type { TagAnimalColor, AnimalType, TagColor, TagType } from '@/services/animalAdminService'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -19,8 +21,12 @@ type AnimalSex = 'Male' | 'Female'
 type AnimalStatus = 'Active' | 'Sick' | 'Deceased' | 'Sold'
 
 interface AnimalFormValues {
-  id: string // Manual barcode ID created by user
-  type: string // e.g., Pig, Cow, etc.
+  tag_animals_colors_id: string // Reference to tag_animals_colors record
+  animal_type_id: string // Selected animal type
+  tag_color_id: string // Selected tag color
+  tag_type_id: string // Selected tag type
+  tag_code_id: string // Selected tag code record ID
+  formattedTagCode: string // Formatted like "EAR-1" (read-only)
   sex: AnimalSex
   weight: string
   status: AnimalStatus
@@ -36,14 +42,23 @@ const TAB_FILTERS = ['All', 'Active', 'Sick', 'Sold', 'Deceased'] as const
 type TabFilter = (typeof TAB_FILTERS)[number]
 
 const EMPTY_FORM: AnimalFormValues = {
-  id: '',
-  type: '',
+  tag_animals_colors_id: '',
+  animal_type_id: '',
+  tag_color_id: '',
+  tag_type_id: '',
+  tag_code_id: '',
+  formattedTagCode: '',
   sex: 'Male',
   weight: '',
   status: 'Active',
   current_cage_id: '',
   mother_id: '',
   father_id: '',
+}
+
+// Helper to format tag code as "TYPE-CODE"
+const formatTagCode = (tagCode: TagAnimalColor): string => {
+  return `${tagCode.tag_types?.type || ''}-${tagCode.tag_code}`
 }
 
 const STATUS_STYLES: Record<AnimalStatus, string> = {
@@ -109,39 +124,44 @@ const BarcodeVisual = ({ value }: { value: string }) => {
 
 // ─── Barcode Modal ────────────────────────────────────────────────────────────
 
-const BarcodeModal = ({ animal, onClose }: { animal: DBAnimal; onClose: () => void }) => (
-  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-    <div className="bg-surface border border-border rounded-2xl shadow-2xl w-full max-w-sm p-6">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-bold text-primary flex items-center gap-2">
-          <QrCode className="w-5 h-5 text-success" /> Animal Tag
-        </h2>
-        <button className="p-1.5 rounded hover:bg-background text-muted transition-colors" onClick={onClose}>
-          ✕
+const BarcodeModal = ({ animal, onClose }: { animal: DBAnimal; onClose: () => void }) => {
+  const tagType = animal.type?.split('-')[0] || 'TAG'
+  const animalType = animal.type ? animal.type.split('|')[1]?.trim() : 'Unknown'
+  
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="bg-surface border border-border rounded-2xl shadow-2xl w-full max-w-sm p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-bold text-primary flex items-center gap-2">
+            <QrCode className="w-5 h-5 text-success" /> Animal Tag
+          </h2>
+          <button className="p-1.5 rounded hover:bg-background text-muted transition-colors" onClick={onClose}>
+            ✕
+          </button>
+        </div>
+        <div className="mb-5 p-4 bg-background rounded-xl space-y-1.5">
+          <p className="text-xs text-muted">
+            {animalType} · {tagType} · Sex: {animal.sex}
+          </p>
+          <p className="text-xs text-muted">Weight: {animal.weight} kg</p>
+          {animal.mother_id && <p className="text-xs text-muted">Mother: {animal.mother_id}</p>}
+          {animal.father_id && <p className="text-xs text-muted">Father: {animal.father_id}</p>}
+          <div className="flex items-center gap-2 pt-1 flex-wrap">
+            <AnimalStatusBadge status={animal.status as AnimalStatus} />
+          </div>
+        </div>
+        <BarcodeVisual value={animal.id} />
+        <p className="mt-4 text-center text-xs text-muted">Registered on {new Date(animal.created_at).toLocaleDateString()}</p>
+        <button
+          className="mt-5 w-full py-2.5 bg-success text-white rounded-lg text-sm font-medium hover:bg-success/90 transition-colors"
+          onClick={onClose}
+        >
+          Close
         </button>
       </div>
-      <div className="mb-5 p-4 bg-background rounded-xl space-y-1.5">
-        <p className="text-xs text-muted">
-          {animal.type} · Sex: {animal.sex}
-        </p>
-        <p className="text-xs text-muted">Weight: {animal.weight} kg</p>
-        {animal.mother_id && <p className="text-xs text-muted">Mother: {animal.mother_id}</p>}
-        {animal.father_id && <p className="text-xs text-muted">Father: {animal.father_id}</p>}
-        <div className="flex items-center gap-2 pt-1 flex-wrap">
-          <AnimalStatusBadge status={animal.status as AnimalStatus} />
-        </div>
-      </div>
-      <BarcodeVisual value={animal.id} />
-      <p className="mt-4 text-center text-xs text-muted">Registered on {new Date(animal.created_at).toLocaleDateString()}</p>
-      <button
-        className="mt-5 w-full py-2.5 bg-success text-white rounded-lg text-sm font-medium hover:bg-success/90 transition-colors"
-        onClick={onClose}
-      >
-        Close
-      </button>
     </div>
-  </div>
-)
+  )
+}
 
 // ─── Animal Form Modal ────────────────────────────────────────────────────────
 
@@ -155,7 +175,6 @@ const AnimalModal = ({
   isSubmitting,
   onClose,
   onSubmit,
-  onGenerateNextId,
 }: {
   editingAnimal: DBAnimal | null
   allAnimals: DBAnimal[]
@@ -163,23 +182,14 @@ const AnimalModal = ({
   isSubmitting: boolean
   onClose: () => void
   onSubmit: (values: AnimalFormValues) => Promise<void>
-  onGenerateNextId: () => Promise<string>
 }) => {
+  const [allTagCodes, setAllTagCodes] = useState<TagAnimalColor[]>([])
+  const [animalTypes, setAnimalTypes] = useState<AnimalType[]>([])
+  const [tagColors, setTagColors] = useState<TagColor[]>([])
+  const [tagTypes, setTagTypes] = useState<TagType[]>([])
+  const [isLoadingData, setIsLoadingData] = useState(false)
 
-  const [form, setForm] = useState<AnimalFormValues>(
-    editingAnimal
-      ? {
-          id: editingAnimal.id,
-          type: editingAnimal.type,
-          sex: editingAnimal.sex as AnimalSex,
-          weight: String(editingAnimal.weight),
-          status: editingAnimal.status as AnimalStatus,
-          current_cage_id: editingAnimal.current_cage_id || '',
-          mother_id: editingAnimal.mother_id || '',
-          father_id: editingAnimal.father_id || '',
-        }
-      : EMPTY_FORM
-  )
+  const [form, setForm] = useState<AnimalFormValues>(EMPTY_FORM)
   const [error, setError] = useState<string>('')
   const [registered, setRegistered] = useState<DBAnimal | null>(null)
   const [motherSearch, setMotherSearch] = useState<string>('')
@@ -188,15 +198,58 @@ const AnimalModal = ({
   const [showMotherDropdown, setShowMotherDropdown] = useState(false)
   const [showFatherDropdown, setShowFatherDropdown] = useState(false)
   const [showCageDropdown, setShowCageDropdown] = useState(false)
+  const [batch, setBatch] = useState<AnimalFormValues[]>([])
+  const [isRegisteringBatch, setIsRegisteringBatch] = useState(false)
 
-  // Auto-generate animal ID on mount (when adding new animal)
+  // Load all data on mount
   useEffect(() => {
-    if (!editingAnimal) {
-      onGenerateNextId().then((nextId) => {
-        setForm((prev) => ({ ...prev, id: nextId }))
-      })
-    } else {
-      // Populate search fields when editing
+    const loadData = async () => {
+      setIsLoadingData(true)
+      try {
+        const [types, colors, tagTypesData, codes] = await Promise.all([
+          fetchAnimalTypes(),
+          fetchTagColors(),
+          fetchTagTypes(),
+          fetchTagAnimalColors(),
+        ])
+        setAnimalTypes(types)
+        setTagColors(colors)
+        setTagTypes(tagTypesData)
+        setAllTagCodes(codes)
+      } catch (err) {
+        console.error('Error loading data:', err)
+      } finally {
+        setIsLoadingData(false)
+      }
+    }
+    loadData()
+  }, [])
+
+  // Populate form when editing
+  useEffect(() => {
+    if (editingAnimal && allTagCodes.length > 0) {
+      // Find the tag code record
+      const tagCodeRecord = allTagCodes.find(
+        (tc) => editingAnimal.tag_animals_colors_id === tc.id
+      )
+
+      if (tagCodeRecord) {
+        setForm({
+          tag_animals_colors_id: tagCodeRecord.id,
+          animal_type_id: tagCodeRecord.animal_type_id,
+          tag_color_id: tagCodeRecord.tag_color_id,
+          tag_type_id: tagCodeRecord.tag_type_id,
+          tag_code_id: tagCodeRecord.id,
+          formattedTagCode: formatTagCode(tagCodeRecord),
+          sex: editingAnimal.sex as AnimalSex,
+          weight: String(editingAnimal.weight),
+          status: editingAnimal.status as AnimalStatus,
+          current_cage_id: editingAnimal.current_cage_id || '',
+          mother_id: editingAnimal.mother_id || '',
+          father_id: editingAnimal.father_id || '',
+        })
+      }
+
       const mother = allAnimals.find((a) => a.id === editingAnimal.mother_id)
       const father = allAnimals.find((a) => a.id === editingAnimal.father_id)
       const cage = cages.find((c) => c.id === editingAnimal.current_cage_id)
@@ -204,14 +257,16 @@ const AnimalModal = ({
       if (father) setFatherSearch(father.id)
       if (cage) setCageSearch(cage.cage_label)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editingAnimal])
+  }, [editingAnimal, allAnimals, cages, allTagCodes])
 
   // Close dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as HTMLElement
-      if (!target.closest('[data-parent-select]') && !target.closest('[data-cage-select]')) {
+      if (
+        !target.closest('[data-parent-select]') &&
+        !target.closest('[data-cage-select]')
+      ) {
         setShowMotherDropdown(false)
         setShowFatherDropdown(false)
         setShowCageDropdown(false)
@@ -224,41 +279,77 @@ const AnimalModal = ({
   const set = (key: keyof AnimalFormValues, val: string) =>
     setForm((prev) => ({ ...prev, [key]: val }))
 
+  // Filter tag codes based on selections and availability
+  const availableTagCodes = useMemo(() => {
+    return allTagCodes.filter((tc) => {
+      // Filter by selected criteria
+      if (form.animal_type_id && tc.animal_type_id !== form.animal_type_id) return false
+      if (form.tag_color_id && tc.tag_color_id !== form.tag_color_id) return false
+      if (form.tag_type_id && tc.tag_type_id !== form.tag_type_id) return false
+      
+      // Check if tag code is already used by an existing animal WITH THE SAME ANIMAL TYPE
+      const isUsedByExisting = allAnimals.some((animal) => 
+        animal.tag_animals_colors_id === tc.id && 
+        animal.tag_animals_colors_id !== editingAnimal?.tag_animals_colors_id // Allow current animal when editing
+      )
+      if (isUsedByExisting) return false
+      
+      // Check if tag code is already in the current batch
+      const isInBatch = batch.some((item) => item.tag_animals_colors_id === tc.id)
+      if (isInBatch) return false
+      
+      return true
+    })
+  }, [allTagCodes, form.animal_type_id, form.tag_color_id, form.tag_type_id, allAnimals, batch, editingAnimal])
+
   // Filter mothers (Female animals only)
   const filteredMothers = useMemo(() => {
-    return allAnimals.filter((a) => 
-      a.sex === 'Female' && 
-      (a.id.toLowerCase().includes(motherSearch.toLowerCase()) || 
-       a.type.toLowerCase().includes(motherSearch.toLowerCase()))
+    return allAnimals.filter((a) =>
+      a.sex === 'Female' &&
+      (a.id.toLowerCase().includes(motherSearch.toLowerCase()) ||
+        (a.type && a.type.toLowerCase().includes(motherSearch.toLowerCase())))
     )
   }, [allAnimals, motherSearch])
 
   // Filter fathers (Male animals only)
   const filteredFathers = useMemo(() => {
-    return allAnimals.filter((a) => 
-      a.sex === 'Male' && 
-      (a.id.toLowerCase().includes(fatherSearch.toLowerCase()) || 
-       a.type.toLowerCase().includes(fatherSearch.toLowerCase()))
+    return allAnimals.filter((a) =>
+      a.sex === 'Male' &&
+      (a.id.toLowerCase().includes(fatherSearch.toLowerCase()) ||
+        (a.type && a.type.toLowerCase().includes(fatherSearch.toLowerCase())))
     )
   }, [allAnimals, fatherSearch])
 
   // Filter cages by label
   const filteredCages = useMemo(() => {
-    return cages.filter((c) => 
+    return cages.filter((c) =>
       c.cage_label.toLowerCase().includes(cageSearch.toLowerCase())
     )
   }, [cages, cageSearch])
 
+  const handleSelectTagCode = (tagCode: TagAnimalColor) => {
+    const formatted = formatTagCode(tagCode)
+    setForm({
+      ...form,
+      tag_animals_colors_id: tagCode.id,
+      tag_code_id: tagCode.id,
+      formattedTagCode: formatted,
+      animal_type_id: tagCode.animal_type_id,
+      tag_color_id: tagCode.tag_color_id,
+      tag_type_id: tagCode.tag_type_id,
+    })
+  }
+
   const handleSubmit = async () => {
     setError('')
 
-    if (!form.id.trim()) {
-      setError('Animal ID should be auto-generated. Please try again.')
+    if (!form.tag_animals_colors_id) {
+      setError('Please select animal type, color, type, and tag code.')
       return
     }
 
-    if (!form.type.trim()) {
-      setError('Please enter an animal type.')
+    if (!form.formattedTagCode) {
+      setError('Tag code is not properly set. Please reselect the tag code.')
       return
     }
 
@@ -272,47 +363,107 @@ const AnimalModal = ({
       return
     }
 
-    try {
-      await onSubmit(form)
-      if (!editingAnimal) {
-        // Show success screen with the new animal data
-        const successAnimal: DBAnimal = {
-          ...form,
-          weight: parseFloat(form.weight),
-          created_at: new Date().toISOString(),
-        } as DBAnimal
-        setRegistered(successAnimal)
-        setForm(EMPTY_FORM)
+    // Check if tag code is already used (unless editing the same animal)
+    if (!editingAnimal) {
+      const isAlreadyUsed = allAnimals.some((a) => a.tag_animals_colors_id === form.tag_animals_colors_id)
+      if (isAlreadyUsed) {
+        setError('This tag code is already assigned to another animal. Please select a different tag code.')
+        return
       }
+      
+      const isInBatch = batch.some((item) => item.tag_animals_colors_id === form.tag_animals_colors_id)
+      if (isInBatch) {
+        setError('This tag code is already in the batch. Please select a different tag code.')
+        return
+      }
+    }
+
+    // If editing, submit directly. Otherwise add to batch
+    if (editingAnimal) {
+      try {
+        await onSubmit(form)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'An error occurred')
+      }
+    } else {
+      // Add to batch for new animals
+      setBatch((prev) => [...prev, form])
+      setForm(EMPTY_FORM)
+      setError('')
+    }
+  }
+
+  const handleRemoveFromBatch = (index: number) => {
+    setBatch((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  const handleRegisterBatch = async () => {
+    if (batch.length === 0) {
+      setError('No animals in batch to register.')
+      return
+    }
+
+    setIsRegisteringBatch(true)
+    try {
+      for (const formValues of batch) {
+        await onSubmit(formValues)
+      }
+      // Show success and close
+      setRegistered({
+        id: '',
+        tag_animals_colors_id: '',
+        type: `Batch of ${batch.length} animals registered successfully!`,
+        sex: 'Male',
+        weight: 0,
+        status: 'Active',
+        current_cage_id: '',
+        mother_id: '',
+        father_id: '',
+        is_active: true,
+        created_at: new Date().toISOString(),
+      } as DBAnimal)
+      setBatch([])
+      setForm(EMPTY_FORM)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
+      setError(err instanceof Error ? err.message : 'An error occurred while registering batch')
+    } finally {
+      setIsRegisteringBatch(false)
     }
   }
 
   // Success screen after registration
   if (registered) {
+    const isBatch = registered.type?.includes('Batch of')
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
         <div className="bg-surface border border-border rounded-2xl shadow-2xl w-full max-w-md p-8 text-center">
           <div className="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
             <Tag className="w-7 h-7 text-green-600" />
           </div>
-          <h2 className="text-xl font-bold text-primary mb-1">Animal Registered!</h2>
+          <h2 className="text-xl font-bold text-primary mb-1">
+            {isBatch ? 'Batch Registered!' : 'Animal Registered!'}
+          </h2>
           <p className="text-sm text-muted mb-6">
-            Animal ID <strong>{registered.id}</strong> has been created.
-            {registered.mother_id && (
-              <span className="block mt-1">
-                Mother: <strong>{registered.mother_id}</strong>
-              </span>
-            )}
-            {registered.father_id && (
-              <span className="block mt-1">
-                Father: <strong>{registered.father_id}</strong>
-              </span>
+            {isBatch ? (
+              <span>{registered.type}</span>
+            ) : (
+              <>
+                Tag Code <strong>{registered.id || registered.formattedTagCode}</strong> has been assigned.
+                {registered.mother_id && (
+                  <span className="block mt-1">
+                    Mother: <strong>{registered.mother_id}</strong>
+                  </span>
+                )}
+                {registered.father_id && (
+                  <span className="block mt-1">
+                    Father: <strong>{registered.father_id}</strong>
+                  </span>
+                )}
+              </>
             )}
           </p>
-          <BarcodeVisual value={registered.id} />
-          <p className="mt-4 text-xs text-muted">Print or scan this barcode to identify the animal.</p>
+          {!isBatch && <BarcodeVisual value={registered.id} />}
+          {!isBatch && <p className="mt-4 text-xs text-muted">Print or scan this barcode to identify the animal.</p>}
           <div className="flex gap-3 mt-6">
             <button
               className="flex-1 py-2.5 border border-border rounded-lg text-sm font-medium text-muted hover:bg-background transition-colors"
@@ -321,7 +472,7 @@ const AnimalModal = ({
                 setForm(EMPTY_FORM)
               }}
             >
-              Register Another
+              {isBatch ? 'Continue' : 'Register Another'}
             </button>
             <button
               className="flex-1 py-2.5 bg-success text-white rounded-lg text-sm font-medium hover:bg-success/90 transition-colors"
@@ -343,14 +494,17 @@ const AnimalModal = ({
             <Tag className="w-5 h-5 text-success" />
             {editingAnimal ? 'Edit Animal' : 'Register Animal'}
           </h2>
-          <button className="p-1.5 rounded hover:bg-background text-muted transition-colors" onClick={onClose}>
+          <button
+            className="p-1.5 rounded hover:bg-background text-muted transition-colors"
+            onClick={onClose}
+          >
             ✕
           </button>
         </div>
 
-      {!editingAnimal && (
+        {!editingAnimal && (
           <p className="mb-5 text-xs text-muted bg-background border border-border rounded-lg px-4 py-3">
-            The animal barcode ID is auto-generated based on the current year and latest sequential number.
+            Select animal type, tag color, tag type, and then choose an available tag code for this animal.
           </p>
         )}
 
@@ -361,33 +515,168 @@ const AnimalModal = ({
         )}
 
         <div className="grid grid-cols-2 gap-4">
-          {/* Animal ID (Barcode) */}
-          <div className="col-span-2">
-            <label className={LABEL}>Animal ID (Barcode) <span className="text-red-500">*</span></label>
-            <input
-              className={FIELD}
-              placeholder="e.g., TAG-2026-001"
-              value={form.id}
-              onChange={(e) => set('id', e.target.value)}
-              disabled={!!editingAnimal}
-            />
-          </div>
-
           {/* Animal Type */}
-          <div>
-            <label className={LABEL}>Animal Type <span className="text-red-500">*</span></label>
-            <input
-              className={FIELD}
-              placeholder="e.g., Pig"
-              value={form.type}
-              onChange={(e) => set('type', e.target.value)}
-            />
-          </div>
+          {!editingAnimal && (
+            <div className="col-span-2">
+              <label className={LABEL}>
+                Animal Type <span className="text-red-500">*</span>
+              </label>
+              {isLoadingData ? (
+                <div className="text-xs text-muted py-2">Loading...</div>
+              ) : animalTypes.length === 0 ? (
+                <p className="mt-1 text-xs text-orange-500">
+                  No animal types available. Create them in Animal Administration first.
+                </p>
+              ) : (
+                <select
+                  className={FIELD}
+                  value={form.animal_type_id}
+                  onChange={(e) => set('animal_type_id', e.target.value)}
+                  aria-label="Animal Type"
+                >
+                  <option value="">-- Select Animal Type --</option>
+                  {animalTypes.map((at) => (
+                    <option key={at.id} value={at.id}>
+                      {at.animal_name}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
+
+          {/* Tag Color */}
+          {!editingAnimal && (
+            <div>
+              <label className={LABEL}>
+                Tag Color <span className="text-red-500">*</span>
+              </label>
+              {isLoadingData ? (
+                <div className="text-xs text-muted py-2">Loading...</div>
+              ) : tagColors.length === 0 ? (
+                <p className="mt-1 text-xs text-orange-500">No colors available</p>
+              ) : (
+                <select
+                  className={FIELD}
+                  value={form.tag_color_id}
+                  onChange={(e) => set('tag_color_id', e.target.value)}
+                  disabled={!form.animal_type_id}
+                  aria-label="Tag Color"
+                >
+                  <option value="">-- Select Color --</option>
+                  {tagColors.map((tc) => (
+                    <option key={tc.id} value={tc.id}>
+                      {tc.color_name}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
+
+          {/* Tag Type */}
+          {!editingAnimal && (
+            <div>
+              <label className={LABEL}>
+                Tag Type <span className="text-red-500">*</span>
+              </label>
+              {isLoadingData ? (
+                <div className="text-xs text-muted py-2">Loading...</div>
+              ) : tagTypes.length === 0 ? (
+                <p className="mt-1 text-xs text-orange-500">No types available</p>
+              ) : (
+                <select
+                  className={FIELD}
+                  value={form.tag_type_id}
+                  onChange={(e) => set('tag_type_id', e.target.value)}
+                  disabled={!form.animal_type_id}
+                  aria-label="Tag Type"
+                >
+                  <option value="">-- Select Type --</option>
+                  {tagTypes.map((tt) => (
+                    <option key={tt.id} value={tt.id}>
+                      {tt.type}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
+
+          {/* Tag Code */}
+          {!editingAnimal && (
+            <div className="col-span-2">
+              <label className={LABEL}>
+                Tag Code <span className="text-red-500">*</span>
+              </label>
+              {!form.animal_type_id || !form.tag_color_id || !form.tag_type_id ? (
+                <p className="mt-1 text-xs text-muted py-2">
+                  Select animal type, color, and type first
+                </p>
+              ) : availableTagCodes.length === 0 ? (
+                <p className="mt-1 text-xs text-orange-500 py-2 px-3 bg-orange-50 border border-orange-200 rounded-lg">
+                  ⚠️ No available tag codes for this combination. All tags may already be assigned or create new tags in Animal Admin.
+                </p>
+              ) : (
+                <select
+                  className={FIELD}
+                  value={form.tag_code_id}
+                  onChange={(e) => {
+                    const selectedCode = allTagCodes.find((tc) => tc.id === e.target.value)
+                    if (selectedCode) handleSelectTagCode(selectedCode)
+                  }}
+                  aria-label="Tag Code"
+                >
+                  <option value="">-- Select Tag Code --</option>
+                  {availableTagCodes.map((tc) => (
+                    <option key={tc.id} value={tc.id}>
+                      {formatTagCode(tc)}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
+
+          {/* Tag Code Display (Read-only when selected or editing) */}
+          {form.formattedTagCode && (
+            <div className="col-span-2 p-3 bg-background border border-border rounded-lg">
+              <div className="grid grid-cols-4 gap-3 text-sm">
+                <div>
+                  <p className="text-xs text-muted font-semibold mb-1">TAG CODE</p>
+                  <p className="font-bold text-foreground">{form.formattedTagCode}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted font-semibold mb-1">TYPE</p>
+                  <p className="font-semibold text-foreground">
+                    {tagTypes.find((tt) => tt.id === form.tag_type_id)?.type || 'N/A'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted font-semibold mb-1">COLOR</p>
+                  <p className="font-semibold text-foreground">
+                    {tagColors.find((tc) => tc.id === form.tag_color_id)?.color_name || 'N/A'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted font-semibold mb-1">ANIMAL TYPE</p>
+                  <p className="font-semibold text-foreground">
+                    {animalTypes.find((at) => at.id === form.animal_type_id)?.animal_name || 'N/A'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Sex */}
           <div>
             <label className={LABEL}>Sex</label>
-            <select className={FIELD} value={form.sex} onChange={(e) => set('sex', e.target.value as AnimalSex)} aria-label="Animal sex">
+            <select
+              className={FIELD}
+              value={form.sex}
+              onChange={(e) => set('sex', e.target.value as AnimalSex)}
+              aria-label="Animal sex"
+            >
               <option value="Male">Male</option>
               <option value="Female">Female</option>
             </select>
@@ -395,7 +684,9 @@ const AnimalModal = ({
 
           {/* Weight */}
           <div>
-            <label className={LABEL}>Weight (kg) <span className="text-red-500">*</span></label>
+            <label className={LABEL}>
+              Weight (kg) <span className="text-red-500">*</span>
+            </label>
             <input
               type="number"
               min="0"
@@ -410,7 +701,12 @@ const AnimalModal = ({
           {/* Status */}
           <div>
             <label className={LABEL}>Status</label>
-            <select className={FIELD} value={form.status} onChange={(e) => set('status', e.target.value as AnimalStatus)} aria-label="Animal status">
+            <select
+              className={FIELD}
+              value={form.status}
+              onChange={(e) => set('status', e.target.value as AnimalStatus)}
+              aria-label="Animal status"
+            >
               {STATUS_OPTIONS.map((s) => (
                 <option key={s} value={s}>
                   {s}
@@ -420,10 +716,14 @@ const AnimalModal = ({
           </div>
 
           {/* Cage */}
-          <div data-cage-select>
-            <label className={LABEL}>Cage <span className="text-red-500">*</span></label>
+          <div data-cage-select className="col-span-2">
+            <label className={LABEL}>
+              Cage <span className="text-red-500">*</span>
+            </label>
             {cages.length === 0 ? (
-              <p className="mt-1 text-xs text-orange-500">No cages available. Create a cage first.</p>
+              <p className="mt-1 text-xs text-orange-500">
+                No cages available. Create a cage first.
+              </p>
             ) : (
               <div className="relative">
                 <input
@@ -472,7 +772,7 @@ const AnimalModal = ({
           </div>
 
           {/* Mother */}
-          <div data-parent-select>
+          <div data-parent-select className="col-span-2">
             <label className={LABEL}>Mother (Optional)</label>
             <div className="relative">
               <input
@@ -520,7 +820,7 @@ const AnimalModal = ({
           </div>
 
           {/* Father */}
-          <div data-parent-select>
+          <div data-parent-select className="col-span-2">
             <label className={LABEL}>Father (Optional)</label>
             <div className="relative">
               <input
@@ -568,22 +868,76 @@ const AnimalModal = ({
           </div>
         </div>
 
+        {/* Batch Items Display */}
+        {batch.length > 0 && (
+          <div className="mt-6 p-4 bg-success/10 border border-success/30 rounded-xl">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-success">Batch Queue ({batch.length} animals)</h3>
+              <button
+                type="button"
+                className="text-xs text-muted hover:text-foreground transition-colors"
+                onClick={() => setBatch([])}
+              >
+                Clear
+              </button>
+            </div>
+            <div className="max-h-40 overflow-y-auto space-y-2">
+              {batch.map((item, idx) => (
+                <div key={idx} className="flex items-center justify-between bg-background p-2 rounded text-xs">
+                  <div className="flex-1">
+                    <span className="font-mono font-semibold">{item.formattedTagCode}</span>
+                    <span className="text-muted ml-2">· {item.sex} · {item.weight} kg · Cage:</span>
+                    <span className="font-medium ml-1">{cages.find((c) => c.id === item.current_cage_id)?.cage_label || 'N/A'}</span>
+                  </div>
+                  <button
+                    type="button"
+                    className="ml-2 text-danger hover:text-danger/80 transition-colors px-2 py-1"
+                    onClick={() => handleRemoveFromBatch(idx)}
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="flex gap-3 mt-6">
           <button
             className="flex-1 py-2.5 border border-border rounded-lg text-sm font-medium text-muted hover:bg-background transition-colors disabled:opacity-50"
             onClick={onClose}
-            disabled={isSubmitting}
+            disabled={isSubmitting || isRegisteringBatch}
           >
             Cancel
           </button>
-          <button
-            className="flex-1 py-2.5 bg-success text-white rounded-lg text-sm font-medium hover:bg-success/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-            onClick={handleSubmit}
-            disabled={isSubmitting}
-          >
-            {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
-            {editingAnimal ? 'Save Changes' : 'Register Animal'}
-          </button>
+          {batch.length > 0 && (
+            <button
+              className="flex-1 py-2.5 bg-warning text-white rounded-lg text-sm font-medium hover:bg-warning/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              onClick={() => setBatch([])}
+              disabled={isRegisteringBatch}
+            >
+              Clear Batch
+            </button>
+          )}
+          {batch.length > 0 ? (
+            <button
+              className="flex-1 py-2.5 bg-success text-white rounded-lg text-sm font-medium hover:bg-success/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              onClick={handleRegisterBatch}
+              disabled={isRegisteringBatch}
+            >
+              {isRegisteringBatch && <Loader2 className="w-4 h-4 animate-spin" />}
+              Register All ({batch.length})
+            </button>
+          ) : (
+            <button
+              className="flex-1 py-2.5 bg-success text-white rounded-lg text-sm font-medium hover:bg-success/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              onClick={handleSubmit}
+              disabled={isSubmitting || !form.tag_animals_colors_id}
+            >
+              {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
+              {editingAnimal ? 'Save Changes' : 'Add to Batch'}
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -720,10 +1074,10 @@ export default function AnimalTagging() {
   const handleAddAnimal = async (values: AnimalFormValues) => {
     setIsSubmitting(true)
     try {
-      // Check if ID already exists
-      const exists = await animalService.animalIdExists(values.id)
+      // Check if tag code is already used
+      const exists = animals.some((a) => a.tag_animals_colors_id === values.tag_animals_colors_id)
       if (exists) {
-        throw new Error('An animal with this ID already exists')
+        throw new Error('This tag code is already assigned to another animal')
       }
 
       // Check cage capacity if a cage is selected
@@ -737,20 +1091,18 @@ export default function AnimalTagging() {
       }
 
       const newAnimal = await animalService.createAnimal({
-        id: values.id,
-        type: values.type,
+        id: values.tag_animals_colors_id,
+        tag_animals_colors_id: values.tag_animals_colors_id,
         sex: values.sex,
         weight: parseFloat(values.weight),
         status: values.status,
-        current_cage_id: values.current_cage_id || undefined,
-        mother_id: values.mother_id || undefined,
-        father_id: values.father_id || undefined,
+        current_cage_id: values.current_cage_id || null,
+        mother_id: values.mother_id || null,
+        father_id: values.father_id || null,
       })
 
-      if (newAnimal) {
-        setAnimals((prev) => [newAnimal, ...prev])
-        setShowModal(false)
-      }
+      setAnimals((prev) => [newAnimal, ...prev])
+      setShowModal(false)
     } catch (err) {
       console.error('Error adding animal:', err)
       throw err
@@ -775,20 +1127,21 @@ export default function AnimalTagging() {
       }
 
       const updated = await animalService.updateAnimal(editingAnimal.id, {
-        type: values.type,
         sex: values.sex,
         weight: parseFloat(values.weight),
         status: values.status,
-        current_cage_id: values.current_cage_id || undefined,
-        mother_id: values.mother_id || undefined,
-        father_id: values.father_id || undefined,
+        current_cage_id: values.current_cage_id || null,
+        mother_id: values.mother_id || null,
+        father_id: values.father_id || null,
       })
 
-      if (updated) {
-        setAnimals((prev) => prev.map((a) => (a.id === editingAnimal.id ? updated : a)))
-        setShowModal(false)
-        setEditingAnimal(null)
+      if (!updated) {
+        throw new Error('Failed to update animal. Please check the console for details.')
       }
+
+      setAnimals((prev) => prev.map((a) => (a.id === editingAnimal.id ? updated : a)))
+      setShowModal(false)
+      setEditingAnimal(null)
     } catch (err) {
       console.error('Error updating animal:', err)
       throw err
@@ -838,8 +1191,9 @@ export default function AnimalTagging() {
       list = list.filter(
         (a) =>
           a.id.toLowerCase().includes(q) ||
-          a.type.toLowerCase().includes(q) ||
-          a.sex.toLowerCase().includes(q)
+          (a.type && a.type.toLowerCase().includes(q)) ||
+          a.sex.toLowerCase().includes(q) ||
+          a.status.toLowerCase().includes(q)
       )
     }
     return list
@@ -865,14 +1219,14 @@ export default function AnimalTagging() {
           onClick={() => setBarcodeAnimal(a)}
           title="Click to view barcode"
         >
-          <Tag className="w-5 h-5" /> {a.id}
+          <Tag className="w-5 h-5" /> {a.formattedTagCode || a.id}
         </button>
       ),
     },
     {
       key: 'type' as const,
       header: 'Type',
-      render: (a: DBAnimal) => <span className="text-base font-semibold text-foreground">{a.type}</span>,
+      render: (a: DBAnimal) => <span className="text-base font-semibold text-foreground">{a.animalType || a.type?.split('|')[1]?.trim() || ''}</span>,
     },
     {
       key: 'sex' as const,
@@ -1045,7 +1399,6 @@ export default function AnimalTagging() {
             setEditingAnimal(null)
           }}
           onSubmit={editingAnimal ? handleUpdateAnimal : handleAddAnimal}
-          onGenerateNextId={() => animalService.generateNextAnimalId()}
         />
       )}
       {barcodeAnimal && <BarcodeModal animal={barcodeAnimal} onClose={() => setBarcodeAnimal(null)} />}
