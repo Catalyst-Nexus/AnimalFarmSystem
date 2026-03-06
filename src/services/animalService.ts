@@ -4,13 +4,14 @@ import { supabase, isSupabaseConfigured } from './supabase'
 
 export interface Animal {
   id: string // Manual barcode ID
+  tag_animals_colors_id: string | null
   current_cage_id: string | null
   mother_id: string | null
   father_id: string | null
-  type: string
   sex: string
   weight: number
   status: string
+  is_active: boolean
   created_at: string
 }
 
