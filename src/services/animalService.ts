@@ -415,7 +415,7 @@ export const animalService = {
         .eq('is_active', true)
         .order('created_at', { ascending: false })
       if (error) { console.error('Error fetching animals with tag:', error); return [] }
-      return (data || []).map((a: any) => ({
+      return (data || []).map((a: Animal & { tag_animals_colors?: { tag_code: number } | null; cages?: { cage_label: string } | null }) => ({
         ...a,
         tag_code: a.tag_animals_colors?.tag_code ?? null,
         cage_label: a.cages?.cage_label ?? null,

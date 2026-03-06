@@ -1,5 +1,5 @@
 import { supabase, isSupabaseConfigured } from "./supabase";
-import { getUserFacilityIds, applyFacilityFilter } from './facilityFilterService'
+
 
 // Helper to query tables in the module3 schema using the shared auth session
 const module3 = () => supabase!.schema("module3");
@@ -179,7 +179,6 @@ export const createDeliveryItem = async (fields: {
 
 export const updateDeliveryItem = async (
   id: string,
-  userId: string,
   fields: {
     category_id?: string;
     description?: string;
@@ -200,11 +199,6 @@ export const updateDeliveryItem = async (
     .from("delivery_items")
     .update(fields)
     .eq("id", id);
-
-  // Apply facility filter to ensure user can only update their facility's warehouse entries
-  query = applyFacilityFilter(query, facilityIds)
-
-  const { error } = await query;
   if (error) return { success: false, error: error.message };
   return { success: true };
 };
