@@ -18,10 +18,12 @@ import { useMonitoring } from '../MonitoringContext'
 import { useToast } from '../ToastContext'
 import { OccupancyRing } from '../components/OccupancyRing'
 import { SEX_STYLES } from '../utils'
+import { useAuthStore } from '@/store/authStore'
 
 export const SortingTab = () => {
   const { pigs, cages } = useMonitoring()
   const { showToast } = useToast()
+  const user = useAuthStore((s) => s.user)
   const [sortBy, setSortBy] = useState<'weight-asc' | 'weight-desc' | 'gender-male' | 'gender-female'>('weight-desc')
   const [selectedCages, setSelectedCages] = useState<string[]>([])
   const [preview, setPreview] = useState<{ cageId: string; animals: typeof pigs }[]>([])
@@ -83,6 +85,11 @@ export const SortingTab = () => {
       return
     }
 
+    if (!user?.id) {
+      showToast('User not authenticated', 'error')
+      return
+    }
+
     if (!confirm('This will redistribute all animals according to the preview. Continue?')) return
 
     setIsSaving(true)
@@ -92,7 +99,7 @@ export const SortingTab = () => {
       for (const group of preview) {
         for (const animal of group.animals) {
           if (animal.cageId !== group.cageId) {
-            updates.push(updateAnimalCage(animal.id, group.cageId).then(() => {}))
+            updates.push(updateAnimalCage(animal.id, user.id, group.cageId).then(() => {}))
           }
         }
       }

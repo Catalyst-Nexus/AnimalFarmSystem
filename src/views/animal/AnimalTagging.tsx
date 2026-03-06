@@ -14,6 +14,8 @@ import type { Animal as DBAnimal, Cage } from '@/services/animalService'
 import { checkCageCapacity } from '@/services/cageService'
 import { fetchTagAnimalColors, fetchAnimalTypes, fetchTagColors, fetchTagTypes } from '@/services/animalAdminService'
 import type { TagAnimalColor, AnimalType, TagColor, TagType } from '@/services/animalAdminService'
+import { useAuthStore } from '@/store/authStore'
+import { getUserFacilityInfo } from '@/services/facilityFilterService'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -183,6 +185,7 @@ const AnimalModal = ({
   onClose: () => void
   onSubmit: (values: AnimalFormValues) => Promise<void>
 }) => {
+  const { user } = useAuthStore()
   const [allTagCodes, setAllTagCodes] = useState<TagAnimalColor[]>([])
   const [animalTypes, setAnimalTypes] = useState<AnimalType[]>([])
   const [tagColors, setTagColors] = useState<TagColor[]>([])
@@ -204,13 +207,14 @@ const AnimalModal = ({
   // Load all data on mount
   useEffect(() => {
     const loadData = async () => {
+      if (!user?.id) return
       setIsLoadingData(true)
       try {
         const [types, colors, tagTypesData, codes] = await Promise.all([
-          fetchAnimalTypes(),
-          fetchTagColors(),
-          fetchTagTypes(),
-          fetchTagAnimalColors(),
+          fetchAnimalTypes(user.id),
+          fetchTagColors(user.id),
+          fetchTagTypes(user.id),
+          fetchTagAnimalColors(user.id),
         ])
         setAnimalTypes(types)
         setTagColors(colors)
@@ -223,7 +227,7 @@ const AnimalModal = ({
       }
     }
     loadData()
-  }, [])
+  }, [user?.id])
 
   // Populate form when editing
   useEffect(() => {
@@ -910,33 +914,37 @@ const AnimalModal = ({
           >
             Cancel
           </button>
-          {batch.length > 0 && (
-            <button
-              className="flex-1 py-2.5 bg-warning text-white rounded-lg text-sm font-medium hover:bg-warning/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-              onClick={() => setBatch([])}
-              disabled={isRegisteringBatch}
-            >
-              Clear Batch
-            </button>
-          )}
-          {batch.length > 0 ? (
-            <button
-              className="flex-1 py-2.5 bg-success text-white rounded-lg text-sm font-medium hover:bg-success/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-              onClick={handleRegisterBatch}
-              disabled={isRegisteringBatch}
-            >
-              {isRegisteringBatch && <Loader2 className="w-4 h-4 animate-spin" />}
-              Register All ({batch.length})
-            </button>
-          ) : (
+          {editingAnimal ? (
             <button
               className="flex-1 py-2.5 bg-success text-white rounded-lg text-sm font-medium hover:bg-success/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
               onClick={handleSubmit}
-              disabled={isSubmitting || !form.tag_animals_colors_id}
+              disabled={isSubmitting}
             >
               {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
-              {editingAnimal ? 'Save Changes' : 'Add to Batch'}
+              Save Changes
             </button>
+          ) : (
+            <>
+              <button
+                className="flex-1 py-2.5 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                onClick={handleSubmit}
+                disabled={isSubmitting || !form.tag_animals_colors_id}
+              >
+                {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
+                <Plus className="w-4 h-4" />
+                Add
+              </button>
+              {batch.length > 0 && (
+                <button
+                  className="flex-1 py-2.5 bg-success text-white rounded-lg text-sm font-medium hover:bg-success/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                  onClick={handleRegisterBatch}
+                  disabled={isRegisteringBatch}
+                >
+                  {isRegisteringBatch && <Loader2 className="w-4 h-4 animate-spin" />}
+                  Register All ({batch.length})
+                </button>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -1039,6 +1047,7 @@ const StatusModal = ({ animal, isUpdating, onClose, onStatusChange }: { animal: 
 // ─── Main App ─────────────────────────────────────────────────────────────────
 
 export default function AnimalTagging() {
+  const { user } = useAuthStore()
   const [animals, setAnimals] = useState<DBAnimal[]>([])
   const [cages, setCages] = useState<Cage[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -1056,9 +1065,10 @@ export default function AnimalTagging() {
   // Load animals and cages on mount
   useEffect(() => {
     const loadData = async () => {
+      if (!user?.id) return
       setIsLoading(true)
       try {
-        const [animalsData, cagesData] = await Promise.all([animalService.getAnimals(), cageService.getCages()])
+        const [animalsData, cagesData] = await Promise.all([animalService.getAnimals(user.id), cageService.getCages(user.id)])
         setAnimals(animalsData)
         setCages(cagesData)
       } catch (err) {
@@ -1069,9 +1079,13 @@ export default function AnimalTagging() {
     }
 
     loadData()
-  }, [])
+  }, [user?.id])
 
   const handleAddAnimal = async (values: AnimalFormValues) => {
+    if (!user?.id) {
+      throw new Error('User not authenticated')
+    }
+
     setIsSubmitting(true)
     try {
       // Check if tag code is already used
@@ -1080,9 +1094,16 @@ export default function AnimalTagging() {
         throw new Error('This tag code is already assigned to another animal')
       }
 
+      // Get user's facility ID for insert
+      const { insertId } = await getUserFacilityInfo(user.id)
+      if (!insertId) {
+        throw new Error('User is not assigned to any facility')
+      }
+      const userFacilityId = insertId
+
       // Check cage capacity if a cage is selected
       if (values.current_cage_id) {
-        const capacityInfo = await checkCageCapacity(values.current_cage_id)
+        const capacityInfo = await checkCageCapacity(values.current_cage_id, user.id)
         if (capacityInfo.isFull) {
           throw new Error(
             `Cage is full! Current: ${capacityInfo.currentCount}/${capacityInfo.maxCapacity}. Please select a different cage.`
@@ -1096,6 +1117,7 @@ export default function AnimalTagging() {
         sex: values.sex,
         weight: parseFloat(values.weight),
         status: values.status,
+        user_facility_id: userFacilityId,
         current_cage_id: values.current_cage_id || null,
         mother_id: values.mother_id || null,
         father_id: values.father_id || null,
@@ -1112,13 +1134,13 @@ export default function AnimalTagging() {
   }
 
   const handleUpdateAnimal = async (values: AnimalFormValues) => {
-    if (!editingAnimal) return
+    if (!editingAnimal || !user?.id) return
 
     setIsSubmitting(true)
     try {
       // Check cage capacity if cage is being changed or assigned
       if (values.current_cage_id && values.current_cage_id !== editingAnimal.current_cage_id) {
-        const capacityInfo = await checkCageCapacity(values.current_cage_id, editingAnimal.id)
+        const capacityInfo = await checkCageCapacity(values.current_cage_id, user.id, editingAnimal.id)
         if (capacityInfo.isFull) {
           throw new Error(
             `Cage is full! Current: ${capacityInfo.currentCount}/${capacityInfo.maxCapacity}. Please select a different cage.`
@@ -1126,7 +1148,7 @@ export default function AnimalTagging() {
         }
       }
 
-      const updated = await animalService.updateAnimal(editingAnimal.id, {
+      const updated = await animalService.updateAnimal(editingAnimal.id, user.id, {
         sex: values.sex,
         weight: parseFloat(values.weight),
         status: values.status,
@@ -1151,11 +1173,11 @@ export default function AnimalTagging() {
   }
 
   const handleDeleteAnimal = async () => {
-    if (!deletingAnimal) return
+    if (!deletingAnimal || !user?.id) return
 
     setIsDeleting(true)
     try {
-      const success = await animalService.deleteAnimal(deletingAnimal.id)
+      const success = await animalService.deleteAnimal(deletingAnimal.id, user.id)
       if (success) {
         setAnimals((prev) => prev.filter((a) => a.id !== deletingAnimal.id))
         setDeletingAnimal(null)
@@ -1168,11 +1190,11 @@ export default function AnimalTagging() {
   }
 
   const handleStatusChange = async (status: AnimalStatus) => {
-    if (!statusAnimal) return
+    if (!statusAnimal || !user?.id) return
 
     setIsUpdatingStatus(true)
     try {
-      const updated = await animalService.updateAnimal(statusAnimal.id, { status })
+      const updated = await animalService.updateAnimal(statusAnimal.id, user.id, { status })
       if (updated) {
         setAnimals((prev) => prev.map((a) => (a.id === statusAnimal.id ? updated : a)))
       }
