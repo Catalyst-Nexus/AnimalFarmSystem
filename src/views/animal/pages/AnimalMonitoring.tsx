@@ -1,4 +1,4 @@
-import { ToastProvider, MonitoringProvider, MonitoringApp } from './monitoring'
+import { ToastProvider, MonitoringProvider, MonitoringApp } from '../monitoring'
 
 export default function AnimalMonitoring() {
   return (

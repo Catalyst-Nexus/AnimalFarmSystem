@@ -1,7 +1,6 @@
-export { default as AnimalAdmin } from "./AnimalAdmin";
-export { default as AnimalMonitoring } from "./AnimalMonitoring";
-export { default as AnimalTagging } from "./AnimalTagging";
-export { default as Breeding } from "./Breeding";
-export { default as Feeding } from "./Feeding";
-export { default as Inventory } from "../inventory/Inventory";
-export { default as Vitamins } from "./Vitamins";
+export { default as AnimalAdmin } from './pages/AnimalAdmin'
+export { default as AnimalMonitoring } from './pages/AnimalMonitoring'
+export { default as AnimalTagging } from './pages/AnimalTagging'
+export { default as Feeding } from './pages/Feeding'
+export { default as Inventory } from '../inventory/Inventory'
+export { default as Vitamins } from './pages/Vitamins'

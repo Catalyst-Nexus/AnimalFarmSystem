@@ -25,7 +25,7 @@ import { useMonitoring } from './MonitoringContext'
 import { useToast } from './ToastContext'
 import { CageCard } from './components'
 import { MonitoringSheetTab, SortingTab } from './tabs'
-import CageDialog from '../CageDialog'
+import CageDialog from '../components/dialogs/CageDialog'
 import type { Cage } from './types'
 
 export const MonitoringApp = () => {
