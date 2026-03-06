@@ -288,13 +288,13 @@ export const fetchTagAnimalColors = async (): Promise<TagAnimalColor[]> => {
 
   try {
     const { data, error } = await module2()
-      .from('tag_animal_colors')
+      .from('tag_animals_colors')
       .select(
         `
         *,
-        animal_types (animal_name),
-        tag_colors (color),
-        tag_types (type)
+        animal_types!animal_type_id(animal_name),
+        tag_colors!tag_color_id(color),
+        tag_types!tag_type_id(type)
       `
       )
       .order('created_at', { ascending: false })
@@ -319,14 +319,14 @@ export const createTagAnimalColor = async (payload: {
 
   try {
     const { data, error } = await module2()
-      .from('tag_animal_colors')
+      .from('tag_animals_colors')
       .insert([payload])
       .select(
         `
         *,
-        animal_types (animal_name),
-        tag_colors (color),
-        tag_types (type)
+        animal_types!animal_type_id(animal_name),
+        tag_colors!tag_color_id(color),
+        tag_types!tag_type_id(type)
       `
       )
       .single()
@@ -354,7 +354,7 @@ export const updateTagAnimalColor = async (
 
   try {
     const { error } = await module2()
-      .from('tag_animal_colors')
+      .from('tag_animals_colors')
       .update(payload)
       .eq('id', id)
 
@@ -372,7 +372,7 @@ export const deleteTagAnimalColor = async (id: string): Promise<void> => {
 
   try {
     const { error } = await module2()
-      .from('tag_animal_colors')
+      .from('tag_animals_colors')
       .delete()
       .eq('id', id)
 
@@ -414,7 +414,7 @@ export const bulkCreateTagCodes = async (payload: {
     }
 
     const { error } = await module2()
-      .from('tag_animal_colors')
+      .from('tag_animals_colors')
       .insert(tagCodes)
 
     if (error) throw error
