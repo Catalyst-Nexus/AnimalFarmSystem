@@ -1,13 +1,20 @@
 import { useState, useEffect } from "react";
-import { Package, Plus, RefreshCw, Trash2 } from "lucide-react";
 import {
-  PageHeader,
-  StatsRow,
-  StatCard,
-  ActionsBar,
-  PrimaryButton,
-  Tabs,
-} from "@/components/ui";
+  Package,
+  Plus,
+  RefreshCw,
+  Trash2,
+  Warehouse,
+  ShieldCheck,
+  Coins,
+  FolderKanban,
+  BellRing,
+  Settings2,
+  TrendingUp,
+  ArrowDownToLine,
+  PackageSearch,
+} from "lucide-react";
+import { PageHeader } from "@/components/ui";
 import {
   fetchDeliveryItems,
   createDeliveryItem,
@@ -38,10 +45,10 @@ import RequestsList from "./RequestsList";
 import StockOverview from "./StockOverview";
 
 const TABS = [
-  { key: "items", label: "Delivery Items" },
-  { key: "stock", label: "Stock Overview" },
-  { key: "requests", label: "Requests" },
-  { key: "lookups", label: "Categories / Brands / Units" },
+  { key: "items", label: "Delivery Items", icon: ArrowDownToLine },
+  { key: "stock", label: "Stock Overview", icon: TrendingUp },
+  { key: "requests", label: "Requests", icon: PackageSearch },
+  { key: "lookups", label: "Categories / Brands / Units", icon: Settings2 },
 ];
 
 export default function Inventory() {
@@ -340,156 +347,301 @@ export default function Inventory() {
   ).length;
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Warehouse Inventory"
-        subtitle="Manage deliveries, issuance, and lookup data"
-        icon={<Package className="w-6 h-6" />}
-      />
-
-      <StatsRow>
-        <StatCard label="Delivery Items" value={deliveryItems.length} />
-        <StatCard label="Active" value={activeCount} />
-        <StatCard
-          label="Total Value"
-          value={`₱${totalValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
+    <div className="min-h-screen bg-linear-to-br from-gray-50 via-white to-gray-50 p-6 space-y-6">
+      <div className="max-w-7xl mx-auto">
+        <PageHeader
+          title="Warehouse Inventory"
+          subtitle="Manage deliveries, issuance, and lookup data"
+          icon={<Package className="w-7 h-7" />}
         />
-        <StatCard label="Categories" value={categories.length} />
-        <StatCard label="Pending Requests" value={pendingRequestCount} />
-      </StatsRow>
 
-      {error && (
-        <div className="px-4 py-3 bg-danger/10 border border-danger/20 rounded-lg text-sm text-danger">
-          {error}
+        {error && (
+          <div className="bg-red-50 border-l-4 border-red-500 text-red-700 px-5 py-4 rounded-lg shadow-sm animate-in slide-in-from-top">
+            <p className="font-medium">Error</p>
+            <p className="text-sm mt-1">{error}</p>
+          </div>
+        )}
+
+        {/* ─── Enhanced Stats Cards ───────────────────────────────────────── */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-5 mb-8">
+          <div className="group relative bg-white rounded-2xl p-6 shadow-sm hover:shadow-xl transition-all duration-300 border border-gray-100 overflow-hidden">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-linear-to-br from-teal-500/10 to-cyan-500/10 rounded-bl-full transform translate-x-8 -translate-y-8 group-hover:scale-110 transition-transform duration-300" />
+            <div className="relative">
+              <div className="flex items-center justify-between mb-3">
+                <div className="p-3 bg-linear-to-br from-teal-500 to-cyan-600 rounded-xl shadow-lg shadow-teal-200/50">
+                  <Warehouse className="w-6 h-6 text-white" />
+                </div>
+                <span className="text-3xl font-bold bg-linear-to-br from-teal-600 to-cyan-600 bg-clip-text text-transparent">
+                  {deliveryItems.length}
+                </span>
+              </div>
+              <p className="text-sm font-medium text-gray-500 tracking-wide">
+                Delivery Items
+              </p>
+            </div>
+          </div>
+
+          <div className="group relative bg-white rounded-2xl p-6 shadow-sm hover:shadow-xl transition-all duration-300 border border-gray-100 overflow-hidden">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-linear-to-br from-emerald-500/10 to-green-500/10 rounded-bl-full transform translate-x-8 -translate-y-8 group-hover:scale-110 transition-transform duration-300" />
+            <div className="relative">
+              <div className="flex items-center justify-between mb-3">
+                <div className="p-3 bg-linear-to-br from-emerald-500 to-green-600 rounded-xl shadow-lg shadow-emerald-200/50">
+                  <ShieldCheck className="w-6 h-6 text-white" />
+                </div>
+                <span className="text-3xl font-bold bg-linear-to-br from-emerald-600 to-green-600 bg-clip-text text-transparent">
+                  {activeCount}
+                </span>
+              </div>
+              <p className="text-sm font-medium text-gray-500 tracking-wide">
+                Active Items
+              </p>
+            </div>
+          </div>
+
+          <div className="group relative bg-white rounded-2xl p-6 shadow-sm hover:shadow-xl transition-all duration-300 border border-gray-100 overflow-hidden">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-linear-to-br from-violet-500/10 to-purple-500/10 rounded-bl-full transform translate-x-8 -translate-y-8 group-hover:scale-110 transition-transform duration-300" />
+            <div className="relative">
+              <div className="flex items-center justify-between mb-3">
+                <div className="p-3 bg-linear-to-br from-violet-500 to-purple-600 rounded-xl shadow-lg shadow-violet-200/50">
+                  <Coins className="w-6 h-6 text-white" />
+                </div>
+                <span className="text-2xl font-bold bg-linear-to-br from-violet-600 to-purple-600 bg-clip-text text-transparent">
+                  ₱
+                  {totalValue.toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                  })}
+                </span>
+              </div>
+              <p className="text-sm font-medium text-gray-500 tracking-wide">
+                Total Value
+              </p>
+            </div>
+          </div>
+
+          <div className="group relative bg-white rounded-2xl p-6 shadow-sm hover:shadow-xl transition-all duration-300 border border-gray-100 overflow-hidden">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-linear-to-br from-sky-500/10 to-blue-500/10 rounded-bl-full transform translate-x-8 -translate-y-8 group-hover:scale-110 transition-transform duration-300" />
+            <div className="relative">
+              <div className="flex items-center justify-between mb-3">
+                <div className="p-3 bg-linear-to-br from-sky-500 to-blue-600 rounded-xl shadow-lg shadow-sky-200/50">
+                  <FolderKanban className="w-6 h-6 text-white" />
+                </div>
+                <span className="text-3xl font-bold bg-linear-to-br from-sky-600 to-blue-600 bg-clip-text text-transparent">
+                  {categories.length}
+                </span>
+              </div>
+              <p className="text-sm font-medium text-gray-500 tracking-wide">
+                Categories
+              </p>
+            </div>
+          </div>
+
+          <div className="group relative bg-white rounded-2xl p-6 shadow-sm hover:shadow-xl transition-all duration-300 border border-gray-100 overflow-hidden">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-linear-to-br from-rose-500/10 to-pink-500/10 rounded-bl-full transform translate-x-8 -translate-y-8 group-hover:scale-110 transition-transform duration-300" />
+            <div className="relative">
+              <div className="flex items-center justify-between mb-3">
+                <div className="p-3 bg-linear-to-br from-rose-500 to-pink-600 rounded-xl shadow-lg shadow-rose-200/50">
+                  <BellRing className="w-6 h-6 text-white" />
+                </div>
+                <span className="text-3xl font-bold bg-linear-to-br from-rose-600 to-pink-600 bg-clip-text text-transparent">
+                  {pendingRequestCount}
+                </span>
+              </div>
+              <p className="text-sm font-medium text-gray-500 tracking-wide">
+                Pending Requests
+              </p>
+            </div>
+          </div>
         </div>
-      )}
 
-      <Tabs tabs={TABS} activeTab={activeTab} onTabChange={setActiveTab} />
+        {/* ─── Tabs Card ──────────────────────────────────────────────────── */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="border-b border-gray-200 bg-linear-to-r from-gray-50 to-white">
+            <nav className="flex space-x-2 px-6 pt-4">
+              {TABS.map((tab) => (
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key)}
+                  className={`
+                    flex items-center gap-2 px-5 py-3 font-medium text-sm rounded-t-xl transition-all duration-200
+                    ${
+                      activeTab === tab.key
+                        ? "bg-white text-green-600 border-t-2 border-x border-green-500 shadow-sm -mb-px"
+                        : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+                    }
+                  `}
+                >
+                  <tab.icon className="w-4 h-4" />
+                  {tab.label}
+                </button>
+              ))}
+            </nav>
+          </div>
 
-      {/* ─── Delivery Items Tab ───────────────────────────────────────────── */}
-      {activeTab === "items" && (
-        <>
-          <ActionsBar>
-            <PrimaryButton onClick={loadAll} disabled={isLoading}>
-              <RefreshCw
-                className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`}
-              />
-              Refresh
-            </PrimaryButton>
-            <PrimaryButton
-              onClick={() => {
-                resetForm();
-                setShowDialog(true);
-              }}
-            >
-              <Plus className="w-4 h-4" />
-              Add Delivery Item
-            </PrimaryButton>
-          </ActionsBar>
+          <div className="p-6">
+            {/* ─── Delivery Items Tab ─────────────────────────────────────── */}
+            {activeTab === "items" && (
+              <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-xl font-semibold text-gray-800">
+                    Manage Delivery Items
+                  </h2>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={loadAll}
+                      disabled={isLoading}
+                      className="flex items-center gap-2 px-4 py-2.5 text-gray-700 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 shadow-sm disabled:opacity-50"
+                    >
+                      <RefreshCw
+                        className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`}
+                      />
+                      Refresh
+                    </button>
+                    <button
+                      onClick={() => {
+                        resetForm();
+                        setShowDialog(true);
+                      }}
+                      className="flex items-center gap-2 px-5 py-2.5 bg-linear-to-r from-green-500 to-emerald-600 text-white rounded-xl hover:from-green-600 hover:to-emerald-700 transition-all duration-200 shadow-md hover:shadow-lg font-medium"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Add Delivery Item
+                    </button>
+                  </div>
+                </div>
 
-          {isLoading ? (
-            <div className="text-center py-12">
-              <p className="text-muted">Loading...</p>
-            </div>
-          ) : (
-            <DeliveryItemsList
-              items={deliveryItems}
-              search={itemSearch}
-              onSearchChange={setItemSearch}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-            />
-          )}
-        </>
-      )}
+                {isLoading ? (
+                  <div className="flex items-center justify-center py-16">
+                    <RefreshCw className="w-6 h-6 text-gray-400 animate-spin" />
+                    <span className="ml-3 text-gray-500">Loading items...</span>
+                  </div>
+                ) : (
+                  <DeliveryItemsList
+                    items={deliveryItems}
+                    search={itemSearch}
+                    onSearchChange={setItemSearch}
+                    onEdit={handleEdit}
+                    onDelete={handleDelete}
+                  />
+                )}
+              </div>
+            )}
 
-      {/* ─── Stock Overview Tab ───────────────────────────────────────────── */}
-      {activeTab === "stock" && (
-        <>
-          <ActionsBar>
-            <PrimaryButton onClick={loadAll} disabled={isLoading}>
-              <RefreshCw
-                className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`}
-              />
-              Refresh
-            </PrimaryButton>
-          </ActionsBar>
+            {/* ─── Stock Overview Tab ─────────────────────────────────────── */}
+            {activeTab === "stock" && (
+              <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-xl font-semibold text-gray-800">
+                    Stock Overview
+                  </h2>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={loadAll}
+                      disabled={isLoading}
+                      className="flex items-center gap-2 px-4 py-2.5 text-gray-700 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 shadow-sm disabled:opacity-50"
+                    >
+                      <RefreshCw
+                        className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`}
+                      />
+                      Refresh
+                    </button>
+                  </div>
+                </div>
 
-          {isLoading ? (
-            <div className="text-center py-12">
-              <p className="text-muted">Loading...</p>
-            </div>
-          ) : (
-            <StockOverview
-              items={deliveryItems}
-              transactions={stockTransactions}
-            />
-          )}
-        </>
-      )}
+                {isLoading ? (
+                  <div className="flex items-center justify-center py-16">
+                    <RefreshCw className="w-6 h-6 text-gray-400 animate-spin" />
+                    <span className="ml-3 text-gray-500">
+                      Loading stock data...
+                    </span>
+                  </div>
+                ) : (
+                  <StockOverview
+                    items={deliveryItems}
+                    transactions={stockTransactions}
+                  />
+                )}
+              </div>
+            )}
 
-      {/* ─── Requests Tab ─────────────────────────────────────────────── */}
-      {activeTab === "requests" && (
-        <>
-          <ActionsBar>
-            <PrimaryButton onClick={loadAll} disabled={isLoading}>
-              <RefreshCw
-                className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`}
-              />
-              Refresh
-            </PrimaryButton>
-          </ActionsBar>
+            {/* ─── Requests Tab ───────────────────────────────────────────── */}
+            {activeTab === "requests" && (
+              <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-xl font-semibold text-gray-800">
+                    Stock Requests
+                  </h2>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={loadAll}
+                      disabled={isLoading}
+                      className="flex items-center gap-2 px-4 py-2.5 text-gray-700 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 shadow-sm disabled:opacity-50"
+                    >
+                      <RefreshCw
+                        className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`}
+                      />
+                      Refresh
+                    </button>
+                  </div>
+                </div>
 
-          {isLoading ? (
-            <div className="text-center py-12">
-              <p className="text-muted">Loading...</p>
-            </div>
-          ) : (
-            <RequestsList
-              requests={stockTransactions}
-              search={requestSearch}
-              onSearchChange={setRequestSearch}
-              onApprove={handleApproveRequest}
-              onReject={handleRejectRequest}
-            />
-          )}
-        </>
-      )}
+                {isLoading ? (
+                  <div className="flex items-center justify-center py-16">
+                    <RefreshCw className="w-6 h-6 text-gray-400 animate-spin" />
+                    <span className="ml-3 text-gray-500">
+                      Loading requests...
+                    </span>
+                  </div>
+                ) : (
+                  <RequestsList
+                    requests={stockTransactions}
+                    search={requestSearch}
+                    onSearchChange={setRequestSearch}
+                    onApprove={handleApproveRequest}
+                    onReject={handleRejectRequest}
+                  />
+                )}
+              </div>
+            )}
 
-      {/* ─── Lookups Tab ──────────────────────────────────────────────────── */}
-      {activeTab === "lookups" && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Categories */}
-          <LookupCard
-            title="Categories"
-            items={categories}
-            newName={newCategoryName}
-            onNewNameChange={setNewCategoryName}
-            onAdd={handleAddCategory}
-            onDelete={handleDeleteCategory}
-          />
-
-          {/* Brands */}
-          <LookupCard
-            title="Brands"
-            items={brands}
-            newName={newBrandName}
-            onNewNameChange={setNewBrandName}
-            onAdd={handleAddBrand}
-            onDelete={handleDeleteBrand}
-          />
-
-          {/* Units */}
-          <LookupCard
-            title="Units"
-            items={units}
-            newName={newUnitName}
-            onNewNameChange={setNewUnitName}
-            onAdd={handleAddUnit}
-            onDelete={handleDeleteUnit}
-          />
+            {/* ─── Lookups Tab ────────────────────────────────────────────── */}
+            {activeTab === "lookups" && (
+              <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-xl font-semibold text-gray-800">
+                    Manage Lookups
+                  </h2>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <LookupCard
+                    title="Categories"
+                    items={categories}
+                    newName={newCategoryName}
+                    onNewNameChange={setNewCategoryName}
+                    onAdd={handleAddCategory}
+                    onDelete={handleDeleteCategory}
+                  />
+                  <LookupCard
+                    title="Brands"
+                    items={brands}
+                    newName={newBrandName}
+                    onNewNameChange={setNewBrandName}
+                    onAdd={handleAddBrand}
+                    onDelete={handleDeleteBrand}
+                  />
+                  <LookupCard
+                    title="Units"
+                    items={units}
+                    newName={newUnitName}
+                    onNewNameChange={setNewUnitName}
+                    onAdd={handleAddUnit}
+                    onDelete={handleDeleteUnit}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
         </div>
-      )}
+      </div>
 
       {/* ─── Dialog ───────────────────────────────────────────────────────── */}
       <DeliveryItemDialog
@@ -549,12 +701,12 @@ function LookupCard({
   onDelete: (id: string) => void;
 }) {
   return (
-    <div className="bg-surface border border-border rounded-2xl p-5">
-      <h3 className="text-sm font-semibold text-foreground mb-3">{title}</h3>
-      <div className="flex gap-2 mb-4">
+    <div className="bg-linear-to-br from-gray-50 to-white border border-gray-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow duration-300">
+      <h3 className="text-base font-semibold text-gray-800 mb-4">{title}</h3>
+      <div className="flex gap-2 mb-5">
         <input
           type="text"
-          className="flex-1 px-3 py-2 border border-border rounded-lg text-sm bg-background text-foreground placeholder:text-muted focus:outline-none focus:border-success"
+          className="flex-1 px-3.5 py-2.5 border border-gray-300 rounded-xl text-sm bg-white text-gray-800 placeholder:text-gray-400 focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500/20 transition-all"
           placeholder={`New ${title.toLowerCase().slice(0, -1)}...`}
           value={newName}
           onChange={(e) => onNewNameChange(e.target.value)}
@@ -562,26 +714,26 @@ function LookupCard({
         />
         <button
           onClick={onAdd}
-          className="px-3 py-2 bg-success text-white rounded-lg text-sm font-medium hover:bg-success/90 transition-colors"
+          className="px-3.5 py-2.5 bg-linear-to-r from-green-500 to-emerald-600 text-white rounded-xl text-sm font-medium hover:from-green-600 hover:to-emerald-700 transition-all shadow-md hover:shadow-lg"
         >
           <Plus className="w-4 h-4" />
         </button>
       </div>
-      <ul className="space-y-1 max-h-48 overflow-y-auto">
+      <ul className="space-y-1 max-h-56 overflow-y-auto pr-1">
         {items.length === 0 && (
-          <li className="text-xs text-muted py-2 text-center">
+          <li className="text-sm text-gray-400 py-4 text-center">
             No {title.toLowerCase()} yet
           </li>
         )}
         {items.map((item) => (
           <li
             key={item.id}
-            className="flex items-center justify-between px-3 py-2 rounded-lg hover:bg-background text-sm text-foreground"
+            className="flex items-center justify-between px-3.5 py-2.5 rounded-xl hover:bg-white hover:shadow-sm text-sm text-gray-700 transition-all duration-150"
           >
-            <span>{item.name}</span>
+            <span className="font-medium">{item.name}</span>
             <button
               onClick={() => onDelete(item.id)}
-              className="p-1 rounded hover:bg-danger/10 text-muted hover:text-danger transition-colors"
+              className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors"
               title="Delete"
             >
               <Trash2 className="w-3.5 h-3.5" />

@@ -30,9 +30,9 @@ const STATUS_CONFIG: Record<
 > = {
   consumed: {
     label: "Consumed",
-    bar: "bg-danger",
-    badge: "bg-danger/10 text-danger",
-    text: "text-danger",
+    bar: "bg-rose-500",
+    badge: "bg-rose-50 text-rose-600",
+    text: "text-rose-600",
     icon: <XCircle className="w-3.5 h-3.5" />,
   },
   critical: {
@@ -44,16 +44,16 @@ const STATUS_CONFIG: Record<
   },
   low: {
     label: "Low Stock",
-    bar: "bg-warning",
-    badge: "bg-warning/10 text-warning",
-    text: "text-warning",
+    bar: "bg-amber-500",
+    badge: "bg-amber-50 text-amber-600",
+    text: "text-amber-600",
     icon: <AlertTriangle className="w-3.5 h-3.5" />,
   },
   normal: {
     label: "Normal",
-    bar: "bg-success",
-    badge: "bg-success/10 text-success",
-    text: "text-success",
+    bar: "bg-emerald-500",
+    badge: "bg-emerald-50 text-emerald-600",
+    text: "text-emerald-600",
     icon: <CheckCircle className="w-3.5 h-3.5" />,
   },
 };
@@ -138,15 +138,15 @@ export default function StockOverview({
   );
 
   return (
-    <div className="bg-surface border border-border rounded-2xl p-6">
+    <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
       {/* ── Summary indicator chips ── */}
-      <div className="flex flex-wrap gap-3 mb-5">
+      <div className="px-6 pt-5 pb-2 flex flex-wrap gap-3">
         {(["normal", "low", "critical", "consumed"] as const).map((s) => {
           const cfg = STATUS_CONFIG[s];
           return (
             <div
               key={s}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium ${cfg.badge}`}
+              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-medium ${cfg.badge}`}
             >
               {cfg.icon}
               {cfg.label}: {counts[s]}
@@ -156,27 +156,27 @@ export default function StockOverview({
       </div>
 
       {/* ── Search + filter controls ── */}
-      <div className="flex flex-wrap items-center gap-3 mb-4">
-        <div className="relative w-64">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
+      <div className="px-6 py-4 flex flex-wrap items-center gap-3">
+        <div className="relative w-full max-w-sm">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             type="text"
-            className="w-full pl-10 pr-4 py-2 border border-border rounded-lg text-sm bg-background text-foreground placeholder:text-muted focus:outline-none focus:border-success"
+            className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50/50 text-gray-800 placeholder:text-gray-400 focus:outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100 transition-all"
             placeholder="Search items..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <div className="flex gap-1">
+        <div className="flex gap-1.5">
           {(["all", "normal", "low", "critical", "consumed"] as const).map(
             (f) => (
               <button
                 key={f}
                 onClick={() => setFilter(f)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                className={`px-3.5 py-2 rounded-xl text-xs font-medium transition-all duration-200 ${
                   filter === f
-                    ? "bg-primary text-white"
-                    : "bg-background text-muted hover:text-foreground border border-border"
+                    ? "bg-linear-to-r from-teal-500 to-cyan-600 text-white shadow-md"
+                    : "bg-white text-gray-500 hover:text-gray-700 border border-gray-300 hover:border-gray-400"
                 }`}
               >
                 {f === "all"
@@ -201,29 +201,29 @@ export default function StockOverview({
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr>
-              <th className="bg-background text-muted font-semibold text-left px-4 py-3 border-b border-border">
+            <tr className="bg-linear-to-r from-gray-50 to-gray-50/80">
+              <th className="text-gray-500 font-semibold text-left px-5 py-3.5 border-b border-gray-200 text-xs uppercase tracking-wider">
                 Item
               </th>
-              <th className="bg-background text-muted font-semibold text-left px-4 py-3 border-b border-border">
+              <th className="text-gray-500 font-semibold text-left px-5 py-3.5 border-b border-gray-200 text-xs uppercase tracking-wider">
                 Category
               </th>
-              <th className="bg-background text-muted font-semibold text-right px-4 py-3 border-b border-border">
+              <th className="text-gray-500 font-semibold text-right px-5 py-3.5 border-b border-gray-200 text-xs uppercase tracking-wider">
                 Original Stock
               </th>
-              <th className="bg-background text-muted font-semibold text-right px-4 py-3 border-b border-border">
+              <th className="text-gray-500 font-semibold text-right px-5 py-3.5 border-b border-gray-200 text-xs uppercase tracking-wider">
                 Total Issued
               </th>
-              <th className="bg-background text-muted font-semibold text-right px-4 py-3 border-b border-border">
+              <th className="text-gray-500 font-semibold text-right px-5 py-3.5 border-b border-gray-200 text-xs uppercase tracking-wider">
                 Remaining
               </th>
-              <th className="bg-background text-muted font-semibold text-center px-4 py-3 border-b border-border">
+              <th className="text-gray-500 font-semibold text-center px-5 py-3.5 border-b border-gray-200 text-xs uppercase tracking-wider">
                 Stock Level
               </th>
-              <th className="bg-background text-muted font-semibold text-center px-4 py-3 border-b border-border">
+              <th className="text-gray-500 font-semibold text-center px-5 py-3.5 border-b border-gray-200 text-xs uppercase tracking-wider">
                 Pending
               </th>
-              <th className="bg-background text-muted font-semibold text-left px-4 py-3 border-b border-border">
+              <th className="text-gray-500 font-semibold text-left px-5 py-3.5 border-b border-gray-200 text-xs uppercase tracking-wider">
                 Status
               </th>
             </tr>
@@ -231,7 +231,7 @@ export default function StockOverview({
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={8} className="text-center text-muted py-8">
+                <td colSpan={8} className="text-center text-gray-400 py-12">
                   {items.length === 0
                     ? "No delivery items found."
                     : "No items match the current filter."}
@@ -253,21 +253,21 @@ export default function StockOverview({
                   return (
                     <tr
                       key={item.id}
-                      className="hover:bg-background transition-colors"
+                      className="hover:bg-gray-50/80 transition-colors duration-150"
                     >
                       {/* Item */}
-                      <td className="px-4 py-3 border-b border-border/50">
+                      <td className="px-5 py-3.5 border-b border-gray-100">
                         <div className="flex flex-col gap-0.5">
-                          <span className="font-medium text-foreground">
+                          <span className="font-medium text-gray-800">
                             {item.description || "—"}
                           </span>
                           {item.brand?.name && (
-                            <span className="text-xs text-muted">
+                            <span className="text-xs text-gray-400">
                               {item.brand.name}
                             </span>
                           )}
                           {item.expiry_date && (
-                            <span className="text-xs text-muted">
+                            <span className="text-xs text-gray-400">
                               Exp:{" "}
                               {new Date(item.expiry_date).toLocaleDateString(
                                 "en-US",
@@ -283,76 +283,76 @@ export default function StockOverview({
                       </td>
 
                       {/* Category */}
-                      <td className="px-4 py-3 border-b border-border/50">
-                        <span className="inline-block px-2 py-0.5 text-xs rounded-full bg-primary/10 text-primary">
+                      <td className="px-5 py-3.5 border-b border-gray-100">
+                        <span className="inline-block px-2.5 py-1 text-xs rounded-full bg-blue-50 text-blue-600 font-medium">
                           {item.category?.name || "—"}
                         </span>
                       </td>
 
                       {/* Original stock — both delivery and issuance */}
-                      <td className="px-4 py-3 border-b border-border/50 text-right">
+                      <td className="px-5 py-3.5 border-b border-gray-100 text-right">
                         <div className="flex flex-col items-end gap-0.5">
-                          <span className="font-medium text-foreground">
+                          <span className="font-medium text-gray-800">
                             {fmt(item.quantity_delivery)}{" "}
-                            <span className="text-muted text-xs">
+                            <span className="text-gray-400 text-xs">
                               {deliveryUnit}
                             </span>
                           </span>
-                          <span className="text-xs text-muted">
+                          <span className="text-xs text-gray-400">
                             {fmt(item.quantity_issuance)} {issuanceUnit}
                           </span>
                         </div>
                       </td>
 
                       {/* Total issued */}
-                      <td className="px-4 py-3 border-b border-border/50 text-right text-foreground">
+                      <td className="px-5 py-3.5 border-b border-gray-100 text-right text-gray-800">
                         {fmt(totalIssued)}{" "}
-                        <span className="text-muted text-xs">
+                        <span className="text-gray-400 text-xs">
                           {issuanceUnit}
                         </span>
                       </td>
 
                       {/* Remaining — coloured by status */}
-                      <td className="px-4 py-3 border-b border-border/50 text-right">
+                      <td className="px-5 py-3.5 border-b border-gray-100 text-right">
                         <span className={`font-semibold ${cfg.text}`}>
                           {fmt(remaining)}{" "}
-                          <span className="text-xs font-normal text-muted">
+                          <span className="text-xs font-normal text-gray-400">
                             {issuanceUnit}
                           </span>
                         </span>
                       </td>
 
                       {/* Stock level progress bar */}
-                      <td className="px-4 py-3 border-b border-border/50">
+                      <td className="px-5 py-3.5 border-b border-gray-100">
                         <div className="flex flex-col items-center gap-1 min-w-28">
-                          <div className="w-full h-2 rounded-full bg-border overflow-hidden">
+                          <div className="w-full h-2 rounded-full bg-gray-200 overflow-hidden">
                             <div
                               className={`h-full rounded-full transition-all ${cfg.bar}`}
                               style={{ width: `${Math.min(100, pct)}%` }}
                             />
                           </div>
-                          <span className="text-xs text-muted">
+                          <span className="text-xs text-gray-400">
                             {pct.toFixed(1)}%
                           </span>
                         </div>
                       </td>
 
                       {/* Pending requests */}
-                      <td className="px-4 py-3 border-b border-border/50 text-center">
+                      <td className="px-5 py-3.5 border-b border-gray-100 text-center">
                         {pendingCount > 0 ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full font-medium bg-warning/10 text-warning">
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-full font-medium bg-amber-50 text-amber-600">
                             <AlertTriangle className="w-3 h-3" />
                             {pendingCount}
                           </span>
                         ) : (
-                          <span className="text-muted text-xs">—</span>
+                          <span className="text-gray-400 text-xs">—</span>
                         )}
                       </td>
 
                       {/* Status badge */}
-                      <td className="px-4 py-3 border-b border-border/50">
+                      <td className="px-5 py-3.5 border-b border-gray-100">
                         <span
-                          className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full font-medium ${cfg.badge}`}
+                          className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-full font-medium ${cfg.badge}`}
                         >
                           {cfg.icon}
                           {cfg.label}
@@ -367,8 +367,10 @@ export default function StockOverview({
         </table>
       </div>
 
-      <div className="text-xs text-muted mt-3">
-        Showing {filtered.length} of {items.length} items
+      <div className="px-6 py-3 border-t border-gray-100 bg-gray-50/50">
+        <span className="text-xs text-gray-500">
+          Showing {filtered.length} of {items.length} items
+        </span>
       </div>
     </div>
   );
