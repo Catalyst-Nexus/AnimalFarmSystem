@@ -341,15 +341,6 @@ const useMonitoring = () => {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const getStatusStyle = (status: string): string => {
-  const statusLower = status.toLowerCase()
-  if (statusLower.includes('active')) return 'bg-emerald-50 text-emerald-700 border-emerald-200'
-  if (statusLower.includes('sick')) return 'bg-amber-50 text-amber-700 border-amber-200'
-  if (statusLower.includes('deceased') || statusLower.includes('dead')) return 'bg-red-50 text-red-600 border-red-200'
-  if (statusLower.includes('sold')) return 'bg-sky-50 text-sky-700 border-sky-200'
-  return 'bg-gray-50 text-gray-600 border-gray-200'
-}
-
 const getStatusDot = (status: string): string => {
   const statusLower = status.toLowerCase()
   if (statusLower.includes('active')) return 'bg-emerald-500'
@@ -386,155 +377,6 @@ const OccupancyRing = ({ percent, size = 56, strokeWidth = 5 }: { percent: numbe
       <span className="absolute inset-0 flex items-center justify-center text-xs font-bold" style={{ color }}>
         {Math.round(percent)}%
       </span>
-    </div>
-  )
-}
-
-// ─── Tag Scanner Panel ────────────────────────────────────────────────────────
-
-const TagScanner = () => {
-  const { scanTag, cages } = useMonitoring()
-  const [input, setInput] = useState('')
-  const [result, setResult] = useState<Pig | 'not-found' | null>(null)
-  const [isScanning, setIsScanning] = useState(false)
-  const inputRef = useRef<HTMLInputElement>(null)
-
-  const handleScan = () => {
-    const trimmed = input.trim()
-    if (!trimmed) return
-    setIsScanning(true)
-    // Small delay for visual feedback
-    setTimeout(() => {
-      const pig = scanTag(trimmed)
-      setResult(pig ?? 'not-found')
-      setIsScanning(false)
-    }, 300)
-  }
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') handleScan()
-  }
-
-  const handleClear = () => {
-    setInput('')
-    setResult(null)
-    inputRef.current?.focus()
-  }
-
-  const cage = result && result !== 'not-found'
-    ? cages.find((c) => c.id === result.cageId)
-    : null
-
-  return (
-    <div className="relative overflow-hidden bg-surface border border-border rounded-2xl shadow-sm mb-6">
-      {/* Accent gradient top */}
-      <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-success via-emerald-400 to-teal-500" />
-
-      <div className="p-6">
-        <div className="flex items-center gap-3 mb-5">
-          <div className="p-2.5 bg-gradient-to-br from-success/20 to-emerald-500/10 rounded-xl">
-            <ScanBarcode className="w-5 h-5 text-success" />
-          </div>
-          <div>
-            <h3 className="text-base font-bold text-foreground">Quick Tag Scanner</h3>
-            <p className="text-xs text-muted">Scan or type a tag ID, then press Enter</p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3 mb-4">
-          <div className="flex-1 relative group">
-            <input
-              ref={inputRef}
-              className="w-full px-4 py-3 pl-11 border-2 border-border rounded-xl text-sm bg-background text-foreground placeholder:text-muted/60 focus:outline-none focus:border-success focus:ring-4 focus:ring-success/10 font-mono transition-all"
-              placeholder="Enter tag ID..."
-              value={input}
-              onChange={(e) => { setInput(e.target.value); setResult(null) }}
-              onKeyDown={handleKeyDown}
-            />
-            <ScanBarcode className="w-4 h-4 text-muted/50 group-focus-within:text-success absolute left-3.5 top-1/2 -translate-y-1/2 transition-colors" />
-            {input && !result && (
-              <kbd className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono text-muted bg-border/50 px-1.5 py-0.5 rounded">
-                Enter
-              </kbd>
-            )}
-          </div>
-          <button
-            className={cn(
-              'px-5 py-3 rounded-xl text-sm font-semibold transition-all flex items-center gap-2 shadow-sm',
-              isScanning
-                ? 'bg-success/80 text-white cursor-wait'
-                : 'bg-success text-white hover:bg-success/90 hover:shadow-md active:scale-95'
-            )}
-            onClick={handleScan}
-            disabled={isScanning || !input.trim()}
-          >
-            {isScanning ? (
-              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            ) : (
-              <Zap className="w-4 h-4" />
-            )}
-            Scan
-          </button>
-          {result !== null && (
-            <button
-              className="px-4 py-3 border border-border rounded-xl text-sm font-medium text-muted hover:bg-surface hover:text-foreground transition-all"
-              onClick={handleClear}
-            >
-              Clear
-            </button>
-          )}
-        </div>
-
-        {/* Result */}
-        {result === 'not-found' && (
-          <div className="flex items-start gap-3 p-4 bg-red-50/80 border border-red-200 rounded-xl animate-in fade-in slide-in-from-top-2 duration-300">
-            <div className="p-1.5 bg-red-100 rounded-lg shrink-0">
-              <XCircle className="w-4 h-4 text-red-500" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-red-700">No match found</p>
-              <p className="text-xs text-red-600/80 mt-0.5">Tag <span className="font-mono bg-red-100 px-1.5 py-0.5 rounded text-red-700">{input}</span> is not registered.</p>
-            </div>
-          </div>
-        )}
-
-        {result && result !== 'not-found' && (
-          <div className="animate-in fade-in slide-in-from-top-2 duration-300 bg-gradient-to-r from-emerald-50/80 to-green-50/50 border border-emerald-200 rounded-xl p-5">
-            <div className="flex items-start gap-4">
-              {/* Circular weight display */}
-              <div className="w-16 h-16 rounded-2xl bg-white border-2 border-emerald-200 flex flex-col items-center justify-center shrink-0 shadow-sm">
-                <span className="text-lg font-black text-emerald-700 leading-tight">{result.weight}</span>
-                <span className="text-[10px] font-medium text-emerald-500 -mt-0.5">kg</span>
-              </div>
-
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  <span className="text-sm font-bold text-emerald-800">Tag Found</span>
-                  <span className="font-mono text-xs bg-white border border-emerald-200 px-2 py-0.5 rounded-md text-emerald-700">{result.tagId}</span>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <span className="inline-flex items-center gap-1.5 text-xs font-medium text-foreground bg-white px-2.5 py-1 rounded-lg border border-border">
-                    <Hash className="w-3 h-3 text-muted" /> {result.breed}
-                  </span>
-                  <span className={cn('inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold border', SEX_STYLES[result.sex])}>
-                    {result.sex}
-                  </span>
-                  <span className={cn('inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border', getStatusStyle(result.status))}>
-                    <span className={cn('w-1.5 h-1.5 rounded-full', getStatusDot(result.status))} />
-                    {result.status}
-                  </span>
-                </div>
-                {cage && (
-                  <p className="mt-2 text-xs text-muted flex items-center gap-1">
-                    <PiggyBank className="w-3 h-3" /> Located in <strong className="text-emerald-700 ml-0.5">{cage.label}</strong>
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
     </div>
   )
 }
@@ -1827,8 +1669,6 @@ const MonitoringApp = () => {
       {/* Tab Content */}
       {activeTab === 'monitoring' ? (
         <>
-          <TagScanner />
-
           {/* Controls bar */}
           <div className="flex items-center justify-between gap-3 mb-5">
             {/* Search */}
