@@ -1,3 +1,4 @@
+export { default as AnimalAdmin } from './AnimalAdmin'
 export { default as AnimalMonitoring } from './AnimalMonitoring'
 export { default as AnimalTagging } from './AnimalTagging'
 export { default as Breeding } from './Breeding'

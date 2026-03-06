@@ -8,8 +8,18 @@ export interface Cage {
   is_active: boolean
 }
 
+interface JoinedTagInfo {
+  tag_animals_colors: {
+    tag_code: number
+    animal_types: { animal_name: string }
+    tag_colors: { color: string; color_name: string }
+    tag_types: { type: string }
+  }
+}
+
 export interface Animal {
   id: string
+  tag_animals_colors_id: string | null
   current_cage_id: string | null
   mother_id?: string | null
   father_id?: string | null
@@ -17,6 +27,7 @@ export interface Animal {
   sex: string
   weight: number
   status: string
+  is_active: boolean
   created_at?: string
 }
 
@@ -43,7 +54,7 @@ export async function getCages(): Promise<Cage[]> {
 }
 
 /**
- * Fetch all animals from Supabase
+ * Fetch all animals from Supabase with joined tag information
  */
 export async function getAnimals(): Promise<Animal[]> {
   if (!isSupabaseConfigured()) {
@@ -53,7 +64,15 @@ export async function getAnimals(): Promise<Animal[]> {
   const { data, error } = await supabase!
     .schema('module2')
     .from('animals')
-    .select('*')
+    .select(`
+      *,
+      tag_animals_colors!tag_animals_colors_id(
+        tag_code,
+        animal_types!animal_type_id(animal_name),
+        tag_colors!tag_color_id(color, color_name),
+        tag_types!tag_type_id(type)
+      )
+    `)
     .order('created_at', { ascending: false })
 
   if (error) {
@@ -61,7 +80,16 @@ export async function getAnimals(): Promise<Animal[]> {
     throw error
   }
 
-  return data || []
+  // Format the data to include type string
+  const formattedData = (data || []).map((animal: Animal & Partial<JoinedTagInfo>) => {
+    const tagInfo = animal.tag_animals_colors
+    const type = tagInfo
+      ? `${tagInfo.tag_types?.type || ''}-${tagInfo.tag_code || ''} | ${tagInfo.animal_types?.animal_name || ''}`
+      : ''
+    return { ...animal, type }
+  })
+
+  return formattedData
 }
 
 /**
@@ -152,7 +180,15 @@ export async function updateAnimalCage(
     .from('animals')
     .update({ current_cage_id: cageId })
     .eq('id', animalId)
-    .select()
+    .select(`
+      *,
+      tag_animals_colors!tag_animals_colors_id(
+        tag_code,
+        animal_types!animal_type_id(animal_name),
+        tag_colors!tag_color_id(color, color_name),
+        tag_types!tag_type_id(type)
+      )
+    `)
     .single()
 
   if (error) {
@@ -160,7 +196,12 @@ export async function updateAnimalCage(
     throw error
   }
 
-  return data
+  // Format the data to include type string
+  const tagInfo = (data as Animal & Partial<JoinedTagInfo>).tag_animals_colors
+  const type = tagInfo
+    ? `${tagInfo.tag_types?.type || ''}-${tagInfo.tag_code || ''} | ${tagInfo.animal_types?.animal_name || ''}`
+    : ''
+  return { ...data, type }
 }
 
 /**
@@ -174,7 +215,15 @@ export async function getAnimalsByCage(cageId: string): Promise<Animal[]> {
   const { data, error } = await supabase!
     .schema('module2')
     .from('animals')
-    .select('*')
+    .select(`
+      *,
+      tag_animals_colors!tag_animals_colors_id(
+        tag_code,
+        animal_types!animal_type_id(animal_name),
+        tag_colors!tag_color_id(color, color_name),
+        tag_types!tag_type_id(type)
+      )
+    `)
     .eq('current_cage_id', cageId)
     .order('weight', { ascending: true })
 
@@ -183,7 +232,16 @@ export async function getAnimalsByCage(cageId: string): Promise<Animal[]> {
     throw error
   }
 
-  return data || []
+  // Format the data to include type string
+  const formattedData = (data || []).map((animal: Animal & Partial<JoinedTagInfo>) => {
+    const tagInfo = animal.tag_animals_colors
+    const type = tagInfo
+      ? `${tagInfo.tag_types?.type || ''}-${tagInfo.tag_code || ''} | ${tagInfo.animal_types?.animal_name || ''}`
+      : ''
+    return { ...animal, type }
+  })
+
+  return formattedData
 }
 
 /**
