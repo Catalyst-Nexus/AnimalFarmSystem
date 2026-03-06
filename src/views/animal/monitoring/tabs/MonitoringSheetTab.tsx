@@ -10,9 +10,13 @@ import {
   WifiOff,
   Scale,
   XCircle,
+  ShieldCheck,
+  ShieldAlert,
 } from 'lucide-react'
 import { useMonitoring } from '../MonitoringContext'
 import { SEX_STYLES } from '../utils'
+import { useAuthStore } from '@/store/authStore'
+import { isDeviceRegistered, registerDevice, updateLastConnected } from '@/services/bleDeviceService'
 
 // BLE Constants for ESP32 Weight Scale
 const BLE_SERVICE_UUID = '0000181d-0000-1000-8000-00805f9b34fb'
@@ -20,6 +24,7 @@ const BLE_CHARACTERISTIC_UUID = '00002a9d-0000-1000-8000-00805f9b34fb'
 
 export const MonitoringSheetTab = () => {
   const { pigs, cages, updatePigWeight } = useMonitoring()
+  const { user } = useAuthStore()
   const [selectedCages, setSelectedCages] = useState<string[]>([])
   const [editingWeights, setEditingWeights] = useState<Record<string, string>>({})
   const [updatingPigs, setUpdatingPigs] = useState<Set<string>>(new Set())
@@ -30,6 +35,7 @@ export const MonitoringSheetTab = () => {
   const [bleError, setBleError] = useState<string | null>(null)
   const [bleWeight, setBleWeight] = useState<string>('')
   const [selectedAnimalForBle, setSelectedAnimalForBle] = useState<string | null>(null)
+  const [pendingDevice, setPendingDevice] = useState<{ device: BluetoothDevice; deviceId: string } | null>(null)
   const bleDeviceRef = useRef<BluetoothDevice | null>(null)
   const bleCharRef = useRef<BluetoothRemoteGATTCharacteristic | null>(null)
 
@@ -92,7 +98,7 @@ export const MonitoringSheetTab = () => {
     }
   }, [selectedAnimalForBle])
 
-  // Connect to ESP32 via BLE
+  // Connect to ESP32 via BLE with device verification
   const connectBle = async () => {
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
     if (!navigator.bluetooth) {
@@ -108,14 +114,55 @@ export const MonitoringSheetTab = () => {
       return
     }
 
+    if (!user) {
+      setBleError('You must be logged in to connect to a Bluetooth device.')
+      return
+    }
+
     setBleStatus('connecting')
     setBleError(null)
 
     try {
+      // Step 1: Request device
       const device = await navigator.bluetooth.requestDevice({
         filters: [{ name: 'ESP32_WeightScale' }],
         optionalServices: [BLE_SERVICE_UUID],
       })
+
+      // Step 2: Extract MAC address from device name (format: ESP32_WeightScale_aa:bb:cc:dd:ee:ff)
+      const deviceId = device.id
+      let macAddress: string | undefined
+      
+      if (device.name) {
+        const macMatch = device.name.match(/ESP32_WeightScale_([0-9a-fA-F:]{17})/)
+        if (macMatch) {
+          macAddress = macMatch[1].toLowerCase() // Normalize to lowercase
+          console.log('✓ Extracted MAC address:', macAddress)
+        }
+      }
+
+      // Step 3: Check if device is registered (by MAC address or device ID)
+      const { registered, device: registeredDevice, error: checkError } = await isDeviceRegistered(deviceId, macAddress)
+
+      if (checkError) {
+        setBleError(`Database error: ${checkError}`)
+        setBleStatus('disconnected')
+        return
+      }
+
+      if (!registered) {
+        // Device not registered - show registration prompt
+        setPendingDevice({ device, deviceId })
+        setBleStatus('disconnected')
+        const macInfo = macAddress ? ` MAC: ${macAddress}` : ''
+        setBleError(
+          `⚠️ Device "${device.name}" (ID: ${deviceId.substring(0, 16)}...${macInfo}) is not registered in the database. You must register it before connecting.`
+        )
+        return
+      }
+
+      // Step 4: Device is registered - proceed with connection
+      console.log('✓ Device verified:', registeredDevice)
 
       device.addEventListener('gattserverdisconnected', () => {
         setBleStatus('disconnected')
@@ -133,6 +180,15 @@ export const MonitoringSheetTab = () => {
       bleDeviceRef.current = device
       bleCharRef.current = characteristic
       setBleStatus('connected')
+      setPendingDevice(null)
+
+      // Update last connected timestamp (prefer MAC, fallback to device ID)
+      if (macAddress) {
+        // Update using MAC address as primary identifier
+        await updateLastConnected(deviceId)
+      } else {
+        await updateLastConnected(deviceId)
+      }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to connect'
       if (!message.includes('cancelled')) {
@@ -140,6 +196,81 @@ export const MonitoringSheetTab = () => {
       }
       setBleStatus('disconnected')
     }
+  }
+
+  // Register pending device
+  const registerPendingDevice = async () => {
+    if (!pendingDevice || !user) return
+
+    setBleStatus('connecting')
+    setBleError(null)
+
+    const { device, deviceId } = pendingDevice
+
+    try {
+      // Extract MAC address from device name (format: ESP32_WeightScale_aa:bb:cc:dd:ee:ff)
+      let macAddress: string | undefined
+      
+      if (device.name) {
+        const macMatch = device.name.match(/ESP32_WeightScale_([0-9a-fA-F:]{17})/)
+        if (macMatch) {
+          macAddress = macMatch[1].toLowerCase() // Normalize to lowercase
+        }
+      }
+
+      if (!macAddress) {
+        setBleError('Could not extract MAC address from device name. Please ensure ESP32 firmware includes MAC in device name.')
+        setBleStatus('disconnected')
+        return
+      }
+
+      // Register the device
+      const { success, error: regError } = await registerDevice(
+        deviceId,
+        device.name || 'ESP32_WeightScale',
+        user.id,
+        macAddress, // Full MAC address (aa:bb:cc:dd:ee:ff)
+        'Registered via Animal Monitoring'
+      )
+
+      if (!success) {
+        setBleError(`Failed to register device: ${regError}`)
+        setBleStatus('disconnected')
+        return
+      }
+
+      console.log('✓ Device registered successfully with MAC:', macAddress)
+
+      // Now connect to the device
+      device.addEventListener('gattserverdisconnected', () => {
+        setBleStatus('disconnected')
+        setBleWeight('')
+        bleCharRef.current = null
+      })
+
+      const server = await device.gatt!.connect()
+      const service = await server.getPrimaryService(BLE_SERVICE_UUID)
+      const characteristic = await service.getCharacteristic(BLE_CHARACTERISTIC_UUID)
+
+      await characteristic.startNotifications()
+      characteristic.addEventListener('characteristicvaluechanged', handleBleNotification)
+
+      bleDeviceRef.current = device
+      bleCharRef.current = characteristic
+      setBleStatus('connected')
+      setPendingDevice(null)
+      setBleError(null)
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to connect'
+      setBleError(message)
+      setBleStatus('disconnected')
+    }
+  }
+
+  // Cancel pending device registration
+  const cancelPendingDevice = () => {
+    setPendingDevice(null)
+    setBleError(null)
   }
 
   // Disconnect BLE
@@ -227,10 +358,48 @@ export const MonitoringSheetTab = () => {
           </div>
         </div>
 
-        {bleError && (
+        {bleError && !pendingDevice && (
           <div className="flex items-start gap-3 p-3 bg-red-50 border-2 border-red-200 rounded-xl">
             <XCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
             <p className="text-xs text-red-700">{bleError}</p>
+          </div>
+        )}
+
+        {pendingDevice && bleError && (
+          <div className="mt-4 p-4 bg-amber-50 border-2 border-amber-300 rounded-xl space-y-3">
+            <div className="flex items-start gap-3">
+              <ShieldAlert className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm font-bold text-amber-900 mb-1">Unregistered Device Detected</p>
+                <p className="text-xs text-amber-700 mb-2">{bleError}</p>
+                <div className="bg-amber-100/50 border border-amber-200 rounded-lg p-3 mb-3">
+                  <p className="text-xs text-amber-800 font-semibold mb-1">Device Information:</p>
+                  <div className="text-xs text-amber-700 space-y-0.5 font-mono">
+                    <div>Name: <span className="font-bold">{pendingDevice.device.name}</span></div>
+                    <div>ID: <span className="font-bold">{pendingDevice.deviceId}</span></div>
+                  </div>
+                </div>
+                <p className="text-xs text-amber-700 mb-3">
+                  <ShieldCheck className="w-3 h-3 inline mr-1" />
+                  For security, only registered devices can connect to the system. Would you like to register this device?
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={registerPendingDevice}
+                    className="px-4 py-2 bg-amber-600 text-white rounded-lg text-xs font-bold hover:bg-amber-700 active:scale-95 transition-all flex items-center gap-2"
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    Register & Connect
+                  </button>
+                  <button
+                    onClick={cancelPendingDevice}
+                    className="px-4 py-2 border border-amber-300 text-amber-700 rounded-lg text-xs font-semibold hover:bg-amber-100 active:scale-95 transition-all"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 

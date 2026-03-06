@@ -94,9 +94,9 @@ export default function TagCodesList({
                           className="w-8 h-8 rounded-lg shadow-sm border-2 border-white ring-2 ring-gray-200"
                           style={{ backgroundColor: tagCode.tag_colors?.color || '#gray' }}
                         />
-                        {tagCode.tag_colors?.color_name && (
+                        {tagCode.tag_colors?.color && (
                           <span className="text-sm font-medium text-gray-900">
-                            {tagCode.tag_colors.color_name}
+                            {tagCode.tag_colors.color}
                           </span>
                         )}
                       </div>
