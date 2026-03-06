@@ -47,7 +47,7 @@ export interface Facility {
 
 export interface UserFacility {
   user_id: string
-  facilities_id: string
+  facility_id: string
   created_at: string
 }
 
@@ -360,7 +360,7 @@ export const assignFacilitiesToUser = async (
     if (facilityIds.length > 0) {
       const assignments = facilityIds.map((facilityId) => ({
         user_id: userId,
-        facilities_id: facilityId,
+        facility_id: facilityId,
       }))
 
       const { error } = await supabase.from('user_facilities').insert(assignments)
@@ -385,7 +385,7 @@ export const getUserFacilities = async (userId: string): Promise<Facility[]> => 
     const { data, error } = await supabase
       .from('user_facilities')
       .select(`
-        facilities:facilities_id (
+        facilities:facility_id (
           id,
           facility_name,
           is_active,

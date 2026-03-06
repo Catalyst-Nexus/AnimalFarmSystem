@@ -14,7 +14,7 @@ export interface UserFacilityInfo {
 }
 
 /**
- * Get the raw facilities_id values assigned to a user (facilities.id values).
+ * Get the raw facility_id values assigned to a user (facilities.id values).
  * Used internally for access checks.
  */
 const getRawFacilityIds = async (userId: string): Promise<string[]> => {
@@ -22,10 +22,10 @@ const getRawFacilityIds = async (userId: string): Promise<string[]> => {
   try {
     const { data, error } = await supabase
       .from('user_facilities')
-      .select('facilities_id')
+      .select('facility_id')
       .eq('user_id', userId)
     if (error) return []
-    return (data || []).map(item => item.facilities_id).filter(Boolean)
+    return (data || []).map(item => item.facility_id).filter(Boolean)
   } catch {
     return []
   }
@@ -75,7 +75,7 @@ export const getUserFacilityIds = async (userId: string): Promise<string[]> => {
     const { data, error } = await supabase
       .from('user_facilities')
       .select('id')
-      .in('facilities_id', rawIds)
+      .in('facility_id', rawIds)
 
     if (error) {
       console.error('Error fetching shared facility junction IDs:', error)
@@ -152,9 +152,9 @@ export const userHasAccessToFacility = async (
   try {
     const { data, error } = await supabase
       .from('user_facilities')
-      .select('facilities_id')
+      .select('facility_id')
       .eq('user_id', userId)
-      .eq('facilities_id', facilityId)
+      .eq('facility_id', facilityId)
       .maybeSingle()
 
     if (error) {
