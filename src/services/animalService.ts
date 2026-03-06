@@ -2,16 +2,27 @@ import { supabase, isSupabaseConfigured } from './supabase'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+interface JoinedTagInfo {
+  tag_animals_colors: {
+    animal_types: { animal_name: string }
+    tag_colors: { color: string; color_name: string }
+    tag_types: { type: string }
+  }
+}
+
 export interface Animal {
-  id: string // Manual barcode ID
+  id: string // Tag code ID (e.g., "EAR-1")
+  tag_animals_colors_id: string | null
   current_cage_id: string | null
   mother_id: string | null
   father_id: string | null
-  type: string
   sex: string
   weight: number
   status: string
+  is_active: boolean
   created_at: string
+  // Joined data for display
+  type?: string // Computed from tag_animals_colors join
 }
 
 export interface Cage {
@@ -38,7 +49,14 @@ export const animalService = {
       const { data, error } = await supabase!
         .schema('module2')
         .from('animals')
-        .select('*')
+        .select(`
+          *,
+          tag_animals_colors!tag_animals_colors_id(
+            animal_types!animal_type_id(animal_name),
+            tag_colors!tag_color_id(color, color_name),
+            tag_types!tag_type_id(type)
+          )
+        `)
         .order('created_at', { ascending: false })
 
       if (error) {
@@ -46,7 +64,16 @@ export const animalService = {
         return []
       }
 
-      return data || []
+      // Format the data to include type string
+      const formattedData = (data || []).map((animal: Animal & Partial<JoinedTagInfo>) => {
+        const tagInfo = animal.tag_animals_colors
+        const type = tagInfo
+          ? `${tagInfo.tag_types?.type || ''} | ${tagInfo.animal_types?.animal_name || ''}`
+          : ''
+        return { ...animal, type }
+      })
+
+      return formattedData
     } catch (err) {
       console.error('Error fetching animals:', err)
       return []
@@ -81,8 +108,8 @@ export const animalService = {
    * Create a new animal
    */
   async createAnimal(animal: {
-    id: string // Manual barcode ID
-    type: string
+    id: string // Tag code ID (e.g., "EAR-1")
+    tag_animals_colors_id: string
     sex: string
     weight: number
     status: string
@@ -102,7 +129,7 @@ export const animalService = {
         .insert([
           {
             id: animal.id,
-            type: animal.type,
+            tag_animals_colors_id: animal.tag_animals_colors_id,
             sex: animal.sex,
             weight: animal.weight,
             status: animal.status,
@@ -111,7 +138,14 @@ export const animalService = {
             father_id: animal.father_id || null,
           },
         ])
-        .select()
+        .select(`
+          *,
+          tag_animals_colors!tag_animals_colors_id(
+            animal_types!animal_type_id(animal_name),
+            tag_colors!tag_color_id(color, color_name),
+            tag_types!tag_type_id(type)
+          )
+        `)
         .single()
 
       if (error) {
@@ -119,7 +153,12 @@ export const animalService = {
         return null
       }
 
-      return data
+      // Format the data to include type string
+      const tagInfo = (data as Animal & Partial<JoinedTagInfo>).tag_animals_colors
+      const type = tagInfo
+        ? `${tagInfo.tag_types?.type || ''} | ${tagInfo.animal_types?.animal_name || ''}`
+        : ''
+      return { ...data, type }
     } catch (err) {
       console.error('Error creating animal:', err)
       return null
@@ -132,7 +171,6 @@ export const animalService = {
   async updateAnimal(
     id: string,
     updates: Partial<{
-      type: string
       sex: string
       weight: number
       status: string
@@ -152,7 +190,14 @@ export const animalService = {
         .from('animals')
         .update(updates)
         .eq('id', id)
-        .select()
+        .select(`
+          *,
+          tag_animals_colors!tag_animals_colors_id(
+            animal_types!animal_type_id(animal_name),
+            tag_colors!tag_color_id(color, color_name),
+            tag_types!tag_type_id(type)
+          )
+        `)
         .single()
 
       if (error) {
@@ -160,7 +205,12 @@ export const animalService = {
         return null
       }
 
-      return data
+      // Format the data to include type string
+      const tagInfo = (data as Animal & Partial<JoinedTagInfo>).tag_animals_colors
+      const type = tagInfo
+        ? `${tagInfo.tag_types?.type || ''} | ${tagInfo.animal_types?.animal_name || ''}`
+        : ''
+      return { ...data, type }
     } catch (err) {
       console.error('Error updating animal:', err)
       return null
