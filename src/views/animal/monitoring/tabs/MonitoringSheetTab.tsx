@@ -34,6 +34,7 @@ export const MonitoringSheetTab = () => {
   const [bleStatus, setBleStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected')
   const [bleError, setBleError] = useState<string | null>(null)
   const [bleWeight, setBleWeight] = useState<string>('')
+  const [bleDeviceMac, setBleDeviceMac] = useState<string | null>(null)
   const [selectedAnimalForBle, setSelectedAnimalForBle] = useState<string | null>(null)
   const [pendingDevice, setPendingDevice] = useState<{ device: BluetoothDevice; deviceId: string } | null>(null)
   const bleDeviceRef = useRef<BluetoothDevice | null>(null)
@@ -86,10 +87,16 @@ export const MonitoringSheetTab = () => {
     const decoder = new TextDecoder()
     const text = decoder.decode(value)
 
-    // Parse "Weight:XX.X" format from ESP32
-    const match = text.match(/Weight:([\d.]+)/)
-    if (match) {
-      const weight = match[1]
+    const macMatch = text.match(/MAC:([0-9a-f:]+)/i)
+    const weightMatch = text.match(/Weight:([\d.]+)/)
+
+    if (macMatch) {
+      const macAddress = macMatch[1].toLowerCase()
+      setBleDeviceMac(macAddress)
+    }
+
+    if (weightMatch) {
+      const weight = weightMatch[1]
       setBleWeight(weight)
       // Auto-fill weight for selected animal
       if (selectedAnimalForBle) {
@@ -125,7 +132,7 @@ export const MonitoringSheetTab = () => {
     try {
       // Step 1: Request device
       const device = await navigator.bluetooth.requestDevice({
-        filters: [{ name: 'ESP32_WeightScale' }],
+        filters: [{ namePrefix: 'ESP32_WeightScale' }],
         optionalServices: [BLE_SERVICE_UUID],
       })
 
@@ -220,11 +227,12 @@ export const MonitoringSheetTab = () => {
 
 
       // Register the device
+      const resolvedMac = macAddress ?? bleDeviceMac ?? undefined
       const { success, error: regError } = await registerDevice(
         deviceId,
         device.name || 'ESP32_WeightScale',
         user.id,
-        macAddress, // Full MAC address (aa:bb:cc:dd:ee:ff)
+        resolvedMac, // Full MAC address (aa:bb:cc:dd:ee:ff)
         'Registered via Animal Monitoring'
       )
 
